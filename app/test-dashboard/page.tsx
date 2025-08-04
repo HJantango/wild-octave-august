@@ -39,7 +39,7 @@ export default async function TestDashboardPage() {
   // Transform the data to match the expected format
   const invoiceData = {
     vendor_name: invoice.vendor.name,
-    line_items: invoice.lineItems.map(item => ({
+    line_items: invoice.lineItems.map((item: any) => ({
       id: item.id,
       product_name: item.productName,
       quantity: item.quantity,
