@@ -1,55 +1,54 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { squareAPI } from '@/lib/square-api';
-
-export const dynamic = 'force-dynamic';
+import { db } from '@/lib/db';
+import { getSquareAPI } from '@/lib/square-api';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const skip = (page - 1) * limit;
-    
-    const where = search ? {
-      OR: [
-        { name: { contains: search, mode: 'insensitive' as const } },
-        { description: { contains: search, mode: 'insensitive' as const } },
-        { sku: { contains: search, mode: 'insensitive' as const } }
-      ]
-    } : {};
-    
-    const [products, total] = await Promise.all([
-      prisma.squareProduct.findMany({
-        where,
-        include: {
-          inventoryRecords: true,
-          productLinks: true,
-          lineItems: {
-            take: 5,
-            orderBy: { createdAt: 'desc' }
-          }
-        },
-        orderBy: { name: 'asc' },
-        skip,
-        take: limit
-      }),
-      prisma.squareProduct.count({ where })
-    ]);
-    
-    return NextResponse.json({
-      products,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
+    const includeInventory = searchParams.get('includeInventory') === 'true';
+    const includeSquareData = searchParams.get('includeSquareData') === 'true';
+
+    // Get products from database
+    const products = await db.product.findMany({
+      include: {
+        inventoryRecords: includeInventory,
+        category: true
+      },
+      orderBy: {
+        name: 'asc'
       }
     });
+
+    let result = products;
+
+    // If Square data is requested, fetch it
+    if (includeSquareData) {
+      try {
+        const squareAPI = getSquareAPI();
+        const squareProducts = await squareAPI.getProducts();
+        
+        // Merge Square data with database products
+        result = products.map(product => {
+          const squareProduct = squareProducts.find(sp => sp.id === product.squareId);
+          return {
+            ...product,
+            squareData: squareProduct || null
+          };
+        });
+      } catch (squareError) {
+        console.warn('Could not fetch Square data:', squareError);
+        // Continue without Square data
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      products: result,
+      count: result.length
+    });
+
   } catch (error) {
-    console.error('Error fetching Square products:', error);
+    console.error('Error fetching products:', error);
     return NextResponse.json(
       { error: 'Failed to fetch products' },
       { status: 500 }
@@ -59,37 +58,53 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, description, sku, price } = await request.json();
-    
-    if (!name) {
-      return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
+    const productData = await request.json();
+
+    const {
+      name,
+      description,
+      price,
+      stockQuantity,
+      categoryId,
+      squareId,
+      sku,
+      barcode
+    } = productData;
+
+    if (!name || price === undefined) {
+      return NextResponse.json(
+        { error: 'Name and price are required' },
+        { status: 400 }
+      );
     }
-    
-    // Create product in Square
-    const squareProduct = await squareAPI.createProduct(name, description, sku, price);
-    
-    // Save to our database
-    const savedProduct = await prisma.squareProduct.create({
+
+    // Create the product
+    const product = await db.product.create({
       data: {
-        squareId: squareProduct.id!,
-        name: squareProduct.item_data?.name || name,
-        description: squareProduct.item_data?.description || description,
-        sku: squareProduct.item_data?.variations?.[0]?.item_variation_data?.sku || sku,
-        category: squareProduct.item_data?.category_id || null,
-        price: squareProduct.item_data?.variations?.[0]?.item_variation_data?.price_money?.amount 
-          ? squareProduct.item_data.variations[0].item_variation_data!.price_money!.amount / 100 
-          : price,
-        currency: 'AUD',
-        isActive: true,
-        lastSyncedAt: new Date()
+        name,
+        description,
+        price: parseFloat(price),
+        stockQuantity: parseInt(stockQuantity) || 0,
+        categoryId: categoryId || null,
+        squareId,
+        sku,
+        barcode
+      },
+      include: {
+        category: true,
+        inventoryRecords: true
       }
     });
-    
-    return NextResponse.json({ success: true, product: savedProduct });
+
+    return NextResponse.json({
+      success: true,
+      product
+    });
+
   } catch (error) {
     console.error('Error creating product:', error);
     return NextResponse.json(
-      { error: 'Failed to create product', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to create product' },
       { status: 500 }
     );
   }
