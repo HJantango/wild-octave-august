@@ -1,0 +1,203 @@
+
+# Wild Octave Organics Invoice Processing System
+# Environment Configuration Template
+# Copy this file to .env and fill in your actual values
+
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+
+# PostgreSQL database connection string
+# Format: postgresql://username:password@host:port/database_name
+DATABASE_URL="postgresql://username:password@localhost:5432/wild_octave_db"
+
+# Alternative for local development with Docker
+# DATABASE_URL="postgresql://postgres:password@localhost:5432/wild_octave_dev"
+
+# =============================================================================
+# SQUARE API CONFIGURATION
+# =============================================================================
+
+# Square Application ID (from Square Developer Dashboard)
+SQUARE_APPLICATION_ID="your_square_application_id_here"
+
+# Square Access Token (Sandbox or Production)
+# Sandbox: starts with EAAAl...
+# Production: starts with EAAAl... (different token)
+SQUARE_ACCESS_TOKEN="your_square_access_token_here"
+
+# Square Environment: "sandbox" for testing, "production" for live
+SQUARE_ENVIRONMENT="sandbox"
+
+# Square Webhook Signature Key (for webhook verification)
+SQUARE_WEBHOOK_SIGNATURE_KEY="your_webhook_signature_key_here"
+
+# Square Location ID (your business location)
+SQUARE_LOCATION_ID="your_square_location_id_here"
+
+# =============================================================================
+# NEXTAUTH CONFIGURATION
+# =============================================================================
+
+# NextAuth URL (your application URL)
+NEXTAUTH_URL="http://localhost:3000"
+
+# NextAuth Secret (generate with: openssl rand -base64 32)
+NEXTAUTH_SECRET="your_nextauth_secret_key_here"
+
+# =============================================================================
+# APPLICATION CONFIGURATION
+# =============================================================================
+
+# Node Environment
+NODE_ENV="development"
+
+# Public App URL (used for webhooks and external links)
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+# =============================================================================
+# CRON JOB CONFIGURATION
+# =============================================================================
+
+# Secret key for cron job authentication
+CRON_SECRET="your_cron_secret_key_here"
+
+# Timezone for scheduled tasks (default: Australia/Sydney)
+TIMEZONE="Australia/Sydney"
+
+# =============================================================================
+# EMAIL CONFIGURATION (Optional)
+# =============================================================================
+
+# SMTP Configuration for email notifications
+SMTP_HOST="your_smtp_host"
+SMTP_PORT="587"
+SMTP_USER="your_smtp_username"
+SMTP_PASS="your_smtp_password"
+SMTP_FROM="noreply@wildoctaveorganics.com"
+
+# =============================================================================
+# OPTIONAL CONFIGURATIONS
+# =============================================================================
+
+# Enable debug logging
+DEBUG="false"
+
+# Log level: "error", "warn", "info", "debug"
+LOG_LEVEL="info"
+
+# File upload limits
+MAX_FILE_SIZE="10485760"  # 10MB in bytes
+ALLOWED_FILE_TYPES="application/pdf"
+
+# Session configuration
+SESSION_MAX_AGE="86400"  # 24 hours in seconds
+
+# Rate limiting
+RATE_LIMIT_MAX="100"  # requests per window
+RATE_LIMIT_WINDOW="900000"  # 15 minutes in milliseconds
+
+# =============================================================================
+# PRODUCTION-SPECIFIC CONFIGURATIONS
+# =============================================================================
+
+# Uncomment and configure for production deployment
+
+# SSL Configuration
+# FORCE_HTTPS="true"
+# SSL_CERT_PATH="/path/to/ssl/cert.pem"
+# SSL_KEY_PATH="/path/to/ssl/key.pem"
+
+# Redis Configuration (for session storage in production)
+# REDIS_URL="redis://localhost:6379"
+
+# Monitoring and Analytics
+# SENTRY_DSN="your_sentry_dsn_here"
+# GOOGLE_ANALYTICS_ID="your_ga_id_here"
+
+# CDN Configuration
+# CDN_URL="https://your-cdn-domain.com"
+
+# =============================================================================
+# DEVELOPMENT-SPECIFIC CONFIGURATIONS
+# =============================================================================
+
+# Uncomment for development features
+
+# Enable development tools
+# NEXT_PUBLIC_DEV_TOOLS="true"
+
+# Mock external services
+# MOCK_SQUARE_API="false"
+# MOCK_EMAIL_SERVICE="false"
+
+# Database seeding
+# AUTO_SEED_DB="true"
+
+# =============================================================================
+# SECURITY CONFIGURATIONS
+# =============================================================================
+
+# CORS Configuration
+# CORS_ORIGIN="https://your-domain.com"
+
+# Content Security Policy
+# CSP_REPORT_URI="https://your-domain.com/api/csp-report"
+
+# API Rate Limiting
+# API_RATE_LIMIT="1000"  # requests per hour per IP
+
+# =============================================================================
+# BACKUP CONFIGURATIONS
+# =============================================================================
+
+# Database backup settings
+# BACKUP_SCHEDULE="0 2 * * *"  # Daily at 2 AM
+# BACKUP_RETENTION_DAYS="30"
+# BACKUP_STORAGE_PATH="/backups"
+
+# =============================================================================
+# INTEGRATION CONFIGURATIONS
+# =============================================================================
+
+# Third-party service integrations
+# SLACK_WEBHOOK_URL="your_slack_webhook_url"
+# DISCORD_WEBHOOK_URL="your_discord_webhook_url"
+
+# =============================================================================
+# NOTES
+# =============================================================================
+
+# 1. Never commit this file with real values to version control
+# 2. Use different values for development, staging, and production
+# 3. Regularly rotate sensitive keys and tokens
+# 4. Ensure all team members have access to the correct values
+# 5. Use a secure method to share sensitive configuration values
+
+# =============================================================================
+# QUICK SETUP CHECKLIST
+# =============================================================================
+
+# [ ] Set up PostgreSQL database
+# [ ] Create Square Developer account and application
+# [ ] Generate Square access token and webhook signature key
+# [ ] Generate NextAuth secret key
+# [ ] Configure SMTP settings (if using email features)
+# [ ] Set up cron job authentication
+# [ ] Test all configurations with npm run dev
+
+# =============================================================================
+# ENVIRONMENT-SPECIFIC EXAMPLES
+# =============================================================================
+
+# Development Example:
+# DATABASE_URL="postgresql://postgres:password@localhost:5432/wild_octave_dev"
+# SQUARE_ENVIRONMENT="sandbox"
+# NEXTAUTH_URL="http://localhost:3000"
+# NODE_ENV="development"
+
+# Production Example:
+# DATABASE_URL="postgresql://user:pass@prod-db.example.com:5432/wild_octave_prod"
+# SQUARE_ENVIRONMENT="production"
+# NEXTAUTH_URL="https://invoices.wildoctaveorganics.com"
+# NODE_ENV="production"

@@ -1,0 +1,187 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/health_food_invoice_app/app/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model Category {
+  id              String                   @id @default(cuid())
+  name            String                   @unique
+  markup          Float
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  lineItems       LineItem[]
+  productMappings ProductCategoryMapping[]
+
+  @@map("categories")
+}
+
+model Vendor {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  invoices  Invoice[]
+
+  @@map("vendors")
+}
+
+model Invoice {
+  id          String     @id @default(cuid())
+  vendorId    String
+  filename    String?
+  totalAmount Float?
+  processedAt DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  vendor      Vendor     @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  lineItems   LineItem[]
+
+  @@map("invoices")
+}
+
+model Product {
+  id               String                  @id @default(cuid())
+  name             String                  @unique
+  description      String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  lineItems        LineItem[]
+  categoryMappings ProductCategoryMapping?
+
+  @@map("products")
+}
+
+model ProductCategoryMapping {
+  id         String   @id @default(cuid())
+  productId  String   @unique
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_category_mappings")
+}
+
+model LineItem {
+  id                 String       @id @default(cuid())
+  invoiceId          String
+  productId          String?
+  productName        String
+  quantity           Float
+  unitPrice          Float
+  totalPrice         Float
+  categoryId         String?
+  finalPrice         Float?
+  needsClarification Boolean      @default(false)
+  clarificationNote  String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  finalPriceIncGst   Float?
+  gstAmount          Float?
+  gstApplicable      Boolean      @default(true)
+  customMarkup       Float?
+  manualUnitPrice    Float?
+  squareProductId    String?      // Link to Square product
+  stockReceived      Boolean      @default(false)
+  stockReceivedAt    DateTime?
+  category           Category?    @relation(fields: [categoryId], references: [id])
+  invoice            Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product            Product?     @relation(fields: [productId], references: [id])
+  squareProduct      SquareProduct? @relation(fields: [squareProductId], references: [id])
+
+  @@map("line_items")
+}
+
+// Square Products - Master product list from Square
+model SquareProduct {
+  id                  String                @id @default(cuid())
+  squareId            String                @unique // Square's catalog object ID
+  name                String
+  description         String?
+  sku                 String?
+  category            String?
+  price               Float?                // Base price from Square
+  currency            String?               @default("AUD")
+  isActive            Boolean               @default(true)
+  squareCreatedAt     DateTime?
+  squareUpdatedAt     DateTime?
+  lastSyncedAt        DateTime              @default(now())
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  lineItems           LineItem[]
+  productLinks        ProductLink[]
+  inventoryRecords    SquareInventory[]
+
+  @@map("square_products")
+}
+
+// Square Inventory - Track inventory levels
+model SquareInventory {
+  id              String        @id @default(cuid())
+  squareProductId String
+  locationId      String        // Square location ID
+  quantity        Float         @default(0)
+  lastUpdated     DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  squareProduct   SquareProduct @relation(fields: [squareProductId], references: [id], onDelete: Cascade)
+
+  @@unique([squareProductId, locationId])
+  @@map("square_inventory")
+}
+
+// Product Links - Link invoice items to Square products
+model ProductLink {
+  id                String        @id @default(cuid())
+  invoiceProductName String       // Product name from invoice
+  squareProductId   String        // Linked Square product
+  confidence        Float         @default(0.0) // Matching confidence score
+  isManualLink      Boolean       @default(false)
+  linkedBy          String?       // User who created the link
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  squareProduct     SquareProduct @relation(fields: [squareProductId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceProductName, squareProductId])
+  @@map("product_links")
+}
+
+// Webhook Events - Track Square webhook events
+model WebhookEvent {
+  id              String   @id @default(cuid())
+  eventType       String   // e.g., "inventory.count.updated"
+  squareEventId   String   @unique // Square's event ID
+  data            Json     // Event data from Square
+  processed       Boolean  @default(false)
+  processedAt     DateTime?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("webhook_events")
+}
+
+// Sync Logs - Track daily sync operations
+model SyncLog {
+  id               String    @id @default(cuid())
+  syncType         String    // e.g., "products", "inventory"
+  status           String    // "success", "failed", "partial"
+  itemsProcessed   Int       @default(0)
+  itemsSuccess     Int       @default(0)
+  itemsFailed      Int       @default(0)
+  errorMessage     String?
+  details          Json?     // Additional sync details
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("sync_logs")
+}
