@@ -1,107 +1,81 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { squareAPI } from '@/lib/square-api';
-
-export const dynamic = 'force-dynamic';
+import { db } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
-    const { lineItemId } = await request.json();
-    
-    if (!lineItemId) {
-      return NextResponse.json({ error: 'Line item ID is required' }, { status: 400 });
+    const { productId, quantity, notes } = await request.json();
+
+    if (!productId || quantity === undefined) {
+      return NextResponse.json(
+        { error: 'Product ID and quantity are required' },
+        { status: 400 }
+      );
     }
-    
-    // Get the line item with Square product info
-    const lineItem = await prisma.lineItem.findUnique({
-      where: { id: lineItemId },
-      include: {
-        squareProduct: {
-          include: {
-            inventoryRecords: true
-          }
-        }
-      }
+
+    // Find the product
+    const product = await db.product.findUnique({
+      where: { id: productId }
     });
-    
-    if (!lineItem) {
-      return NextResponse.json({ error: 'Line item not found' }, { status: 404 });
+
+    if (!product) {
+      return NextResponse.json(
+        { error: 'Product not found' },
+        { status: 404 }
+      );
     }
-    
-    if (!lineItem.squareProduct) {
-      return NextResponse.json({ error: 'Line item is not linked to a Square product' }, { status: 400 });
-    }
-    
-    if (lineItem.stockReceived) {
-      return NextResponse.json({ error: 'Stock already received for this item' }, { status: 400 });
-    }
-    
-    // Update Square inventory
-    await squareAPI.adjustInventoryCount(
-      lineItem.squareProduct.squareId,
-      lineItem.quantity
-    );
-    
-    // Update our database
-    const defaultLocation = await squareAPI.getDefaultLocation();
-    const locationId = defaultLocation.id!;
-    
-    const currentInventory = await prisma.squareInventory.findUnique({
-      where: {
-        squareProductId_locationId: {
-          squareProductId: lineItem.squareProduct.id,
-          locationId: locationId
-        }
-      }
-    });
-    
-    const newQuantity = (currentInventory?.quantity || 0) + lineItem.quantity;
-    
-    await prisma.squareInventory.upsert({
-      where: {
-        squareProductId_locationId: {
-          squareProductId: lineItem.squareProduct.id,
-          locationId: locationId
-        }
-      },
-      update: {
-        quantity: newQuantity,
-        lastUpdated: new Date()
-      },
-      create: {
-        squareProductId: lineItem.squareProduct.id,
-        locationId: locationId,
-        quantity: newQuantity,
-        lastUpdated: new Date()
-      }
-    });
-    
-    // Mark the line item as stock received
-    const updatedLineItem = await prisma.lineItem.update({
-      where: { id: lineItemId },
+
+    // Update the product's stock quantity
+    const updatedProduct = await db.product.update({
+      where: { id: productId },
       data: {
+        stockQuantity: {
+          increment: quantity
+        },
         stockReceived: true,
-        stockReceivedAt: new Date()
-      },
-      include: {
-        squareProduct: {
-          include: {
-            inventoryRecords: true
-          }
-        }
+        stockReceivedAt: new Date(),
+        notes: notes || product.notes
       }
     });
-    
-    return NextResponse.json({ 
-      success: true, 
-      lineItem: updatedLineItem,
-      newInventoryQuantity: newQuantity
+
+    return NextResponse.json({
+      success: true,
+      product: updatedProduct,
+      message: `Successfully received ${quantity} units of ${product.name}`
     });
+
   } catch (error) {
     console.error('Error receiving stock:', error);
     return NextResponse.json(
-      { error: 'Failed to receive stock', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to receive stock' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET() {
+  try {
+    // Get all products that have received stock recently
+    const recentlyReceivedStock = await db.product.findMany({
+      where: {
+        stockReceived: true,
+        stockReceivedAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+        }
+      },
+      orderBy: {
+        stockReceivedAt: 'desc'
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      products: recentlyReceivedStock
+    });
+
+  } catch (error) {
+    console.error('Error fetching received stock:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch received stock' },
       { status: 500 }
     );
   }
