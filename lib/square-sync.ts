@@ -1,9 +1,17 @@
 
-import { squareAPI } from './square-api';
+import { getSquareAPI, squareAPI } from './square-api';
+import { canInitializeSquareClient } from './square-client-wrapper';
 import { prisma } from './db';
 
 export class SquareSyncService {
   
+  private getSquareAPI() {
+    if (!canInitializeSquareClient()) {
+      throw new Error('Square API is not available - check environment configuration');
+    }
+    return getSquareAPI();
+  }
+
   async syncProducts(): Promise<{ success: number, failed: number, total: number }> {
     const syncLog = await prisma.syncLog.create({
       data: {
@@ -20,8 +28,11 @@ export class SquareSyncService {
     try {
       console.log('Starting Square products sync...');
       
+      // Get Square API instance
+      const squareAPIInstance = this.getSquareAPI();
+      
       // Get all products from Square
-      const squareProducts = await squareAPI.getCatalogObjects(['ITEM']);
+      const squareProducts = await squareAPIInstance.getCatalogObjects(['ITEM']);
       totalCount = squareProducts.length;
 
       console.log(`Found ${totalCount} products in Square`);
@@ -122,6 +133,9 @@ export class SquareSyncService {
     try {
       console.log('Starting Square inventory sync...');
       
+      // Get Square API instance
+      const squareAPIInstance = this.getSquareAPI();
+      
       // Get all Square products from our database
       const squareProducts = await prisma.squareProduct.findMany({
         where: { isActive: true }
@@ -130,12 +144,12 @@ export class SquareSyncService {
       totalCount = squareProducts.length;
       console.log(`Found ${totalCount} products to sync inventory for`);
 
-      const defaultLocation = await squareAPI.getDefaultLocation();
+      const defaultLocation = await squareAPIInstance.getDefaultLocation();
       const locationId = defaultLocation.id!;
 
       for (const squareProduct of squareProducts) {
         try {
-          const inventoryCount = await squareAPI.getInventoryCount(squareProduct.squareId, locationId);
+          const inventoryCount = await squareAPIInstance.getInventoryCount(squareProduct.squareId, locationId);
           
           const existingInventory = await prisma.squareInventory.findUnique({
             where: { 
@@ -228,6 +242,9 @@ export class SquareSyncService {
     let createdCount = 0;
 
     try {
+      // Get Square API instance
+      const squareAPIInstance = this.getSquareAPI();
+
       // Get all line items that don't have a Square product link
       const unlinkedLineItems = await prisma.lineItem.findMany({
         where: {
@@ -265,7 +282,7 @@ export class SquareSyncService {
           }
 
           // Try to find a matching Square product
-          const match = await squareAPI.findBestProductMatch(lineItem.productName, 0.8);
+          const match = await squareAPIInstance.findBestProductMatch(lineItem.productName, 0.8);
           
           if (match) {
             // Find the Square product in our database
@@ -301,7 +318,7 @@ export class SquareSyncService {
           } else {
             // No match found, create a new product in Square
             try {
-              const newSquareProduct = await squareAPI.createProduct(lineItem.productName);
+              const newSquareProduct = await squareAPIInstance.createProduct(lineItem.productName);
               
               // Save the new product to our database
               const savedProduct = await prisma.squareProduct.create({
@@ -362,4 +379,17 @@ export class SquareSyncService {
   }
 }
 
-export const squareSync = new SquareSyncService();
+// Create a function to get the Square sync service
+export function getSquareSync(): SquareSyncService {
+  if (!canInitializeSquareClient()) {
+    throw new Error('Square sync is not available - missing configuration');
+  }
+  return new SquareSyncService();
+}
+
+// For backward compatibility, export a getter
+export const squareSync = {
+  get instance() {
+    return getSquareSync();
+  }
+};
