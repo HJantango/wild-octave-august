@@ -8,7 +8,15 @@ export async function GET(request: NextRequest) {
     const includeInventory = searchParams.get('includeInventory') === 'true';
     const includeSquareData = searchParams.get('includeSquareData') === 'true';
 
-
+    // Get products from database
+    const products = await db.product.findMany({
+      include: {
+        category: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
 
     let result = products;
 
@@ -82,8 +90,7 @@ export async function POST(request: NextRequest) {
         barcode
       },
       include: {
-        category: true,
-        inventoryRecords: true
+        category: true
       }
     });
 
