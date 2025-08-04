@@ -8,16 +8,7 @@ export async function GET(request: NextRequest) {
     const includeInventory = searchParams.get('includeInventory') === 'true';
     const includeSquareData = searchParams.get('includeSquareData') === 'true';
 
-    // Get products from database
-    const products = await db.product.findMany({
-      include: {
-        inventory: includeInventory,
-        category: true
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
+
 
     let result = products;
 
