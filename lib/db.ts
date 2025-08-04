@@ -53,3 +53,6 @@ export const db: PrismaClient = createPrismaProxy();
 
 // Also export the function for direct access if needed
 export { getPrismaClient };
+
+// ADD THIS LINE - Export db as prisma for backward compatibility
+export { db as prisma };
