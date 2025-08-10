@@ -8,10 +8,11 @@ export async function GET(request: NextRequest) {
     const includeInventory = searchParams.get('includeInventory') === 'true';
     const includeSquareData = searchParams.get('includeSquareData') === 'true';
 
-    // Get products from database
+    // Get products from database - Product model only has lineItems and categoryMappings
     const products = await db.product.findMany({
       include: {
-        category: true
+        lineItems: true,
+        categoryMappings: true
       },
       orderBy: {
         name: 'asc'
@@ -77,20 +78,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create the product
+    // Create the product - no direct category relationship
     const product = await db.product.create({
       data: {
         name,
         description,
         price: parseFloat(price),
         stockQuantity: parseInt(stockQuantity) || 0,
-        categoryId: categoryId || null,
         squareId,
         sku,
         barcode
       },
       include: {
-        category: true
+        lineItems: true,
+        categoryMappings: true
       }
     });
 
