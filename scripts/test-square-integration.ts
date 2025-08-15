@@ -1,17 +1,32 @@
 
-// Test script for Square API integration
-import { squareAPI } from '../lib/square-api'
-import { squareSync } from '../lib/square-sync'
+import { getSquareAPI } from '../lib/square-api'
+import { getSquareSync } from '../lib/square-sync'
+import { canInitializeSquareClient } from '../lib/square-client-wrapper'
+import { SquareLocation } from '../lib/square-api-client'
 
 async function testSquareIntegration() {
   try {
     console.log('Testing Square API integration...')
     
+    // Check if Square client can be initialized
+    if (!canInitializeSquareClient()) {
+      console.error('Square API not available - check environment configuration')
+      console.log('Required environment variables:')
+      console.log('- SQUARE_ACCESS_TOKEN')
+      console.log('- SQUARE_ENVIRONMENT (optional, defaults to sandbox)')
+      console.log('- SQUARE_APPLICATION_ID (optional)')
+      return
+    }
+
+    // Get Square API instance
+    const squareAPI = getSquareAPI()
+    const squareSync = getSquareSync()
+    
     // Test 1: Get locations
     console.log('\n1. Testing locations...')
     const locations = await squareAPI.getLocations()
     console.log(`Found ${locations.length} locations:`)
-    locations.forEach(loc => console.log(`  - ${loc.name} (${loc.id})`))
+    locations.forEach((loc: SquareLocation) => console.log(`  - ${loc.name} (${loc.id})`))
     
     // Test 2: Get catalog objects
     console.log('\n2. Testing catalog objects...')
@@ -40,9 +55,4 @@ async function testSquareIntegration() {
   }
 }
 
-// Run if this script is executed directly
-if (require.main === module) {
-  testSquareIntegration()
-}
-
-export { testSquareIntegration }
+testSquareIntegration()
