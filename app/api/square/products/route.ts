@@ -1,110 +1,94 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { getSquareAPI } from '@/lib/square-api';
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 
-export async function GET(request: NextRequest) {
+export const dynamic = "force-dynamic"
+
+// TypeScript interfaces for Square API
+interface SquareProduct {
+  id: string;
+  name: string;
+  description?: string;
+  sku?: string;
+  category?: string;
+  price?: number;
+  isActive: boolean;
+}
+
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const includeInventory = searchParams.get('includeInventory') === 'true';
-    const includeSquareData = searchParams.get('includeSquareData') === 'true';
-
-    // Get products from database - Product model only has lineItems and categoryMappings
-    const products = await db.product.findMany({
+    // Get products from database
+    const products = await db.squareProduct.findMany({
       include: {
-        lineItems: true,
-        categoryMappings: true
+        inventoryRecords: true,
       },
       orderBy: {
         name: 'asc'
       }
-    });
+    })
 
-    let result = products;
+    // For now, return database products without calling Square API
+    // In production, you might want to sync with Square API here
+    const result = products.map(product => ({
+      id: product.id,
+      squareId: product.squareId,
+      name: product.name,
+      description: product.description,
+      sku: product.sku,
+      category: product.category,
+      price: product.price,
+      currency: product.currency,
+      isActive: product.isActive,
+      squareCreatedAt: product.squareCreatedAt,
+      squareUpdatedAt: product.squareUpdatedAt,
+      lastSyncedAt: product.lastSyncedAt,
+      inventoryRecords: product.inventoryRecords,
+    }))
 
-    // If Square data is requested, fetch it
-    if (includeSquareData) {
-      try {
-        const squareAPI = getSquareAPI();
-        const squareProducts = await squareAPI.getProducts();
-        
-        // Merge Square data with database products
-        result = products.map(product => {
-          const squareProduct = squareProducts.find(sp => sp.id === product.squareId);
-          return {
-            ...product,
-            squareData: squareProduct || null
-          };
-        });
-      } catch (squareError) {
-        console.warn('Could not fetch Square data:', squareError);
-        // Continue without Square data
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      products: result,
-      count: result.length
-    });
-
+    return NextResponse.json({ products: result })
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('Error fetching Square products:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch products' },
+      { error: 'Failed to fetch Square products' },
       { status: 500 }
-    );
+    )
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const productData = await request.json();
+    const { name, description, sku, price } = await request.json()
 
-    const {
-      name,
-      description,
-      price,
-      stockQuantity,
-      categoryId,
-      squareId,
-      sku,
-      barcode
-    } = productData;
-
-    if (!name || price === undefined) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Name and price are required' },
+        { error: 'Product name is required' },
         { status: 400 }
-      );
+      )
     }
 
-    // Create the product - no direct category relationship
-    const product = await db.product.create({
+    // Create product in database
+    // In production, you'd also create it in Square API
+    const product = await db.squareProduct.create({
       data: {
+        squareId: `temp_${Date.now()}`, // Temporary ID until Square sync
         name,
         description,
-        price: parseFloat(price),
-        stockQuantity: parseInt(stockQuantity) || 0,
-        squareId,
         sku,
-        barcode
+        price: price ? parseFloat(price) : undefined,
+        currency: 'AUD',
+        isActive: true,
+        lastSyncedAt: new Date(),
       },
       include: {
-        lineItems: true,
-        categoryMappings: true
+        inventoryRecords: true,
       }
-    });
+    })
 
-    return NextResponse.json({
-      success: true,
-      product
-    });
-
+    return NextResponse.json({ product })
   } catch (error) {
-    console.error('Error creating product:', error);
+    console.error('Error creating Square product:', error)
     return NextResponse.json(
-      { error: 'Failed to create product' },
+      { error: 'Failed to create Square product' },
       { status: 500 }
-    );
+    )
   }
 }
