@@ -48,11 +48,14 @@ const createPrismaProxy = (): PrismaClient => {
   });
 };
 
-// Export a transparent proxy that acts exactly like PrismaClient
+// Export the proxy as db (MAIN EXPORT)
 export const db: PrismaClient = createPrismaProxy();
 
 // Also export the function for direct access if needed
 export { getPrismaClient };
 
-// ADD THIS LINE - Export db as prisma for backward compatibility
+// Export db as prisma for backward compatibility
 export { db as prisma };
+
+// Default export for compatibility
+export default db;
