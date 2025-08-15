@@ -1,85 +1,64 @@
+import { squareSync } from './square-sync'
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getSquareSync } from '@/lib/square-sync';
-import { canInitializeSquareClient } from '@/lib/square-client-wrapper';
+export class CronScheduler {
+  private intervalId: NodeJS.Timeout | null = null
+  
+  constructor() {
+    this.setupDailySync()
+  }
 
-export const dynamic = 'force-dynamic';
-
-export async function POST(request: NextRequest) {
-  try {
-    // Check if Square client can be initialized
-    if (!canInitializeSquareClient()) {
-      console.error('Square API not available - missing configuration');
-      return NextResponse.json(
-        { error: 'Square API not configured', details: 'Missing Square access token or other required configuration' },
-        { status: 503 }
-      );
+  private setupDailySync() {
+    // Calculate milliseconds until next 5:00 AM AEST
+    const now = new Date()
+    const nextSync = new Date()
+    
+    // Set to 5:00 AM AEST (UTC+10/+11 depending on DST)
+    nextSync.setHours(5, 0, 0, 0)
+    
+    // If it's already past 5:00 AM today, schedule for tomorrow
+    if (now > nextSync) {
+      nextSync.setDate(nextSync.getDate() + 1)
     }
+    
+    const msUntilNextSync = nextSync.getTime() - now.getTime()
+    
+    console.log(`Next Square sync scheduled for: ${nextSync.toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}`)
+    
+    // Schedule the first sync
+    setTimeout(() => {
+      this.runDailySync()
+      
+      // Then schedule it to run every 24 hours
+      this.intervalId = setInterval(() => {
+        this.runDailySync()
+      }, 24 * 60 * 60 * 1000) // 24 hours
+    }, msUntilNextSync)
+  }
 
-    console.log('Starting daily Square sync...');
-    
-    // Get Square sync service instance
-    const squareSyncService = getSquareSync();
-    
-    // Perform the daily sync
-    const results = await squareSyncService.performDailySync();
-    
-    // Also run auto-linking
-    const autoLinkResults = await squareSyncService.autoLinkProducts();
-    
-    console.log('Daily sync completed successfully');
-    
-    return NextResponse.json({ 
-      success: true, 
-      results: {
-        ...results,
+  private async runDailySync() {
+    try {
+      console.log('Starting automated daily Square sync...')
+      
+      const results = await squareSync.performDailySync()
+      const autoLinkResults = await squareSync.autoLinkProducts()
+      
+      console.log('Daily sync completed successfully:', {
+        products: results.products,
+        inventory: results.inventory,
         autoLink: autoLinkResults
-      }
-    });
-  } catch (error) {
-    console.error('Daily sync failed:', error);
-    return NextResponse.json(
-      { error: 'Daily sync failed', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+      })
+    } catch (error) {
+      console.error('Daily sync failed:', error)
+    }
+  }
+
+  public stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId)
+      this.intervalId = null
+    }
   }
 }
 
-// This endpoint can be called by external cron services
-export async function GET() {
-  try {
-    // Check if Square client can be initialized
-    if (!canInitializeSquareClient()) {
-      console.error('Square API not available - missing configuration');
-      return NextResponse.json(
-        { error: 'Square API not configured', details: 'Missing Square access token or other required configuration' },
-        { status: 503 }
-      );
-    }
-
-    // Verify the request is authorized (you might want to add authentication)
-    const authHeader = process.env.CRON_SECRET;
-    
-    console.log('Daily sync triggered via GET request');
-    
-    // Get Square sync service instance
-    const squareSyncService = getSquareSync();
-    
-    const results = await squareSyncService.performDailySync();
-    const autoLinkResults = await squareSyncService.autoLinkProducts();
-    
-    return NextResponse.json({ 
-      success: true, 
-      results: {
-        ...results,
-        autoLink: autoLinkResults
-      }
-    });
-  } catch (error) {
-    console.error('Daily sync failed:', error);
-    return NextResponse.json(
-      { error: 'Daily sync failed', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
-}
+// Export a singleton instance
+export const cronScheduler = new CronScheduler()
