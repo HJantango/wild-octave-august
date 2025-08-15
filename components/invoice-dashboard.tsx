@@ -48,6 +48,27 @@ interface InvoiceData {
   line_items: LineItem[]
 }
 
+interface ApiLineItemResponse {
+  id: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  manualUnitPrice?: number
+  totalPrice: number
+  needsClarification: boolean
+  clarificationNote?: string
+  gstApplicable?: boolean
+  category?: {
+    id: string
+    name: string
+    markup: number
+  }
+  customMarkup?: number
+  finalPrice?: number
+  gstAmount?: number
+  finalPriceIncGst?: number
+}
+
 interface Category {
   id: string
   name: string
@@ -245,7 +266,7 @@ export default function InvoiceDashboard({ invoiceData }: { invoiceData: Invoice
         console.log('Bulk API Response:', updatedLineItems)
         
         // Map API response to UI interface
-        const mappedLineItems = updatedLineItems.map((updatedLineItem: any) => ({
+        const mappedLineItems = updatedLineItems.map((updatedLineItem: ApiLineItemResponse) => ({
           id: updatedLineItem.id,
           product_name: updatedLineItem.productName,
           quantity: updatedLineItem.quantity,
@@ -265,7 +286,7 @@ export default function InvoiceDashboard({ invoiceData }: { invoiceData: Invoice
         // Update line items state with actual API response
         setLineItems(prev => {
           const updated = prev.map(item => {
-            const mappedItem = mappedLineItems.find((mapped: any) => mapped.id === item.id)
+            const mappedItem = mappedLineItems.find((mapped: LineItem) => mapped.id === item.id)
             return mappedItem || item
           })
           console.log('Bulk API response update applied:', updated)
