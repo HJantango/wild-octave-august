@@ -41,10 +41,7 @@ export default function RootLayout({
                   <div className="flex items-center space-x-6">
                     <nav className="hidden md:flex items-center space-x-4">
                       <a href="/" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-                        Invoice Upload
-                      </a>
-                      <a href="/square" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
-                        Square Integration
+                        Upload
                       </a>
                     </nav>
                     <div className="text-sm text-gray-600">
