@@ -3,7 +3,7 @@ const path = require('path');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
-  output: process.env.NEXT_OUTPUT_MODE === 'export' ? 'export' : undefined,
+  // Force dynamic rendering for all pages to avoid build-time database calls
   experimental: {
     outputFileTracingRoot: path.join(__dirname, '../'),
   },
@@ -24,9 +24,13 @@ const nextConfig = {
     return config;
   },
   images: { unoptimized: true },
-  reactStrictMode: false, // Temporarily disable for easier debugging
+  reactStrictMode: false,
   swcMinify: true,
   poweredByHeader: false,
+  // Skip static optimization for pages that need database access
+  async generateStaticParams() {
+    return []
+  }
 };
 
 module.exports = nextConfig;
