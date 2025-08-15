@@ -1,112 +1,106 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { squareAPI } from '@/lib/square-api';
+export const dynamic = "force-dynamic"
 
-export const dynamic = 'force-dynamic';
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const squareProductId = searchParams.get('squareProductId');
-    
-    if (squareProductId) {
-      // Get inventory for specific product
-      const inventory = await prisma.squareInventory.findMany({
-        where: { squareProductId },
-        include: {
-          squareProduct: true
-        }
-      });
-      
-      return NextResponse.json({ inventory });
-    }
-    
-    // Get all inventory with low stock alerts
-    const inventory = await prisma.squareInventory.findMany({
+    // Get inventory records with product information
+    const inventory = await db.squareInventory.findMany({
       include: {
-        squareProduct: true
+        squareProduct: {
+          select: {
+            id: true,
+            name: true,
+            sku: true
+          }
+        }
       },
-      orderBy: { quantity: 'asc' }
-    });
-    
-    return NextResponse.json({ inventory });
+      orderBy: {
+        lastUpdated: 'desc'
+      }
+    })
+
+    return NextResponse.json({ inventory })
   } catch (error) {
-    console.error('Error fetching inventory:', error);
+    console.error('Error fetching inventory:', error)
     return NextResponse.json(
       { error: 'Failed to fetch inventory' },
       { status: 500 }
-    );
+    )
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { squareProductId, quantity, locationId, action = 'set' } = await request.json();
-    
+    const { squareProductId, quantity, action = 'set' } = await request.json()
+
     if (!squareProductId || quantity === undefined) {
-      return NextResponse.json({ error: 'Product ID and quantity are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Square product ID and quantity are required' },
+        { status: 400 }
+      )
     }
-    
+
     // Get the Square product
-    const squareProduct = await prisma.squareProduct.findUnique({
+    const squareProduct = await db.squareProduct.findUnique({
       where: { id: squareProductId }
-    });
-    
+    })
+
     if (!squareProduct) {
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Square product not found' },
+        { status: 404 }
+      )
     }
-    
-    // Update inventory in Square
-    if (action === 'set') {
-      await squareAPI.updateInventoryCount(squareProduct.squareId, quantity, locationId);
-    } else if (action === 'adjust') {
-      await squareAPI.adjustInventoryCount(squareProduct.squareId, quantity, locationId);
-    }
-    
-    // Update our database
-    const defaultLocation = await squareAPI.getDefaultLocation();
-    const finalLocationId = locationId || defaultLocation.id!;
-    
-    const currentInventory = await prisma.squareInventory.findUnique({
+
+    const defaultLocationId = 'default_location'
+
+    // Get or create inventory record
+    let inventoryRecord = await db.squareInventory.findFirst({
       where: {
-        squareProductId_locationId: {
-          squareProductId: squareProductId,
-          locationId: finalLocationId
-        }
+        squareProductId,
+        locationId: defaultLocationId
       }
-    });
-    
-    let newQuantity = quantity;
-    if (action === 'adjust' && currentInventory) {
-      newQuantity = currentInventory.quantity + quantity;
+    })
+
+    let newQuantity = quantity
+    if (action === 'adjust' && inventoryRecord) {
+      newQuantity = inventoryRecord.quantity + quantity
     }
-    
-    const updatedInventory = await prisma.squareInventory.upsert({
-      where: {
-        squareProductId_locationId: {
-          squareProductId: squareProductId,
-          locationId: finalLocationId
+
+    if (inventoryRecord) {
+      // Update existing inventory
+      inventoryRecord = await db.squareInventory.update({
+        where: { id: inventoryRecord.id },
+        data: {
+          quantity: Math.max(0, newQuantity), // Ensure quantity doesn't go negative
+          lastUpdated: new Date()
         }
-      },
-      update: {
-        quantity: newQuantity,
-        lastUpdated: new Date()
-      },
-      create: {
-        squareProductId: squareProductId,
-        locationId: finalLocationId,
-        quantity: newQuantity,
-        lastUpdated: new Date()
-      }
-    });
-    
-    return NextResponse.json({ success: true, inventory: updatedInventory });
+      })
+    } else {
+      // Create new inventory record
+      inventoryRecord = await db.squareInventory.create({
+        data: {
+          squareProductId,
+          locationId: defaultLocationId,
+          quantity: Math.max(0, newQuantity),
+          lastUpdated: new Date()
+        }
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      inventory: inventoryRecord,
+      message: `Inventory updated: ${newQuantity} units`
+    })
+
   } catch (error) {
-    console.error('Error updating inventory:', error);
+    console.error('Error updating inventory:', error)
     return NextResponse.json(
-      { error: 'Failed to update inventory', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to update inventory' },
       { status: 500 }
-    );
+    )
   }
 }
