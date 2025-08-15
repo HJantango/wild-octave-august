@@ -1,4 +1,3 @@
-
 import { squareSync } from './square-sync'
 
 export class CronScheduler {
