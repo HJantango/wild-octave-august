@@ -6,6 +6,21 @@ export const dynamic = "force-dynamic"
 
 const prisma = new PrismaClient()
 
+interface InvoiceLineItem {
+  product_name: string
+  quantity: number
+  unit_price: number
+  total_price: number
+  gst_applicable: boolean
+  needs_clarification: boolean
+  clarification_note?: string | null
+}
+
+interface InvoiceData {
+  vendor_name: string
+  line_items: InvoiceLineItem[]
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -221,7 +236,7 @@ Respond with raw JSON only.`
   }
 }
 
-async function saveInvoiceToDatabase(invoiceData: any, filename: string) {
+async function saveInvoiceToDatabase(invoiceData: InvoiceData, filename: string) {
   try {
     // Create or find vendor
     const vendor = await prisma.vendor.upsert({
@@ -235,7 +250,7 @@ async function saveInvoiceToDatabase(invoiceData: any, filename: string) {
       data: {
         vendorId: vendor.id,
         filename: filename,
-        totalAmount: invoiceData.line_items?.reduce((sum: number, item: any) => 
+        totalAmount: invoiceData.line_items?.reduce((sum: number, item: InvoiceLineItem) => 
           sum + (item.total_price || 0), 0) || 0
       }
     })
