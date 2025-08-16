@@ -27,10 +27,10 @@ const nextConfig = {
   reactStrictMode: false,
   swcMinify: true,
   poweredByHeader: false,
-  // Skip static optimization for pages that need database access
-  async generateStaticParams() {
-    return []
-  }
+  // Environment variables configuration for Railway deployment
+  env: {
+    ABACUSAI_API_KEY: process.env.ABACUSAI_API_KEY,
+  },
 };
 
 module.exports = nextConfig;
