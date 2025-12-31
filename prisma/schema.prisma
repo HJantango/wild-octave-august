@@ -1,0 +1,552 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Vendor {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  contactInfo  Json?     // JSON field for flexible contact information
+  paymentTerms String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  items            Item[]
+  invoices         Invoice[]
+  orderSettings    VendorOrderSettings?
+  purchaseOrders   PurchaseOrder[]
+  orderSuggestions OrderSuggestion[]
+  vendorProfile    VendorProfile?
+  orderSchedules   VendorOrderSchedule[]
+  scheduledOrders  ScheduledOrder[]
+
+  @@map("vendors")
+}
+
+model Item {
+  id                 String   @id @default(cuid())
+  name               String
+  vendorId           String?  @map("vendor_id")
+  category           String
+  subcategory        String?  // Shelf location: "Top Shelf", "Fridge", "Floor Stock", etc.
+  displayOrder       Int      @default(0) @map("display_order") // Sort position within category
+  currentCostExGst   Decimal  @map("current_cost_ex_gst") @db.Decimal(10, 4)
+  currentMarkup      Decimal  @map("current_markup") @db.Decimal(5, 4)
+  currentSellExGst   Decimal  @map("current_sell_ex_gst") @db.Decimal(10, 4)
+  currentSellIncGst  Decimal  @map("current_sell_inc_gst") @db.Decimal(10, 4)
+  sku                String?  @unique
+  barcode            String?  @unique
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vendor               Vendor?                   @relation(fields: [vendorId], references: [id])
+  priceHistory         ItemPriceHistory[]
+  invoiceLineItems     InvoiceLineItem[]
+  inventoryItem        InventoryItem?
+  purchaseOrderLineItems PurchaseOrderLineItem[]
+  wastageRecords       WastageRecord[]
+  discountRecords      DiscountRecord[]
+
+  @@map("items")
+}
+
+model ItemPriceHistory {
+  id               String   @id @default(cuid())
+  itemId           String   @map("item_id")
+  costExGst        Decimal  @map("cost_ex_gst") @db.Decimal(10, 4)
+  markup           Decimal  @db.Decimal(5, 4)
+  sellExGst        Decimal  @map("sell_ex_gst") @db.Decimal(10, 4)
+  sellIncGst       Decimal  @map("sell_inc_gst") @db.Decimal(10, 4)
+  sourceInvoiceId  String?  @map("source_invoice_id")
+  changedAt        DateTime @default(now()) @map("changed_at")
+  
+  // Relations
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  sourceInvoice    Invoice? @relation(fields: [sourceInvoiceId], references: [id])
+  
+  @@map("item_price_history")
+}
+
+model Invoice {
+  id             String            @id @default(cuid())
+  vendorId       String            @map("vendor_id")
+  invoiceNumber  String?           @map("invoice_number")
+  invoiceDate    DateTime          @map("invoice_date")
+  subtotalExGst  Decimal           @map("subtotal_ex_gst") @db.Decimal(12, 4)
+  gstAmount      Decimal           @map("gst_amount") @db.Decimal(12, 4)
+  totalIncGst    Decimal           @map("total_inc_gst") @db.Decimal(12, 4)
+  rawPdf         Bytes?            @map("raw_pdf")
+  parsedJson     Json?             @map("parsed_json")
+  status         InvoiceStatus     @default(PARSED)
+  allItemsReceived Boolean         @default(false) @map("all_items_received")
+  allItemsCheckedIn Boolean        @default(false) @map("all_items_checked_in")
+  missingItems   Json?             @map("missing_items") // Array of missing item details
+  receivingNotes String?           @map("receiving_notes")
+  needsRectification Boolean       @default(false) @map("needs_rectification")
+  rectificationNotes String?       @map("rectification_notes")
+  rectificationContactedAt DateTime? @map("rectification_contacted_at")
+  rectificationResolvedAt DateTime? @map("rectification_resolved_at")
+  resolutionType String?           @map("resolution_type")
+  resolutionValue String?          @map("resolution_value")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  
+  // Relations
+  vendor         Vendor            @relation(fields: [vendorId], references: [id])
+  lineItems      InvoiceLineItem[]
+  priceHistory   ItemPriceHistory[]
+  linkedPurchaseOrder PurchaseOrder?
+  corrections    InvoiceCorrection[]
+  
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id                     String            @id @default(cuid())
+  invoiceId              String            @map("invoice_id")
+  itemId                 String?           @map("item_id")
+  name                   String
+  quantity               Decimal           @db.Decimal(10, 4)
+  unitCostExGst          Decimal           @map("unit_cost_ex_gst") @db.Decimal(10, 4)
+  detectedPackSize       Int?              @map("detected_pack_size")
+  effectiveUnitCostExGst Decimal           @map("effective_unit_cost_ex_gst") @db.Decimal(10, 4)
+  category               String
+  markup                 Decimal           @db.Decimal(5, 4)
+  sellExGst              Decimal           @map("sell_ex_gst") @db.Decimal(10, 4)
+  sellIncGst             Decimal           @map("sell_inc_gst") @db.Decimal(10, 4)
+  gstRate                Decimal?          @map("gst_rate") @db.Decimal(5, 2)
+  gstAmount              Decimal?          @map("gst_amount") @db.Decimal(10, 4)
+  hasGst                 Boolean           @default(false) @map("has_gst")
+  notes                  String?
+  
+  // Validation fields
+  needsValidation        Boolean           @default(false) @map("needs_validation")
+  validationStatus       ValidationStatus? @map("validation_status")
+  validationFlags        Json?             @map("validation_flags") // Array of validation concerns
+  validationNotes        String?           @map("validation_notes")
+  validatedBy            String?           @map("validated_by")
+  validatedAt            DateTime?         @map("validated_at")
+  originalParsedData     Json?             @map("original_parsed_data") // Original values before corrections
+  
+  createdAt              DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  invoice                Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item                   Item?    @relation(fields: [itemId], references: [id])
+  
+  @@map("invoice_line_items")
+}
+
+model SalesReport {
+  id                String   @id @default(cuid())
+  source            String   // e.g., "square_item_sales_detail"
+  reportPeriodStart DateTime @map("report_period_start")
+  reportPeriodEnd   DateTime @map("report_period_end")
+  rawCsv            Bytes?   @map("raw_csv")
+  parsedJson        Json?    @map("parsed_json")
+  hash              String   @unique // For deduplication
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  @@map("sales_reports")
+}
+
+model SalesAggregate {
+  id         String   @id @default(cuid())
+  date       DateTime @db.Date
+  category   String?
+  itemName   String?  @map("item_name")
+  revenue    Decimal  @db.Decimal(12, 4)
+  quantity   Decimal  @db.Decimal(10, 4)
+  margin     Decimal? @db.Decimal(12, 4)
+  createdAt  DateTime @default(now()) @map("created_at")
+  
+  @@unique([date, category, itemName])
+  @@map("sales_aggregates")
+}
+
+model Settings {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  value             Json
+  description       String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  @@map("settings")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PARSED
+  REVIEWED
+  APPROVED
+  REJECTED
+  POSTED
+}
+
+enum ValidationStatus {
+  PENDING
+  REVIEWED
+  APPROVED
+  REJECTED
+}
+
+model RosterStaff {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  role                String   // 'manager', 'barista', 'junior'
+  baseHourlyRate      Decimal  @map("base_hourly_rate") @db.Decimal(8, 2)
+  saturdayHourlyRate  Decimal? @map("saturday_hourly_rate") @db.Decimal(8, 2)
+  sundayHourlyRate    Decimal? @map("sunday_hourly_rate") @db.Decimal(8, 2)
+  publicHolidayHourlyRate Decimal? @map("public_holiday_hourly_rate") @db.Decimal(8, 2)
+  email               String?  // Optional email for roster notifications
+  phone               String?  // Optional phone number
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  shifts              RosterShift[]
+
+  @@map("roster_staff")
+}
+
+model Roster {
+  id            String   @id @default(cuid())
+  weekStartDate DateTime @map("week_start_date") @db.Date
+  status        String   @default("draft") // 'draft', 'published', 'archived'
+  createdBy     String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  shifts        RosterShift[]
+  
+  @@unique([weekStartDate])
+  @@map("rosters")
+}
+
+model RosterShift {
+  id              String   @id @default(cuid())
+  rosterId        String   @map("roster_id")
+  staffId         String   @map("staff_id")
+  dayOfWeek       Int      @map("day_of_week") // 0=Sunday, 1=Monday, etc.
+  startTime       String   @map("start_time") // Using String for TIME type
+  endTime         String   @map("end_time")   // Using String for TIME type
+  breakMinutes    Int      @default(30) @map("break_minutes")
+  role            String?  // Role for this specific shift
+  isBackupBarista Boolean  @default(false) @map("is_backup_barista")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  roster          Roster      @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  staff           RosterStaff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  
+  @@map("roster_shifts")
+}
+
+model PublicHoliday {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime @db.Date
+  state     String   @default("NSW")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@unique([date, state])
+  @@map("public_holidays")
+}
+
+// ORDERING SYSTEM MODELS
+
+model VendorOrderSettings {
+  id                    String   @id @default(cuid())
+  vendorId              String   @unique @map("vendor_id")
+  orderFrequency        String?  // 'weekly', 'bi-weekly', 'monthly', 'as-needed'
+  minimumOrderValue     Decimal? @map("minimum_order_value") @db.Decimal(10, 2)
+  freeShippingThreshold Decimal? @map("free_shipping_threshold") @db.Decimal(10, 2)
+  shippingCost          Decimal? @map("shipping_cost") @db.Decimal(8, 2)
+  leadTimeDays          Int?     @default(7) @map("lead_time_days")
+  orderDay              String?  @map("order_day") // 'monday', 'tuesday', etc.
+  contactEmail          String?  @map("contact_email")
+  contactPhone          String?  @map("contact_phone")
+  notes                 String?
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  vendor                Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  purchaseOrders        PurchaseOrder[]
+  
+  @@map("vendor_order_settings")
+}
+
+model InventoryItem {
+  id                    String   @id @default(cuid())
+  itemId                String   @unique @map("item_id")
+  currentStock          Decimal  @default(0) @map("current_stock") @db.Decimal(10, 4)
+  minimumStock          Decimal? @map("minimum_stock") @db.Decimal(10, 4)
+  maximumStock          Decimal? @map("maximum_stock") @db.Decimal(10, 4)
+  reorderPoint          Decimal? @map("reorder_point") @db.Decimal(10, 4)
+  packSize              Int?     @default(1) @map("pack_size")
+  minimumOrderQuantity  Decimal? @map("minimum_order_quantity") @db.Decimal(10, 4)
+  lastStockTake         DateTime? @map("last_stock_take")
+  notes                 String?
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  item                  Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  stockMovements        StockMovement[]
+  orderSuggestions      OrderSuggestion[]
+  
+  @@map("inventory_items")
+}
+
+model StockMovement {
+  id                String        @id @default(cuid())
+  inventoryItemId   String        @map("inventory_item_id")
+  movementType      MovementType
+  quantity          Decimal       @db.Decimal(10, 4)
+  reason            String?       // 'purchase_order', 'sale', 'adjustment', 'waste', etc.
+  referenceId       String?       @map("reference_id") // PO ID, Invoice ID, etc.
+  notes             String?
+  createdBy         String?       @map("created_by")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  
+  // Relations
+  inventoryItem     InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  
+  @@map("stock_movements")
+}
+
+model PurchaseOrder {
+  id                    String                @id @default(cuid())
+  vendorId              String                @map("vendor_id")
+  vendorOrderSettingsId String?               @map("vendor_order_settings_id")
+  orderNumber           String                @unique @map("order_number")
+  status                PurchaseOrderStatus   @default(DRAFT)
+  orderDate             DateTime              @default(now()) @map("order_date")
+  expectedDeliveryDate  DateTime?             @map("expected_delivery_date")
+  subtotalExGst         Decimal               @default(0) @map("subtotal_ex_gst") @db.Decimal(12, 4)
+  gstAmount             Decimal               @default(0) @map("gst_amount") @db.Decimal(12, 4)
+  shippingCost          Decimal               @default(0) @map("shipping_cost") @db.Decimal(8, 2)
+  totalIncGst           Decimal               @default(0) @map("total_inc_gst") @db.Decimal(12, 4)
+  notes                 String?
+  sentAt                DateTime?             @map("sent_at")
+  sentBy                String?               @map("sent_by")
+  acknowledgedAt        DateTime?             @map("acknowledged_at")
+  receivedAt            DateTime?             @map("received_at")
+  linkedInvoiceId       String?               @unique @map("linked_invoice_id")
+  createdBy             String?               @map("created_by")
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+
+  // Relations
+  vendor                Vendor                @relation(fields: [vendorId], references: [id])
+  vendorOrderSettings   VendorOrderSettings?  @relation(fields: [vendorOrderSettingsId], references: [id])
+  lineItems             PurchaseOrderLineItem[]
+  linkedInvoice         Invoice?              @relation(fields: [linkedInvoiceId], references: [id])
+  scheduledOrder        ScheduledOrder?
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLineItem {
+  id                String        @id @default(cuid())
+  purchaseOrderId   String        @map("purchase_order_id")
+  itemId            String?       @map("item_id")
+  name              String
+  quantity          Decimal       @db.Decimal(10, 4)
+  unitCostExGst     Decimal       @map("unit_cost_ex_gst") @db.Decimal(10, 4)
+  totalCostExGst    Decimal       @map("total_cost_ex_gst") @db.Decimal(12, 4)
+  receivedQuantity  Decimal       @default(0) @map("received_quantity") @db.Decimal(10, 4)
+  notes             String?
+  createdAt         DateTime      @default(now()) @map("created_at")
+  
+  // Relations
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  item              Item?         @relation(fields: [itemId], references: [id])
+  
+  @@map("purchase_order_line_items")
+}
+
+model OrderSuggestion {
+  id                    String        @id @default(cuid())
+  vendorId              String        @map("vendor_id")
+  inventoryItemId       String        @map("inventory_item_id")
+  suggestedQuantity     Decimal       @map("suggested_quantity") @db.Decimal(10, 4)
+  reasoning             Json          // Store analysis data: sales velocity, stock levels, etc.
+  priority              String        @default("medium") // 'high', 'medium', 'low'
+  periodAnalyzed        String        @map("period_analyzed") // e.g., "last_30_days"
+  salesVelocity         Decimal?      @map("sales_velocity") @db.Decimal(10, 4)
+  daysOfStock           Decimal?      @map("days_of_stock") @db.Decimal(8, 2)
+  seasonalFactor        Decimal?      @map("seasonal_factor") @db.Decimal(5, 4)
+  isActive              Boolean       @default(true) @map("is_active")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  
+  // Relations
+  vendor                Vendor        @relation(fields: [vendorId], references: [id])
+  inventoryItem         InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  
+  @@unique([vendorId, inventoryItemId])
+  @@map("order_suggestions")
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  ACKNOWLEDGED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+  COMPLETED
+}
+
+model VendorProfile {
+  id                String   @id @default(cuid())
+  vendorId          String   @unique @map("vendor_id")
+  learningData      Json     @map("learning_data") // Store ML patterns and corrections
+  parsingRules      Json     @map("parsing_rules") // Vendor-specific parsing configuration
+  correctionHistory Json[]   @map("correction_history") // History of corrections for learning
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  
+  @@map("vendor_profiles")
+}
+
+model InvoiceCorrection {
+  id             String   @id @default(cuid())
+  invoiceId      String   @map("invoice_id")
+  fieldName      String   @map("field_name")
+  originalValue  String   @map("original_value")
+  correctedValue String   @map("corrected_value")
+  reason         String?
+  confidence     Decimal? @db.Decimal(3, 2) // 0.00 to 1.00
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_corrections")
+}
+
+// VENDOR ORDER CALENDAR MODELS
+
+model VendorOrderSchedule {
+  id               String   @id @default(cuid())
+  vendorId         String   @map("vendor_id")
+  orderDay         String   @map("order_day") // "Monday", "Tuesday", etc.
+  deliveryDay      String?  @map("delivery_day") // Expected delivery day
+  frequency        String   @default("weekly") // "weekly", "fortnightly", "monthly", "bi-monthly"
+  weekOffset       Int      @default(0) @map("week_offset") // For fortnightly/monthly (0 or 1)
+  leadTimeDays     Int      @default(1) @map("lead_time_days") // Days between order and delivery
+  isActive         Boolean  @default(true) @map("is_active")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vendor           Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, orderDay])
+  @@map("vendor_order_schedules")
+}
+
+model ScheduledOrder {
+  id               String   @id @default(cuid())
+  vendorId         String   @map("vendor_id")
+  scheduleDate     DateTime @map("schedule_date") @db.Date // When order should be placed
+  deliveryDate     DateTime @map("delivery_date") @db.Date // Expected delivery
+  status           String   @default("upcoming") // "upcoming", "due", "overdue", "placed", "delivered", "cancelled"
+  purchaseOrderId  String?  @unique @map("purchase_order_id") // Linked PO when created
+  autoGenerated    Boolean  @default(true) @map("auto_generated") // true if created by scheduler
+  notes            String?
+  placedAt         DateTime? @map("placed_at")
+  placedBy         String?  @map("placed_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vendor           Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  purchaseOrder    PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+
+  @@index([scheduleDate])
+  @@index([vendorId, scheduleDate])
+  @@map("scheduled_orders")
+}
+
+// WASTAGE AND DISCOUNT TRACKING MODELS
+
+model WastageRecord {
+  id                String   @id @default(cuid())
+  itemId            String?  @map("item_id") // Linked item if matched
+  itemName          String   @map("item_name") // Raw name from Square
+  variationName     String?  @map("variation_name")
+  gtin              String?
+  sku               String?
+  vendorName        String?  @map("vendor_name")
+  adjustmentType    String   @map("adjustment_type") // "Lost", "Damaged", "Theft"
+  quantity          Decimal  @db.Decimal(10, 4)
+  totalCost         Decimal  @map("total_cost") @db.Decimal(10, 2)
+  location          String?
+  adjustmentDate    DateTime @map("adjustment_date")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  // Relations
+  item              Item?    @relation(fields: [itemId], references: [id])
+
+  @@index([adjustmentDate])
+  @@index([itemId])
+  @@index([adjustmentType])
+  @@map("wastage_records")
+}
+
+model DiscountRecord {
+  id                String   @id @default(cuid())
+  itemId            String?  @map("item_id") // Linked item if matched
+  itemName          String   @map("item_name") // Raw name from Square
+  variationName     String?  @map("variation_name")
+  sku               String?
+  discountType      String?  @map("discount_type") // "Percentage", "Fixed Amount", etc.
+  discountPercent   Decimal? @map("discount_percent") @db.Decimal(5, 2) // e.g., 25.00, 50.00
+  discountAmount    Decimal  @map("discount_amount") @db.Decimal(10, 2) // $ amount discounted
+  originalPrice     Decimal? @map("original_price") @db.Decimal(10, 2)
+  finalPrice        Decimal? @map("final_price") @db.Decimal(10, 2)
+  quantity          Decimal  @default(1) @db.Decimal(10, 4)
+  saleDate          DateTime @map("sale_date")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  // Relations
+  item              Item?    @relation(fields: [itemId], references: [id])
+
+  @@index([saleDate])
+  @@index([itemId])
+  @@map("discount_records")
+}

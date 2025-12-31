@@ -1,0 +1,829 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/format';
+import { 
+  ArrowLeftIcon, 
+  DownloadIcon, 
+  EditIcon, 
+  CheckCircleIcon, 
+  XCircleIcon, 
+  AlertCircleIcon, 
+  FileTextIcon,
+  TrendingUpIcon,
+  TrendingDownIcon,
+  MinusIcon,
+  DollarSignIcon,
+  PackageIcon,
+  CalendarIcon,
+  UserIcon,
+  ClipboardListIcon,
+  RefreshCwIcon,
+  ArchiveIcon,
+  SendIcon,
+  UploadIcon,
+  EyeIcon,
+  CopyIcon,
+  CheckIcon,
+  ChevronDownIcon
+} from 'lucide-react';
+
+interface InvoiceLineItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unitCostExGst: number;
+  detectedPackSize?: number;
+  effectiveUnitCostExGst: number;
+  category: string;
+  markup: number;
+  sellExGst: number;
+  sellIncGst: number;
+  notes?: string;
+  gstRate?: number;
+  gstAmount?: number;
+  hasGst?: boolean;
+}
+
+interface Invoice {
+  id: string;
+  invoiceNumber?: string;
+  vendor: {
+    id: string;
+    name: string;
+  };
+  invoiceDate: string;
+  subtotalExGst: number;
+  gstAmount: number;
+  totalIncGst: number;
+  status: string;
+  lineItems: InvoiceLineItem[];
+  createdAt: string;
+}
+
+const STATUS_COLORS = {
+  DRAFT: 'bg-yellow-100 text-yellow-800',
+  PARSED: 'bg-blue-100 text-blue-800',
+  REVIEWED: 'bg-orange-100 text-orange-800',
+  APPROVED: 'bg-green-100 text-green-800',
+  REJECTED: 'bg-red-100 text-red-800',
+};
+
+const STATUS_ICONS = {
+  DRAFT: EditIcon,
+  PARSED: FileTextIcon,
+  REVIEWED: EyeIcon,
+  APPROVED: CheckCircleIcon,
+  REJECTED: XCircleIcon,
+};
+
+export default function InvoiceDetailPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [copiedPrice, setCopiedPrice] = useState<string | null>(null);
+
+  const categories = [
+    'House', 'Bulk', 'Fruit & Veg', 'Fridge & Freezer', 'Naturo', 
+    'Groceries', 'Drinks Fridge', 'Supplements', 'Personal Care', 'Fresh Bread'
+  ];
+
+  useEffect(() => {
+    loadInvoice();
+  }, [params.id]);
+
+  const loadInvoice = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/invoices/${params.id}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setInvoice(result.data);
+      } else {
+        setError(result.error || 'Failed to load invoice');
+      }
+    } catch (error) {
+      console.error('Error loading invoice:', error);
+      setError('Failed to load invoice');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateInvoiceStatus = async (status: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${params.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setInvoice(prev => prev ? { ...prev, status } : null);
+      } else {
+        alert('Failed to update invoice status');
+      }
+    } catch (error) {
+      console.error('Error updating invoice status:', error);
+      alert('Failed to update invoice status');
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  const updateLineItemCategory = async (itemId: string, newCategory: string) => {
+    if (!invoice) return;
+
+    try {
+      // Create a dedicated API endpoint for updating just the category
+      const response = await fetch(`/api/invoices/${params.id}/line-items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newCategory }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        // Update the local state
+        const updatedLineItems = invoice.lineItems.map(item =>
+          item.id === itemId ? { ...item, category: newCategory } : item
+        );
+        
+        setInvoice(prev => prev ? {
+          ...prev,
+          lineItems: updatedLineItems
+        } : null);
+        setEditingCategory(null);
+      } else {
+        alert(`Failed to update category: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating category:', error);
+      alert('Failed to update category');
+    }
+  };
+
+  const copyToClipboard = async (text: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedPrice(`${type}-${text}`);
+      setTimeout(() => setCopiedPrice(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error || !invoice) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <AlertCircleIcon className="mx-auto h-12 w-12 text-red-400 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Error Loading Invoice</h3>
+          <p className="text-gray-600 mb-4">{error || 'Invoice not found'}</p>
+          <Link href="/invoices">
+            <Button variant="outline">
+              <ArrowLeftIcon className="w-4 h-4 mr-2" />
+              Back to Invoices
+            </Button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header - Gradient style matching roster */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 rounded-2xl p-8 text-white">
+          <div className="absolute inset-0 bg-black opacity-10"></div>
+          <div className="relative">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="flex items-center space-x-4 mb-4">
+                  <Link href="/invoices">
+                    <Button variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-white/20">
+                      <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                      Back to Invoices
+                    </Button>
+                  </Link>
+                </div>
+                <h1 className="text-3xl font-bold mb-2">Invoice Details</h1>
+                <p className="text-blue-100 text-lg">
+                  {invoice.vendor.name} • {formatDate(invoice.invoiceDate)}
+                </p>
+                <p className="text-blue-200 text-sm">
+                  ID: {invoice.id.slice(0, 8)}...
+                </p>
+              </div>
+              <div className="mt-4 lg:mt-0 flex flex-col items-end space-y-3">
+                <div className="flex items-center space-x-2">
+                  {(() => {
+                    const StatusIcon = STATUS_ICONS[invoice.status as keyof typeof STATUS_ICONS] || FileTextIcon;
+                    return (
+                      <div className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/30">
+                        <StatusIcon className="w-5 h-5" />
+                        <span className="font-semibold capitalize">{invoice.status.toLowerCase()}</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm opacity-90">Total Value</div>
+                  <div className="text-2xl font-bold">{formatCurrency(invoice.totalIncGst)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards - Matching roster style */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm opacity-90 mb-1">Line Items</p>
+                  <p className="text-3xl font-bold">{invoice.lineItems.length}</p>
+                  <p className="text-sm opacity-75 mt-1">Products</p>
+                </div>
+                <PackageIcon className="w-12 h-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-orange-500 to-red-600 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm opacity-90 mb-1">Subtotal (ex GST)</p>
+                  <p className="text-3xl font-bold">{formatCurrency(invoice.subtotalExGst)}</p>
+                  <p className="text-sm opacity-75 mt-1">Before tax</p>
+                </div>
+                <DollarSignIcon className="w-12 h-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-purple-500 to-pink-600 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm opacity-90 mb-1">GST Amount</p>
+                  <p className="text-3xl font-bold">{formatCurrency(invoice.gstAmount)}</p>
+                  <p className="text-sm opacity-75 mt-1">Tax (10%)</p>
+                </div>
+                <CalendarIcon className="w-12 h-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm opacity-90 mb-1">Total (inc GST)</p>
+                  <p className="text-3xl font-bold">{formatCurrency(invoice.totalIncGst)}</p>
+                  <p className="text-sm opacity-75 mt-1">Final amount</p>
+                </div>
+                <UserIcon className="w-12 h-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Invoice Workflow Management */}
+        <Card className="border-2 border-gray-200">
+          <CardHeader className="bg-gray-50">
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardListIcon className="w-5 h-5" />
+              Invoice Workflow Management
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Current Status:</p>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const StatusIcon = STATUS_ICONS[invoice.status as keyof typeof STATUS_ICONS] || FileTextIcon;
+                      return (
+                        <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[invoice.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-800'}`}>
+                          <StatusIcon className="w-4 h-4" />
+                          <span className="capitalize">{invoice.status.toLowerCase()}</span>
+                        </div>
+                      );
+                    })()}
+                    <span className="text-xs text-gray-500">
+                      {formatDate(invoice.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-2">
+                {invoice.status === 'PARSED' && (
+                  <Button
+                    onClick={() => updateInvoiceStatus('REVIEWED')}
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    <EyeIcon className="w-4 h-4 mr-2" />
+                    Move to Review
+                  </Button>
+                )}
+                
+                {invoice.status === 'REVIEWED' && (
+                  <>
+                    <Button
+                      onClick={() => updateInvoiceStatus('APPROVED')}
+                      className="bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      <CheckCircleIcon className="w-4 h-4 mr-2" />
+                      Approve Invoice
+                    </Button>
+                    <Button
+                      onClick={() => updateInvoiceStatus('REJECTED')}
+                      variant="outline"
+                      className="border-red-500 text-red-600 hover:bg-red-50"
+                    >
+                      <XCircleIcon className="w-4 h-4 mr-2" />
+                      Reject Invoice
+                    </Button>
+                    <Button
+                      onClick={() => updateInvoiceStatus('PARSED')}
+                      variant="outline"
+                      className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                    >
+                      <EditIcon className="w-4 h-4 mr-2" />
+                      Back to Parsed
+                    </Button>
+                  </>
+                )}
+
+                {invoice.status === 'APPROVED' && (
+                  <>
+                    <Button
+                      onClick={() => updateInvoiceStatus('REVIEWED')}
+                      variant="outline"
+                      className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                    >
+                      <EyeIcon className="w-4 h-4 mr-2" />
+                      Back to Review
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-green-500 text-green-600 hover:bg-green-50"
+                    >
+                      <SendIcon className="w-4 h-4 mr-2" />
+                      Post to Inventory
+                    </Button>
+                  </>
+                )}
+
+                <Button
+                  variant="outline"
+                  className="border-purple-500 text-purple-600 hover:bg-purple-50"
+                >
+                  <DownloadIcon className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  className="border-gray-500 text-gray-600 hover:bg-gray-50"
+                >
+                  <RefreshCwIcon className="w-4 h-4 mr-2" />
+                  Re-process OCR
+                </Button>
+              </div>
+            </div>
+
+            {invoice.status === 'PARSED' && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>Tip:</strong> Review the extracted line items and pricing before approving. 
+                  Check for any price changes from previous invoices.
+                </p>
+              </div>
+            )}
+            
+            {invoice.status === 'REVIEWED' && (
+              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-sm text-orange-800">
+                  👁️ <strong>Under Review:</strong> This invoice is ready for final approval. 
+                  Verify all line items and pricing are correct.
+                </p>
+              </div>
+            )}
+
+            {invoice.status === 'APPROVED' && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800">
+                  ✅ <strong>Approved:</strong> This invoice is approved and ready to be posted to inventory.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Line Items - Enhanced Table */}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 px-6 py-4">
+            <h2 className="text-xl font-bold text-white">
+              Items to Check ({invoice.lineItems.length})
+            </h2>
+            <p className="text-blue-100 text-sm">
+              Extracted and processed from invoice
+            </p>
+          </div>
+
+          {/* Invoice Header Information */}
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</label>
+                <div className="text-sm font-semibold text-gray-900 mt-1">{invoice.vendor.name}</div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice Number</label>
+                <div className="text-sm font-semibold text-gray-900 mt-1">{invoice.invoiceNumber || invoice.id.slice(0, 8) + '...'}</div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice Date</label>
+                <div className="text-sm font-semibold text-gray-900 mt-1">{formatDate(invoice.invoiceDate)}</div>
+              </div>
+            </div>
+          </div>
+
+          {invoice.lineItems.length === 0 ? (
+            <div className="text-center py-12">
+              <FileTextIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No line items found</h3>
+              <div className="space-y-3 mb-6">
+                <p className="text-gray-600">
+                  The OCR processing couldn't extract any line items from this document.
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left max-w-lg mx-auto">
+                  <div className="flex items-start">
+                    <AlertCircleIcon className="w-5 h-5 text-amber-600 mt-0.5 mr-2 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-800 mb-1">Possible causes:</p>
+                      <ul className="text-amber-700 space-y-1 list-disc list-inside">
+                        <li>Wrong document type (roster, receipt, or non-invoice)</li>
+                        <li>Invoice format not supported (currently supports Trumps Pty Ltd format)</li>
+                        <li>Poor image quality or scanning issues</li>
+                        <li>Document structure not recognized</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button variant="outline">
+                  <RefreshCwIcon className="w-4 h-4 mr-2" />
+                  Re-process Invoice
+                </Button>
+                <Link href="/invoices/upload">
+                  <Button variant="outline" className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
+                    <UploadIcon className="w-4 h-4 mr-2" />
+                    Upload Different Document
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{width: '35%'}}>
+                      Product Description
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                      Quantity
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                      Pack Price
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                      Per Unit Cost
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                      Category
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                      Markup
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                      Sell Price (ex GST)
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                      GST
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                      Sell Price (inc GST)
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                      Price Trend
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {invoice.lineItems.map((item, index) => {
+                    // Mock price comparison - in reality this would come from database
+                    const mockPriceChange = Math.random() * 0.4 - 0.2; // -20% to +20%
+                    const priceIncreased = mockPriceChange > 0.05;
+                    const priceDecreased = mockPriceChange < -0.05;
+                    const priceUnchanged = !priceIncreased && !priceDecreased;
+
+                    return (
+                      <tr 
+                        key={item.id} 
+                        className={`hover:bg-gray-50 transition-colors ${
+                          index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+                        }`}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-start space-x-3">
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-gray-900">
+                                {item.name}
+                              </div>
+                              {item.notes && (
+                                <div className="text-xs text-gray-500 mt-1 flex items-center space-x-1">
+                                  <span>📋</span>
+                                  <span>{item.notes}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900 mb-1">{item.quantity}</div>
+                          {item.detectedPackSize && item.detectedPackSize > 1 && (
+                            <div className="space-y-1">
+                              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full inline-block">
+                                {item.detectedPackSize}kg pack
+                              </div>
+                              <button
+                                onClick={() => copyToClipboard((Number(item.quantity) * Number(item.detectedPackSize)).toFixed(1), 'total'))
+                                className="flex items-center space-x-1 text-lg font-bold text-green-700 bg-green-50 px-3 py-1 rounded-full hover:bg-green-100 transition-colors cursor-pointer"
+                                title="Copy total weight"
+                              >
+                                <span>{(Number(item.quantity) * Number(item.detectedPackSize)).toFixed(1)}kg</span>
+                                {copiedPrice === `total-${(Number(item.quantity) * Number(item.detectedPackSize)).toFixed(1)}` ? 
+                                  <CheckIcon className="w-3 h-3 text-green-600" /> : 
+                                  <CopyIcon className="w-3 h-3 opacity-60" />
+                                }
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-2">
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-gray-900">
+                                {formatCurrency(item.unitCostExGst)}
+                              </div>
+                              <div className="text-xs text-gray-500">Total pack</div>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(Number(item.unitCostExGst).toString(), 'cost')}
+                              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                              title="Copy cost price (ex GST)"
+                            >
+                              {copiedPrice === `cost-${item.unitCostExGst}` ? 
+                                <CheckIcon className="w-4 h-4 text-green-600" /> : 
+                                <CopyIcon className="w-4 h-4" />
+                              }
+                            </button>
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-green-600">
+                            {formatCurrency(item.effectiveUnitCostExGst)}
+                          </div>
+                          {item.detectedPackSize && item.detectedPackSize > 1 && (
+                            <div className="text-xs text-gray-500">
+                              per kg
+                            </div>
+                          )}
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {editingCategory === item.id ? (
+                            <div className="relative">
+                              <select
+                                className="block w-full px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                value={item.category}
+                                onChange={(e) => updateLineItemCategory(item.id, e.target.value)}
+                                onBlur={() => setEditingCategory(null)}
+                                autoFocus
+                              >
+                                {categories.map(cat => (
+                                  <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div 
+                              className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full cursor-pointer hover:opacity-75 transition-opacity ${
+                                item.category === 'Bulk' ? 'bg-purple-100 text-purple-800' :
+                                item.category === 'Fruit & Veg' ? 'bg-green-100 text-green-800' :
+                                item.category === 'Fridge & Freezer' ? 'bg-blue-100 text-blue-800' :
+                                item.category === 'Drinks Fridge' ? 'bg-cyan-100 text-cyan-800' :
+                                item.category === 'Fresh Bread' ? 'bg-orange-100 text-orange-800' :
+                                item.category === 'Supplements' ? 'bg-pink-100 text-pink-800' :
+                                item.category === 'Personal Care' ? 'bg-indigo-100 text-indigo-800' :
+                                item.category === 'Naturo' ? 'bg-emerald-100 text-emerald-800' :
+                                item.category === 'House' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}
+                              onClick={() => setEditingCategory(item.id)}
+                              title="Click to edit category"
+                            >
+                              <span className="mr-1">{item.category}</span>
+                              <EditIcon className="w-3 h-3 opacity-60" />
+                            </div>
+                          )}
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {(item.markup * 100).toFixed(1)}%
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatCurrency(item.sellExGst)}
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(Number(item.sellExGst).toString(), 'sellEx')}
+                              className="p-1 text-gray-400 hover:text-orange-600 transition-colors"
+                              title="Copy sell price (ex GST)"
+                            >
+                              {copiedPrice === `sellEx-${item.sellExGst}` ? 
+                                <CheckIcon className="w-4 h-4 text-green-600" /> : 
+                                <CopyIcon className="w-4 h-4" />
+                              }
+                            </button>
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center justify-center">
+                            {item.hasGst !== false ? (
+                              <div className="flex flex-col items-center space-y-1">
+                                <div className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                  {Number(item.gstRate || 10).toFixed(0)}% GST
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  {formatCurrency(Number(item.gstAmount) || (Number(item.sellExGst) * 0.1))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-full">
+                                GST-Free
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm font-bold text-green-600">
+                              {formatCurrency(item.sellIncGst)}
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(Number(item.sellIncGst).toString(), 'sellInc')}
+                              className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                              title="Copy sell price (inc GST)"
+                            >
+                              {copiedPrice === `sellInc-${item.sellIncGst}` ? 
+                                <CheckIcon className="w-4 h-4 text-green-600" /> : 
+                                <CopyIcon className="w-4 h-4" />
+                              }
+                            </button>
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-1">
+                            {priceIncreased && (
+                              <>
+                                <TrendingUpIcon className="w-4 h-4 text-red-500" />
+                                <span className="text-xs text-red-600 font-medium">
+                                  +{(mockPriceChange * 100).toFixed(1)}%
+                                </span>
+                              </>
+                            )}
+                            {priceDecreased && (
+                              <>
+                                <TrendingDownIcon className="w-4 h-4 text-green-500" />
+                                <span className="text-xs text-green-600 font-medium">
+                                  {(mockPriceChange * 100).toFixed(1)}%
+                                </span>
+                              </>
+                            )}
+                            {priceUnchanged && (
+                              <>
+                                <MinusIcon className="w-4 h-4 text-gray-400" />
+                                <span className="text-xs text-gray-500">Same</span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Table Footer with Summary */}
+          {invoice.lineItems.length > 0 && (
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-t border-gray-200 px-6 py-4">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-blue-600">{invoice.lineItems.length}</div>
+                  <div className="text-sm text-gray-600">Total Items</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-600">
+                    {invoice.lineItems.reduce((sum, item) => sum + item.quantity, 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Quantity</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {formatCurrency(invoice.subtotalExGst)}
+                  </div>
+                  <div className="text-sm text-gray-600">Subtotal (ex GST)</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex flex-wrap gap-3">
+          <Link href="/invoices">
+            <Button variant="outline" className="flex items-center space-x-2">
+              <ArrowLeftIcon className="w-4 h-4" />
+              <span>Back to All Invoices</span>
+            </Button>
+          </Link>
+          <Link href="/invoices/upload">
+            <Button variant="outline" className="flex items-center space-x-2">
+              <UploadIcon className="w-4 h-4" />
+              <span>Upload New Invoice</span>
+            </Button>
+          </Link>
+          <Button variant="outline" className="flex items-center space-x-2">
+            <FileTextIcon className="w-4 h-4" />
+            <span>View Original PDF</span>
+          </Button>
+          <Button variant="outline" className="flex items-center space-x-2">
+            <EditIcon className="w-4 h-4" />
+            <span>Edit Line Items</span>
+          </Button>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}

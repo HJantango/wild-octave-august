@@ -1,0 +1,374 @@
+// src/app/invoices/[id]/review/page.tsx
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Check, X, AlertCircle } from 'lucide-react';
+
+interface LineItem {
+  id: string;
+  itemDescription: string;
+  quantity: number;
+  unitType: string;
+  unitCostExGst: number;
+  category: string;
+  hasGst: boolean;
+  confidence?: number;
+  validationFlags?: string[];
+  rawQuantityText?: string;
+}
+
+interface Correction {
+  itemId: string;
+  field: string;
+  original: any;
+  corrected: any;
+  reason?: string;
+}
+
+export default function InvoiceReviewPage() {
+  const params = useParams();
+  const router = useRouter();
+  const invoiceId = params.id as string;
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [invoice, setInvoice] = useState<any>(null);
+  const [items, setItems] = useState<LineItem[]>([]);
+  const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    fetchInvoiceData();
+  }, [invoiceId]);
+
+  const fetchInvoiceData = async () => {
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}`);
+      const data = await res.json();
+      
+      if (data.processingData) {
+        setInvoice(data);
+        setItems(data.processingData.items || []);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching invoice:', error);
+      setLoading(false);
+    }
+  };
+
+  const handleFieldChange = (
+    itemIndex: number, 
+    field: string, 
+    value: any,
+    reason?: string
+  ) => {
+    const item = items[itemIndex];
+    const original = item[field as keyof LineItem];
+    
+    // Update item
+    const newItems = [...items];
+    newItems[itemIndex] = { ...item, [field]: value };
+    setItems(newItems);
+
+    // Track correction if value changed
+    if (original !== value) {
+      const correction: Correction = {
+        itemId: item.id,
+        field,
+        original,
+        corrected: value,
+        reason
+      };
+
+      // Remove any existing correction for this field
+      const newCorrections = corrections.filter(
+        c => !(c.itemId === item.id && c.field === field)
+      );
+      newCorrections.push(correction);
+      setCorrections(newCorrections);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/process`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          corrections,
+          approvedItems: items
+        })
+      });
+
+      if (response.ok) {
+        router.push(`/invoices/${invoiceId}`);
+      } else {
+        alert('Error saving changes');
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert('Error saving changes');
+    }
+    setSaving(false);
+  };
+
+  const calculateTotals = () => {
+    const subtotal = items.reduce((sum, item) => 
+      sum + (item.quantity * item.unitCostExGst), 0
+    );
+    const gst = items
+      .filter(item => item.hasGst)
+      .reduce((sum, item) => 
+        sum + (item.quantity * item.unitCostExGst * 0.1), 0
+      );
+    return { subtotal, gst, total: subtotal + gst };
+  };
+
+  if (loading) return <div>Loading invoice...</div>;
+
+  const flaggedItems = items.filter(
+    item => (item.confidence || 1) < 0.8 || item.validationFlags?.length
+  );
+  const totals = calculateTotals();
+
+  return (
+    <div className="container mx-auto p-6 max-w-7xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-2">Review Invoice</h1>
+        <div className="flex gap-4 items-center">
+          <Badge variant="outline">
+            {invoice?.vendor?.name || 'Unknown Vendor'}
+          </Badge>
+          <Badge variant="outline">
+            Invoice #{invoice?.invoiceNumber}
+          </Badge>
+          <Badge variant={flaggedItems.length > 0 ? 'destructive' : 'default'}>
+            {flaggedItems.length} items need review
+          </Badge>
+        </div>
+      </div>
+
+      {flaggedItems.length > 0 && (
+        <Alert className="mb-6 bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Items need your attention:</strong> Some quantities were extracted from 
+            pack sizes in descriptions, and some GST values may need verification. 
+            Please review highlighted items carefully.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="mb-4 flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => setShowHelp(!showHelp)}
+        >
+          {showHelp ? 'Hide' : 'Show'} Help
+        </Button>
+        <div className="text-sm text-gray-600">
+          {corrections.length} corrections made
+        </div>
+      </div>
+
+      {showHelp && (
+        <Card className="mb-6 bg-blue-50">
+          <CardContent className="pt-6">
+            <h3 className="font-semibold mb-2">Common Issues to Check:</h3>
+            <ul className="space-y-1 text-sm">
+              <li>• <strong>Quantity:</strong> Check if the number is from the QTY column, not from pack sizes like "(12)" in descriptions</li>
+              <li>• <strong>Bulk Items:</strong> For items sold by weight (kg) or volume (L), verify the total amount</li>
+              <li>• <strong>GST:</strong> Check if the GST column has a value or is $0.00</li>
+              <li>• <strong>Unit Cost:</strong> Should be the price per single unit, not the total</li>
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Line Items</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b text-left text-sm font-medium">
+                  <th className="p-2">Description</th>
+                  <th className="p-2">Qty</th>
+                  <th className="p-2">Unit</th>
+                  <th className="p-2">Unit Cost</th>
+                  <th className="p-2">GST</th>
+                  <th className="p-2">Category</th>
+                  <th className="p-2">Line Total</th>
+                  <th className="p-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => {
+                  const needsReview = (item.confidence || 1) < 0.8 || 
+                    item.validationFlags?.length;
+                  const lineTotal = item.quantity * item.unitCostExGst;
+                  
+                  return (
+                    <tr 
+                      key={index}
+                      className={`border-b ${needsReview ? 'bg-yellow-50' : ''}`}
+                    >
+                      <td className="p-2">
+                        <Input
+                          value={item.itemDescription}
+                          onChange={(e) => handleFieldChange(
+                            index, 'itemDescription', e.target.value
+                          )}
+                          className="w-full"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => handleFieldChange(
+                            index, 'quantity', parseFloat(e.target.value)
+                          )}
+                          className={`w-20 ${
+                            item.validationFlags?.includes('possible_default_quantity') 
+                              ? 'border-yellow-400' : ''
+                          }`}
+                        />
+                        {item.rawQuantityText && item.rawQuantityText !== String(item.quantity) && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Raw: {item.rawQuantityText}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <select
+                          value={item.unitType}
+                          onChange={(e) => handleFieldChange(
+                            index, 'unitType', e.target.value
+                          )}
+                          className="w-full border rounded px-2 py-1"
+                        >
+                          <option value="unit">Unit</option>
+                          <option value="kg">kg</option>
+                          <option value="litre">L</option>
+                          <option value="each">Each</option>
+                        </select>
+                      </td>
+                      <td className="p-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={item.unitCostExGst}
+                          onChange={(e) => handleFieldChange(
+                            index, 'unitCostExGst', parseFloat(e.target.value)
+                          )}
+                          className="w-24"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <select
+                          value={item.hasGst ? 'yes' : 'no'}
+                          onChange={(e) => handleFieldChange(
+                            index, 'hasGst', e.target.value === 'yes'
+                          )}
+                          className="w-full border rounded px-2 py-1"
+                        >
+                          <option value="yes">Yes</option>
+                          <option value="no">No</option>
+                        </select>
+                      </td>
+                      <td className="p-2">
+                        <select
+                          value={item.category}
+                          onChange={(e) => handleFieldChange(
+                            index, 'category', e.target.value
+                          )}
+                          className="w-full border rounded px-2 py-1"
+                        >
+                          <option value="Groceries">Groceries</option>
+                          <option value="Bulk">Bulk</option>
+                          <option value="House">House</option>
+                          <option value="Personal Care">Personal Care</option>
+                          <option value="Supplements">Supplements</option>
+                          <option value="Fruit & Veg">Fruit & Veg</option>
+                          <option value="Fridge & Freezer">Fridge & Freezer</option>
+                          <option value="Drinks Fridge">Drinks Fridge</option>
+                        </select>
+                      </td>
+                      <td className="p-2 font-medium">
+                        ${lineTotal.toFixed(2)}
+                      </td>
+                      <td className="p-2">
+                        {needsReview ? (
+                          <Badge variant="outline" className="bg-yellow-100">
+                            Review
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-green-100">
+                            <Check className="h-3 w-3 mr-1" />
+                            OK
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="font-medium">
+                  <td colSpan={6} className="p-2 text-right">Subtotal (Ex GST):</td>
+                  <td className="p-2">${totals.subtotal.toFixed(2)}</td>
+                  <td></td>
+                </tr>
+                <tr className="font-medium">
+                  <td colSpan={6} className="p-2 text-right">GST:</td>
+                  <td className="p-2">${totals.gst.toFixed(2)}</td>
+                  <td></td>
+                </tr>
+                <tr className="font-bold text-lg">
+                  <td colSpan={6} className="p-2 text-right">Total (Inc GST):</td>
+                  <td className="p-2">${totals.total.toFixed(2)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="mt-6 flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => router.push('/invoices')}
+        >
+          Cancel
+        </Button>
+        <div className="space-x-2">
+          {corrections.length > 0 && (
+            <span className="text-sm text-gray-600 mr-4">
+              {corrections.length} corrections will be saved for learning
+            </span>
+          )}
+          <Button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {saving ? 'Saving...' : 'Approve & Process'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,355 @@
+Perfect! Now I have everything I need. Let me examine the uploaded files quickly to understand the data structures better.Perfect! Now I can create a comprehensive Claude Code project brief. Here it is:
+
+---
+
+# CLAUDE CODE PROJECT BRIEF: Wild Octave Organics Order Management System Enhancement
+
+## Files
+Files for this new project are located in new-project/
+
+## Project Context
+You are working on an existing Next.js 14 App Router application for Wild Octave Organics, a health food shop and café. Review the `CLAUDE.md` file first to understand the complete tech stack, database schema, and existing features. This project will enhance the ordering system by integrating functionality from a standalone HTML prototype.
+
+## Current System Overview (from CLAUDE.md)
+- **Stack**: Next.js 14, PostgreSQL + Prisma, React Query, Tailwind + Radix UI
+- **Existing Features**: Sales analytics, invoice processing with LLM/OCR, item management, roster management
+- **Key Database Tables**: `vendors`, `items`, `invoices`, `invoice_line_items`, `sales_reports`, `purchase_orders`
+- **Authentication**: Single-user TOKEN-based system
+
+## Objective
+Integrate and enhance the attached HTML order form (`order_form_final_complete__2_.html`) into the existing Next.js application, adding robust ordering features, improved inventory management, and a vendor order calendar system.
+
+## Phase 1: PRIORITY - Fix Category & Item Organization (Immediate)
+
+### Problem
+When staff print inventory check sheets, items aren't properly organized. Need better categorization and the ability to reorder items.
+
+### Requirements
+1. **Enhanced Item Data Model**
+   - Add `displayOrder` field to items (integer for sort position)
+   - Add `subcategory` field to items (string for shelf location - e.g., "Top Shelf", "Middle Left", "Floor Stock")
+   - Add `category` field if not already present (matches Square categories from CSV)
+
+2. **Print View Improvements**
+   - Group items by category with visual separation (colored header rows or dividers)
+   - Within each category, sort by `displayOrder`
+   - Include subcategory/shelf location in print view for easy stock checking
+   - Staff-friendly layout with checkboxes and space for handwritten notes
+
+3. **Item Management UI Enhancement**
+   - Drag-and-drop interface to reorder items within a category
+   - Ability to change item category/subcategory
+   - Bulk categorization tools
+   - Visual preview of how print sheet will look
+
+4. **Auto-Categorization on Square Import**
+   - When importing Square vendor sales CSV (see example `vendor-sales-2025-08-25-2025-08-31__7_.csv`), automatically:
+     - Assign items to categories based on Square's "Category" column
+     - Suggest subcategories using keyword matching (e.g., items with "Refrigerate" → "Fridge" subcategory)
+     - Create items if they don't exist, update sales data if they do
+   - Provide UI for staff to review and adjust auto-categorizations
+
+### Technical Approach
+```typescript
+// Prisma schema additions needed
+model Item {
+  // ... existing fields
+  category: String?
+  subcategory: String?
+  displayOrder: Int @default(0)
+}
+
+// New API endpoints needed:
+// PUT /api/items/[id]/position - Update displayOrder
+// PUT /api/items/[id]/category - Update category/subcategory
+// POST /api/items/bulk-categorize - Bulk update categories
+// GET /api/items/print-sheet - Generate organized print view
+```
+
+## Phase 2: Integrate Order Form Features into Next.js
+
+### Current HTML Prototype Features to Integrate
+The attached HTML file has these features to bring into the main app:
+
+1. **6-Week Sales Analysis**
+   - Upload 6 CSV files (one per week) of Square vendor sales
+   - Calculate total sales, average per week, sales velocity
+   - Show week-by-week breakdown (WK1-WK6 columns)
+   - Calculate suggested order quantities based on:
+     - Sales velocity (avg/week)
+     - Order frequency (weekly/fortnightly/monthly)
+     - Current stock on hand
+     - Buffer stock levels
+
+2. **Multi-Vendor Management**
+   - Switch between vendors easily
+   - Each vendor has its own order frequency setting
+   - Maintain separate order suggestions per vendor
+   - Track PO numbers per vendor
+
+3. **Order Calculation Logic**
+   - Show Square quantity (what system thinks is in stock)
+   - Display unit cost, sell price, margin $ and %
+   - Calculate monthly revenue potential per item
+   - Suggest order quantity: `ceil(avg_weekly_sales * order_frequency_multiplier) - on_hand_stock`
+   - Allow manual override of suggested quantities
+   - Flag items: "TOP SELLER" (high velocity), "SLOW MOVER" (low velocity), "REVIEW ITEMS" (negative stock)
+
+4. **Export & Actions**
+   - Export order as CSV
+   - Generate purchase order (integrate with existing PO system)
+   - Print stock check sheet (with category organization from Phase 1)
+   - Import previously saved orders
+
+### Integration Requirements
+
+**Database Schema Enhancements Needed:**
+```typescript
+model Vendor {
+  // Add if not present:
+  orderFrequency: Int @default(1) // 1=weekly, 2=fortnightly, 4=monthly
+  orderDays: String? // JSON: ["Monday", "Thursday"]
+  deliveryLeadDays: Int @default(1)
+  minimumOrderValue: Decimal?
+  preferredContactMethod: String? // "email" | "phone" | "portal"
+}
+
+model Item {
+  // Add:
+  currentStock: Int @default(0) // Override Square data
+  squareStock: Int @default(0) // What Square reports
+  reorderPoint: Int?
+  bufferStock: Int @default(0)
+}
+
+model PurchaseOrder {
+  // Enhance existing model:
+  status: String // "draft" | "suggested" | "approved" | "sent" | "received"
+  orderDate: DateTime
+  expectedDeliveryDate: DateTime?
+  orderFrequency: Int
+  weeklyAnalysisData: Json? // Store the 6-week data for reference
+}
+
+model PurchaseOrderItem {
+  // Add:
+  avgWeeklySales: Decimal?
+  sixWeekTotal: Int?
+  suggestedQuantity: Int
+  actualOrderQuantity: Int
+  weeklyBreakdown: Json? // Store WK1-WK6 data
+}
+```
+
+**New API Endpoints:**
+```
+POST /api/vendors/[id]/sales-analysis - Upload & process 6 weeks of Square CSVs
+GET /api/vendors/[id]/order-suggestions - Get calculated order suggestions
+POST /api/purchase-orders/create-from-suggestions - Create PO from analysis
+PUT /api/items/[id]/stock - Update on-hand stock levels
+```
+
+**UI Components Needed:**
+- Sales analysis upload modal (drag-drop 6 CSV files)
+- Order form table component with:
+  - Sortable columns
+  - Editable "Order" quantity cells
+  - Color-coded cells (margins, stock levels)
+  - Category filtering
+  - Search functionality
+- Order summary widget showing total items, units, top sellers
+- Vendor selector with frequency settings
+
+## Phase 3: Vendor Order Calendar System
+
+### Requirements
+
+1. **Calendar Data Model**
+```typescript
+model VendorOrderSchedule {
+  id: String @id @default(cuid())
+  vendorId: String
+  vendor: Vendor @relation
+  orderDay: String // "Monday", "Tuesday", etc.
+  deliveryDay: String
+  frequency: String // "weekly" | "fortnightly" | "monthly" | "bi-monthly"
+  weekOffset: Int? // For fortnightly/monthly (which week of cycle)
+  isActive: Boolean @default(true)
+  notes: String?
+}
+
+model ScheduledOrder {
+  id: String @id @default(cuid())
+  vendorId: String
+  vendor: Vendor @relation
+  scheduleDate: DateTime // When order should be placed
+  deliveryDate: DateTime // Expected delivery
+  status: String // "upcoming" | "due" | "overdue" | "placed" | "delivered"
+  purchaseOrderId: String?
+  purchaseOrder: PurchaseOrder?
+  autoGenerated: Boolean @default(true)
+  createdAt: DateTime @default(now())
+}
+```
+
+2. **Calendar Features**
+   - Monthly/weekly calendar view showing all vendor order dates
+   - Color-coded by vendor
+   - Click date to see which vendors have orders due
+   - Click vendor/date to create/view order suggestions
+   - Filter by vendor or order status
+   - Show order history on calendar (past orders)
+
+3. **Initial Setup from Xero Data**
+   - Import vendor list and spend amounts from `Wild_Octave_Trading_Pty_LTD_-_Expenses_by_Contact...xlsx`
+   - Create vendor records if they don't exist
+   - For known vendors (e.g., United Organics: Mon/Thu, Byron Gourmet Pies: 2x/week), pre-populate order schedules
+   - Provide UI to manually set order schedules for remaining vendors
+
+4. **Auto-Scheduling Logic**
+   - Background job generates `ScheduledOrder` records for upcoming dates
+   - Runs daily, creates scheduled orders for next 30 days
+   - Respects vendor order frequency and days
+   - Skips public holidays (integrate with existing roster system's holiday table)
+
+5. **Order Workflow from Calendar**
+   - View calendar → click upcoming order → loads sales analysis page for that vendor
+   - System pre-loads last 6 weeks of sales data
+   - Shows suggested order quantities
+   - Manager reviews, adjusts, approves
+   - Creates PO and marks ScheduledOrder as "placed"
+
+### Technical Implementation
+
+**Seeding Vendor Schedules:**
+```typescript
+// Seed script additions
+const vendorSchedules = [
+  { vendor: "United Organics", days: ["Monday", "Thursday"], frequency: "weekly" },
+  { vendor: "Byron Gourmet Pies", days: ["Tuesday", "Friday"], frequency: "weekly" },
+  { vendor: "Horizon Foods", days: ["Wednesday"], frequency: "weekly" },
+  // ... import from Xero data for others
+];
+```
+
+**API Endpoints:**
+```
+GET /api/calendar/orders - Get all scheduled orders for date range
+POST /api/vendor-schedules - Create/update vendor order schedule
+GET /api/vendors/[id]/schedule - Get vendor's order schedule
+POST /api/scheduled-orders/generate - Trigger schedule generation
+PUT /api/scheduled-orders/[id]/status - Update order status
+```
+
+**UI Components:**
+- Full calendar component (suggest using `react-big-calendar` or similar)
+- Vendor schedule setup wizard
+- Order schedule editor (change frequency, days)
+- "Orders Due" dashboard showing upcoming orders needing attention
+
+## Phase 4: Future Enhancements (NOT for immediate implementation, but design with these in mind)
+
+1. **Automated Order Creation**
+   - System automatically creates draft POs based on sales velocity
+   - Manager just reviews and approves (one-click ordering)
+
+2. **Purchase Order Generation & Sending**
+   - Generate PDF POs with proper formatting
+   - Email directly to vendors with attachments
+   - Track PO status (sent, acknowledged, delivered)
+
+3. **Supplier Invoice Auto-Matching**
+   - When invoice PDF is uploaded, auto-match line items to PO
+   - Flag discrepancies (price changes, short shipments)
+   - Auto-update stock levels on receiving
+
+4. **Advanced Reorder Points**
+   - ML-based seasonal adjustment (e.g., summer vs. winter sales patterns)
+   - Automatic buffer stock calculation based on sales volatility
+   - Low stock alerts
+
+5. **Multi-User Workflow**
+   - Staff can suggest orders (draft status)
+   - Manager approves
+   - Activity logging
+
+## Implementation Guidelines
+
+### Code Quality
+- Follow existing patterns in codebase (check other API routes and components)
+- Use TypeScript strictly with proper types
+- Use React Query for all data fetching with optimistic updates
+- Use Zod schemas for API validation
+- Use Prisma for all database operations
+- Follow existing component structure in `src/components/`
+
+### Testing Strategy
+- Test with real data: Use attached CSV and PDF samples
+- Verify category sorting displays correctly
+- Test order calculations with different frequencies
+- Ensure calendar generates correct dates for various schedules
+
+### Migration Strategy
+- Create Prisma migration for new schema fields
+- Don't break existing invoice processing or sales analytics features
+- Seed database with example vendor schedules
+
+### UI/UX Considerations
+- Mobile-responsive (staff may check on tablets)
+- Print-friendly styles for stock check sheets
+- Clear visual hierarchy (use color coding from HTML prototype)
+- Loading states for CSV processing (6 files can take time)
+- Error handling for malformed CSV files
+
+## Success Criteria
+
+**Phase 1 Complete When:**
+- Items can be dragged to reorder within categories
+- Print sheet shows items grouped by category with subcategories
+- Square CSV import auto-assigns categories
+- Print sheet is clear and easy for staff to use during stock checks
+
+**Phase 2 Complete When:**
+- Can upload 6 weeks of Square vendor CSVs
+- Order suggestions calculate correctly based on sales velocity and frequency
+- Can create PO from suggested orders
+- Order form has all features of HTML prototype integrated
+- Export to CSV works for orders
+
+**Phase 3 Complete When:**
+- Calendar displays all vendor order schedules
+- Can import Xero data to create vendor schedules
+- Clicking calendar date loads order form with pre-populated data
+- Scheduled orders auto-generate for next 30 days
+- Order status tracking works (upcoming → placed → delivered)
+
+## Files to Reference
+
+- `CLAUDE.md` - Complete system architecture and conventions
+- `order_form_final_complete__2_.html` - Feature prototype to integrate
+- `vendor-sales-2025-08-25-2025-08-31__7_.csv` - Example Square vendor sales export
+- `United_Organics_2025-01-31_2104_52.pdf` - Example supplier invoice format
+- `Loco_Love_Pty_Ltd_2025-01-14_871_62.pdf` - Another invoice format example
+- `Wild_Octave_Trading_Pty_LTD_-_Expenses_by_Contact...xlsx` - Xero vendor data for import
+
+## Questions for Clarification
+
+Before starting, please:
+1. Confirm the Prisma schema changes align with existing architecture
+2. Verify the order calculation logic matches business requirements
+3. Clarify if there's a preferred calendar library in the existing project
+4. Confirm which features from HTML prototype are highest priority
+5. Ask about any edge cases for order frequency calculations
+
+---
+
+## Getting Started Command
+
+When you start this project, begin by:
+1. Reading `CLAUDE.md` thoroughly
+2. Examining current schema: `npx prisma studio` or check `prisma/schema.prisma`
+3. Running the app: `npm run dev`
+4. Reviewing existing vendor/item management pages
+5. Creating a feature branch: `git checkout -b feature/order-management-enhancement`
+
+Start with Phase 1 (category organization) as it's the highest priority pain point for staff.

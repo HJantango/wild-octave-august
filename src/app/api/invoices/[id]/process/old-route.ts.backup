@@ -1,0 +1,531 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma, createSuccessResponse, createErrorResponse, validateRequest } from '@/lib/api-utils';
+import { idSchema } from '@/lib/validations';
+import { getOCRService } from '@/lib/ocr';
+import { InvoiceParser } from '@/lib/invoice-parser';
+import { LLMInvoiceParser } from '@/lib/llm-invoice-parser';
+import { FreshLLMInvoiceParser } from '@/lib/fresh-llm-invoice-parser';
+import { calculatePricing, getDefaultMarkup } from '@/lib/pricing';
+import pdf2pic from 'pdf2pic';
+
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
+// Helper function to parse various date formats
+function parseInvoiceDate(dateString: string | Date): Date {
+  // If already a Date object, return as-is
+  if (dateString instanceof Date) {
+    return dateString;
+  }
+  
+  // Ensure we have a string
+  if (typeof dateString !== 'string') {
+    console.warn('Invalid date format received:', typeof dateString, dateString);
+    return new Date(); // Default to current date
+  }
+  
+  // Handle DD/MM/YYYY format (Australian format)
+  const ddmmyyyyMatch = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [, day, month, year] = ddmmyyyyMatch;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  }
+  
+  // Handle YYYY-MM-DD format (ISO format)
+  const isoMatch = dateString.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    return new Date(dateString);
+  }
+  
+  // Handle MM/DD/YYYY format (US format)
+  const mmddyyyyMatch = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mmddyyyyMatch) {
+    return new Date(dateString);
+  }
+  
+  // Fallback to standard Date parsing
+  const fallbackDate = new Date(dateString);
+  if (isNaN(fallbackDate.getTime())) {
+    // If all parsing fails, use current date as fallback
+    console.warn(`Could not parse date: ${dateString}, using current date`);
+    return new Date();
+  }
+  
+  return fallbackDate;
+}
+
+// Helper function to process extracted invoice data (common for both LLM and OCR)
+async function processExtractedInvoice(extractedInvoice: any, invoice: any, id: string) {
+  if (extractedInvoice.lineItems.length === 0) {
+    console.log('No line items found in parsed invoice');
+    return createErrorResponse('NO_ITEMS_FOUND', 'No line items found in invoice', 400);
+  }
+
+  // Find or create vendor
+  let vendor;
+  try {
+    vendor = await prisma.vendor.findFirst({
+      where: {
+        name: {
+          contains: extractedInvoice.vendor.name,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    if (!vendor) {
+      vendor = await prisma.vendor.create({
+        data: {
+          name: extractedInvoice.vendor.name,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error finding/creating vendor:', error);
+    return createErrorResponse('VENDOR_ERROR', 'Failed to process vendor information', 500);
+  }
+
+  // Process line items with pricing
+  const processedLineItems = [];
+  let subtotalExGst = 0;
+  let totalGstCalculated = 0;
+
+  for (const item of extractedInvoice.lineItems) {
+    try {
+      // Handle items with missing or invalid data
+      if (isNaN(item.quantity) || isNaN(item.unitCostExGst)) {
+        console.log(`⚠️  INVALID DATA: ${item.itemDescription || 'Unknown Item'}`);
+        console.log(`  Quantity: ${item.quantity} (valid: ${!isNaN(item.quantity)})`);
+        console.log(`  Unit Cost: ${item.unitCostExGst} (valid: ${!isNaN(item.unitCostExGst)})`);
+        console.log(`  Price Ex GST: ${item.priceExGst} (valid: ${!isNaN(item.priceExGst)})`);
+        
+        // Try to recover if we have price and quantity but missing unit cost
+        if (!isNaN(item.quantity) && !isNaN(item.priceExGst) && item.quantity > 0) {
+          console.log(`  🔧 ATTEMPTING RECOVERY: Calculating unit cost from line total`);
+          item.unitCostExGst = item.priceExGst / item.quantity;
+          console.log(`  🔧 Calculated unit cost: $${item.unitCostExGst.toFixed(4)}`);
+        } else {
+          console.log(`  ❌ Cannot recover - skipping this item`);
+          continue;
+        }
+      }
+
+      // Validate and correct unit cost calculation - CONSERVATIVE APPROACH
+      let correctedUnitCost = item.unitCostExGst;
+      let correctedQuantity = item.quantity;
+      
+      // Only perform validation if we have valid numbers
+      if (item.priceExGst > 0 && item.quantity > 0) {
+        const calculatedUnitCost = item.priceExGst / item.quantity;
+        const calculatedLineTotal = item.unitCostExGst * item.quantity;
+        
+        const unitCostDifference = Math.abs(item.unitCostExGst - calculatedUnitCost);
+        const lineTotalDifference = Math.abs(item.priceExGst - calculatedLineTotal);
+        
+        // Log the math for debugging
+        console.log(`📊 UNIT COST ANALYSIS: ${item.itemDescription}`);
+        console.log(`  Original Unit: $${item.unitCostExGst}, Qty: ${item.quantity}, Line Total: $${item.priceExGst}`);
+        console.log(`  Calculated Unit: $${calculatedUnitCost.toFixed(4)}, Calculated Line: $${calculatedLineTotal.toFixed(2)}`);
+        console.log(`  Unit Difference: $${unitCostDifference.toFixed(4)}, Line Difference: $${lineTotalDifference.toFixed(2)}`);
+        
+        // CONSERVATIVE: Only correct in specific scenarios where we're confident there's an error
+        const significantUnitDifference = unitCostDifference > 0.50; // Must be at least 50c difference
+        const substantialLineDifference = lineTotalDifference > (item.priceExGst * 0.2); // 20% or more line total difference
+        const highQuantity = item.quantity >= 10; // Only for high quantities (pack scenarios)
+        const reasonableCalculatedUnit = calculatedUnitCost > 0.10 && calculatedUnitCost < 100; // Must be reasonable price range
+        
+        // HORIZON FOODS SPECIFIC: More aggressive correction for obvious math errors
+        const horizonFoodsVendor = extractedInvoice.vendor?.name?.toLowerCase().includes('horizon');
+        const obviousMathError = lineTotalDifference > (item.priceExGst * 0.5); // 50% difference in line total
+        
+        // SCENARIO 1: Clear pack quantity issue - high qty, big unit cost difference, reasonable calculated unit
+        if (significantUnitDifference && highQuantity && reasonableCalculatedUnit && calculatedUnitCost < item.unitCostExGst) {
+          console.log(`✅ PACK QUANTITY CORRECTION: Likely pack size calculation error detected`);
+          console.log(`  Correcting unit cost from $${item.unitCostExGst} to $${calculatedUnitCost.toFixed(4)}`);
+          correctedUnitCost = Math.round(calculatedUnitCost * 10000) / 10000;
+        }
+        // SCENARIO 2: Unit cost is clearly wrong (e.g., $0.00 or negative)
+        else if (item.unitCostExGst <= 0 && calculatedUnitCost > 0) {
+          console.log(`✅ ZERO UNIT COST CORRECTION: Unit cost was $${item.unitCostExGst}, correcting to $${calculatedUnitCost.toFixed(4)}`);
+          correctedUnitCost = Math.round(calculatedUnitCost * 10000) / 10000;
+        }
+        // SCENARIO 3: Unit cost seems unreasonably high compared to line total (possible parsing error)
+        else if (item.unitCostExGst > item.priceExGst && calculatedUnitCost > 0) {
+          console.log(`✅ UNREASONABLE UNIT COST CORRECTION: Unit cost $${item.unitCostExGst} > line total $${item.priceExGst}`);
+          correctedUnitCost = Math.round(calculatedUnitCost * 10000) / 10000;
+        }
+        // SCENARIO 4: Horizon Foods specific - obvious math errors (quantity likely wrong)
+        else if (horizonFoodsVendor && obviousMathError && reasonableCalculatedUnit) {
+          console.log(`✅ HORIZON FOODS MATH CORRECTION: Obvious calculation error detected`);
+          console.log(`  Vendor: ${extractedInvoice.vendor.name}, Math error magnitude: ${(lineTotalDifference/item.priceExGst*100).toFixed(1)}%`);
+          correctedUnitCost = Math.round(calculatedUnitCost * 10000) / 10000;
+          // Also update quantity to match the math
+          const recalculatedQuantity = Math.round(item.priceExGst / item.unitCostExGst);
+          if (recalculatedQuantity > 0 && recalculatedQuantity !== item.quantity) {
+            console.log(`  Also correcting quantity from ${item.quantity} to ${recalculatedQuantity}`);
+            correctedQuantity = recalculatedQuantity;
+          }
+        }
+        // Otherwise, keep original values
+        else {
+          console.log(`⚪ NO CORRECTION: Unit cost appears valid, keeping original value`);
+        }
+      }
+
+      const markup = await getDefaultMarkup(item.category);
+      const pricing = calculatePricing(
+        correctedUnitCost,
+        markup,
+        1, // Fresh parser handles pack size internally
+        0.10 // GST rate
+      );
+
+      // Determine if validation is needed
+      const validationFlags: string[] = [];
+      let needsValidation = false;
+      
+      // Check LLM validation indicators
+      const llmValidationFlags = item.validationFlags || [];
+      const llmConfidence = item.validationConfidence || 0.8;
+      
+      if (llmConfidence < 0.7) {
+        validationFlags.push('low_llm_confidence');
+        needsValidation = true;
+      }
+      
+      // Add LLM-provided validation flags
+      validationFlags.push(...llmValidationFlags);
+      if (llmValidationFlags.length > 0) {
+        needsValidation = true;
+      }
+      
+      // Add our own heuristics for validation needs
+      if (item.packQuantityJustification && item.packQuantityJustification.includes('x')) {
+        validationFlags.push('pack_quantity_multiplier');
+        needsValidation = true;
+      }
+      
+      // Check for unit cost corrections that might indicate ambiguity
+      if (correctedUnitCost !== item.unitCostExGst) {
+        validationFlags.push('unit_cost_corrected');
+        needsValidation = true;
+      }
+      
+      // Check for quantity corrections
+      if (correctedQuantity !== item.quantity) {
+        validationFlags.push('quantity_corrected');
+        needsValidation = true;
+      }
+      
+      // Check for high quantities that might indicate pack size issues
+      if (item.quantity >= 20) {
+        validationFlags.push('high_quantity_check');
+        needsValidation = true;
+      }
+      
+      // Check for unit descriptions that mention weight/volume per item
+      const itemDesc = item.itemDescription?.toLowerCase() || '';
+      if (itemDesc.match(/\b(kg|g|ml|l)\b.*\b(x|pack|each)\b|\b(each|ea)\b.*\b(kg|g|ml|l)\b/)) {
+        validationFlags.push('mixed_unit_indicators');
+        needsValidation = true;
+      }
+
+      const processedItem = {
+        name: item.itemDescription || item.name || 'Unknown Item',
+        quantity: correctedQuantity,
+        unitCostExGst: correctedUnitCost,
+        detectedPackSize: 1, // Fresh parser calculates smart quantities
+        effectiveUnitCostExGst: correctedUnitCost,
+        category: item.category,
+        markup: pricing.markup,
+        sellExGst: pricing.sellExGst,
+        sellIncGst: pricing.sellIncGst,
+        gstRate: item.hasGst ? 10 : 0,
+        gstAmount: item.hasGst ? (item.priceIncGst - item.priceExGst) : 0,
+        hasGst: item.hasGst,
+        notes: item.packQuantityJustification || null,
+        
+        // Validation fields
+        needsValidation,
+        validationStatus: needsValidation ? 'PENDING' : null,
+        validationFlags: validationFlags.length > 0 ? validationFlags : null,
+        originalParsedData: needsValidation ? {
+          originalQuantity: item.quantity,
+          originalUnitCost: item.unitCostExGst,
+          llmConfidence: llmConfidence,
+          llmFlags: llmValidationFlags
+        } : null,
+      };
+
+      console.log('DEBUG: Processing item - Original:', item.itemDescription, '-> Processed name:', processedItem.name);
+      
+      // Log validation decisions
+      if (needsValidation) {
+        console.log(`🔍 VALIDATION NEEDED: ${item.itemDescription}`);
+        console.log(`  Flags: [${validationFlags.join(', ')}]`);
+        console.log(`  LLM Confidence: ${llmConfidence}, Quantity: ${item.quantity} → ${correctedQuantity}`);
+        console.log(`  Unit Cost: $${item.unitCostExGst} → $${correctedUnitCost}`);
+      }
+      
+      // Auto-correct GST status based on pricing math
+      let correctedHasGst = item.hasGst;
+      const expectedIncGst = Math.round((item.priceExGst * 1.1) * 100) / 100;
+      const priceDifference = Math.abs(item.priceIncGst - expectedIncGst);
+      const pricesEqual = Math.abs(item.priceIncGst - item.priceExGst) < 0.01;
+      
+      // If marked as having GST but prices are equal, it's probably GST-free
+      if (item.hasGst && pricesEqual) {
+        console.log(`🔧 GST AUTO-CORRECTION: ${item.itemDescription} - Prices equal, changing to GST-free`);
+        console.log(`  Ex:$${item.priceExGst}, Inc:$${item.priceIncGst} - Correcting hasGst: true → false`);
+        correctedHasGst = false;
+        processedItem.hasGst = false;
+        processedItem.gstRate = 0;
+        processedItem.gstAmount = 0;
+      }
+      // If marked as GST-free but has ~10% difference, it probably has GST
+      else if (!item.hasGst && priceDifference < 0.50 && (item.priceIncGst / item.priceExGst) > 1.05) {
+        console.log(`🔧 GST AUTO-CORRECTION: ${item.itemDescription} - ~10% price difference, changing to GST`);
+        console.log(`  Ex:$${item.priceExGst}, Inc:$${item.priceIncGst} - Correcting hasGst: false → true`);
+        correctedHasGst = true;
+        processedItem.hasGst = true;
+        processedItem.gstRate = 10;
+        processedItem.gstAmount = item.priceIncGst - item.priceExGst;
+      }
+      
+      // Validate GST pricing logic after corrections
+      if (correctedHasGst) {
+        if (priceDifference > 0.50) { // Allow for small rounding differences
+          console.log(`⚠️  GST WARNING: ${item.itemDescription} - Ex:$${item.priceExGst}, Inc:$${item.priceIncGst}, Expected:$${expectedIncGst}`);
+        }
+      } else {
+        if (Math.abs(item.priceIncGst - item.priceExGst) > 0.01) {
+          console.log(`⚠️  GST-FREE WARNING: ${item.itemDescription} - Ex:$${item.priceExGst}, Inc:$${item.priceIncGst} should be equal`);
+        }
+      }
+
+      processedLineItems.push(processedItem);
+      subtotalExGst += correctedUnitCost * correctedQuantity;
+      
+      // Track GST amount for each item
+      if (correctedHasGst) {
+        const itemGstAmount = item.priceIncGst - item.priceExGst;
+        totalGstCalculated += itemGstAmount;
+      }
+    } catch (error) {
+      console.error('Error processing line item:', error);
+      // Continue with other items, but log the error
+    }
+  }
+
+  if (processedLineItems.length === 0) {
+    return createErrorResponse('PROCESSING_FAILED', 'Failed to process any line items', 400);
+  }
+
+  // Calculate totals using actual GST amounts from line items
+  const gstAmount = totalGstCalculated;
+  const totalIncGst = subtotalExGst + gstAmount;
+  
+  console.log(`💰 INVOICE TOTALS:`);
+  console.log(`  Subtotal Ex GST: $${subtotalExGst.toFixed(2)}`);
+  console.log(`  GST Amount: $${gstAmount.toFixed(2)}`);
+  console.log(`  Total Inc GST: $${totalIncGst.toFixed(2)}`);
+
+  // Validate totals
+  if (isNaN(subtotalExGst) || isNaN(gstAmount) || isNaN(totalIncGst)) {
+    return createErrorResponse('INVALID_TOTALS', 'Failed to calculate valid invoice totals', 400);
+  }
+
+  // Update invoice with processed data
+  const updatedInvoice = await prisma.$transaction(async (tx) => {
+    // Update invoice
+    const updatedInvoice = await tx.invoice.update({
+      where: { id },
+      data: {
+        vendorId: vendor.id,
+        invoiceNumber: extractedInvoice.invoiceNumber,
+        invoiceDate: parseInvoiceDate(extractedInvoice.invoiceDate),
+        subtotalExGst,
+        gstAmount,
+        totalIncGst,
+        parsedJson: {
+          extractedInvoice,
+          processedAt: new Date().toISOString(),
+          confidence: extractedInvoice.confidence,
+        },
+        status: 'REVIEWED', // Ready for review
+      },
+    });
+
+    // Create line items
+    for (const item of processedLineItems) {
+      await tx.invoiceLineItem.create({
+        data: {
+          invoiceId: id,
+          ...item,
+        },
+      });
+    }
+
+    return updatedInvoice;
+  });
+
+  return createSuccessResponse(
+    {
+      invoice: updatedInvoice,
+      vendor: vendor,
+      lineItemsCount: processedLineItems.length,
+      confidence: extractedInvoice.confidence,
+    },
+    'Invoice processed successfully'
+  );
+}
+
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params;
+    const validation = validateRequest(idSchema, id);
+
+    if (!validation.success) {
+      return validation.error;
+    }
+
+    // Find the invoice
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        vendor: true,
+      },
+    });
+
+    if (!invoice) {
+      return createErrorResponse('INVOICE_NOT_FOUND', 'Invoice not found', 404);
+    }
+
+    if (!invoice.rawPdf) {
+      return createErrorResponse('NO_PDF_DATA', 'No PDF data found for processing', 400);
+    }
+
+    if (invoice.status !== 'PARSED') {
+      return createErrorResponse('INVALID_STATUS', 'Invoice has already been processed', 400);
+    }
+
+    try {
+      // Try LLM-based processing first (preferred method)
+      if (process.env.ANTHROPIC_API_KEY) {
+        console.log('Processing document with LLM vision model...');
+        
+        try {
+          // Convert PDF to image for vision model
+          const pdfBuffer = Buffer.from(invoice.rawPdf);
+          console.log('Converting PDF to image for LLM processing...');
+          
+          // Ensure temp directory exists
+          const fs = require('fs');
+          const tempDir = './temp';
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+          
+          // Use pdf2pic to convert PDF to PNG - handle multiple pages
+          const convert = pdf2pic.fromBuffer(pdfBuffer, {
+            density: 300,
+            saveFilename: "invoice",
+            savePath: tempDir,
+            format: "png",
+            width: 2100,
+            height: 2970
+          });
+          
+          // Get total page count from PDF
+          let pageCount = 1;
+          try {
+            const pdfContent = pdfBuffer.toString('latin1');
+            const pageMatches = pdfContent.match(/\/Type\s*\/Page\s/g);
+            pageCount = pageMatches ? pageMatches.length : 1;
+            console.log(`PDF detected with ${pageCount} page(s)`);
+          } catch (e) {
+            console.log('Could not detect page count, defaulting to 1');
+          }
+          
+          // Convert all pages to images
+          const pageImages: Buffer[] = [];
+          for (let page = 1; page <= pageCount; page++) {
+            try {
+              const result = await convert(page, { responseType: "buffer" });
+              pageImages.push(result.buffer as Buffer);
+              console.log(`Converted page ${page}/${pageCount} successfully`);
+            } catch (pageError) {
+              console.log(`Failed to convert page ${page}, skipping:`, pageError);
+            }
+          }
+          
+          if (pageImages.length === 0) {
+            throw new Error('No pages could be converted from PDF');
+          }
+          
+          // Use Fresh LLM parser on all pages
+          const freshLlmParser = new FreshLLMInvoiceParser();
+          const extractedInvoice = await freshLlmParser.parseInvoiceFromMultiplePages(pageImages);
+          
+          console.log('LLM parsing completed - found', extractedInvoice.lineItems.length, 'line items');
+          console.log('Parsed vendor:', extractedInvoice.vendor.name);
+
+          // Continue with the rest of the processing using extractedInvoice
+          return await processExtractedInvoice(extractedInvoice, invoice, id);
+          
+        } catch (llmError) {
+          console.warn('LLM processing failed, falling back to OCR:', llmError);
+          // Fall through to OCR processing
+        }
+      }
+
+      // Fallback to OCR processing
+      console.log('Processing document with OCR service...');
+      const ocrService = getOCRService();
+      const ocrResult = await ocrService.processDocument(invoice.rawPdf);
+      
+      console.log('OCR processing completed with confidence:', (ocrResult.confidence * 100).toFixed(2) + '%');
+      console.log('OCR extracted text length:', ocrResult.text?.length || 0);
+      console.log('OCR extracted text preview:', ocrResult.text?.substring(0, 300) || 'NO TEXT');
+
+      if (!ocrResult.text || ocrResult.text.trim().length === 0) {
+        console.log('OCR returned no text');
+        return createErrorResponse('OCR_NO_TEXT', 'No text extracted from PDF', 400);
+      }
+
+      // Check for special PDF conversion flag
+      if (ocrResult.text === 'PDF_CONVERSION_REQUIRED') {
+        console.log('PDF conversion required - returning guidance');
+        return createErrorResponse(
+          'PDF_CONVERSION_REQUIRED', 
+          'PDF processing requires system dependencies that are not available. Please convert your PDF to a high-quality PNG or JPG image and upload that instead for OCR processing.', 
+          400
+        );
+      }
+
+      // Parse the extracted text
+      console.log('Parsing extracted text with InvoiceParser...');
+      const extractedInvoice = await InvoiceParser.parseInvoiceText(ocrResult.text);
+      
+      console.log('Parsing completed - found', extractedInvoice.lineItems.length, 'line items');
+      console.log('Parsed vendor:', extractedInvoice.vendor.name);
+
+      return await processExtractedInvoice(extractedInvoice, invoice, id);
+
+    } catch (ocrError) {
+      console.error('OCR processing error:', ocrError);
+      return createErrorResponse(
+        'OCR_PROCESSING_ERROR',
+        `Failed to process PDF: ${ocrError instanceof Error ? ocrError.message : 'Unknown error'}`,
+        500
+      );
+    }
+
+  } catch (error) {
+    console.error('Invoice processing error:', error);
+    return createErrorResponse('PROCESSING_ERROR', 'Failed to process invoice', 500);
+  }
+}
+
+export const dynamic = 'force-dynamic';
