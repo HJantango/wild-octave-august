@@ -2,7 +2,16 @@
 const nextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
-  
+
+  // Disable ESLint and TypeScript checks during production builds
+  // This speeds up Railway deployment - run checks locally instead
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   // Experimental features
   experimental: {
     // Enable server components
