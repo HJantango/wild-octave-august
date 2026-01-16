@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { isAuthenticated } from '@/lib/auth';
+import { isAuthenticatedMiddleware } from '@/lib/auth-middleware';
 
 // Routes that don't require authentication
 const publicRoutes = ['/login', '/api/auth/login'];
@@ -49,7 +49,7 @@ function isProtectedRoute(pathname: string): boolean {
   return isProtectedApi || isProtectedPage;
 }
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static files and Next.js internals
@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
 
   // Check authentication for protected routes
   if (isProtectedRoute(pathname)) {
-    const authenticated = await isAuthenticated(request);
+    const authenticated = isAuthenticatedMiddleware(request);
 
     if (!authenticated) {
       // For API routes, return 401
