@@ -21,6 +21,7 @@ const navigation: NavItem[] = [
     submenu: [
       { name: '6 Week Sales Order', href: '/orders' },
       { name: 'Extended Sales Analysis', href: '/orders/extended' },
+      { name: 'Pie Calculator', href: '/orders/pie-calculator' },
       { name: 'Purchase Orders', href: '/ordering/purchase-orders' },
       { name: 'Order Calendar', href: '/ordering/calendar' },
       { name: 'Cafe Schedule', href: '/ordering/cafe-schedule' },
