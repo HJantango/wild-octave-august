@@ -37,3 +37,9 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Sensitive deployment files
+ENV_VALUES_FOR_RAILWAY.txt
+PRODUCTION_TOKENS.txt
+CLAUDE_CHROME_DEPLOYMENT_PROMPT.md
+QUICK_START_RAILWAY.md
