@@ -86,10 +86,6 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
-
-        <div className="text-xs text-gray-500 text-center">
-          <p>For development, use: dev-access-token-change-in-production</p>
-        </div>
       </div>
     </div>
   );
