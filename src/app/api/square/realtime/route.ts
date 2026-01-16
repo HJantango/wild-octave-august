@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 import { realSquareService } from '@/services/real-square-service';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -276,4 +278,3 @@ async function getRealtimeSalesSummary(filters: { startDate?: string | null; end
   };
 }
 
-export const dynamic = 'force-dynamic';
