@@ -20,7 +20,10 @@ COPY . .
 RUN npx prisma generate
 
 # Build Next.js application
+# Set dummy DATABASE_URL for build-time Prisma validation
+# Actual DATABASE_URL will be provided at runtime by Railway
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npm run build
 
 # Production image, copy all the files and run Next.js
