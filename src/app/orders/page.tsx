@@ -829,6 +829,11 @@ export default function OrdersPage() {
             <p className="text-gray-600">Analyze sales data and generate purchase orders</p>
           </div>
           <div className="flex gap-2">
+            <Link href="/orders/pie-calculator">
+              <Button variant="outline" className="bg-pink-50 hover:bg-pink-100 text-pink-700">
+                🥧 Pie Calculator
+              </Button>
+            </Link>
             <Link href="/orders/extended">
               <Button variant="outline" className="bg-purple-50 hover:bg-purple-100 text-purple-700">
                 📊 Extended 6-Month Analysis

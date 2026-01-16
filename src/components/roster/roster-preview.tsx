@@ -49,6 +49,10 @@ const getRoleColor = (role: string, isBackupBarista: boolean = false) => {
   switch (role?.toLowerCase()) {
     case 'manager':
       return 'bg-green-100 border-green-200';
+    case 'open':
+      return 'bg-cyan-100 border-cyan-200';
+    case 'open & close':
+      return 'bg-yellow-100 border-yellow-200';
     case 'close':
       return 'bg-red-100 border-red-200';
     case 'barista':
@@ -59,7 +63,7 @@ const getRoleColor = (role: string, isBackupBarista: boolean = false) => {
     case 'counter/roam':
       return 'bg-pink-100 border-pink-200';
     case 'junior':
-      return 'bg-yellow-100 border-yellow-200';
+      return 'bg-gray-100 border-gray-200';
     case 'admin':
     case 'check-in/admin':
       return 'bg-indigo-100 border-indigo-200';
@@ -188,10 +192,22 @@ export const RosterPreview = forwardRef<HTMLDivElement, RosterPreviewProps>(
         </div>
 
         {/* Legend */}
-        <div className="mt-6 grid grid-cols-4 gap-4 text-sm text-gray-900">
+        <div className="mt-6 grid grid-cols-5 gap-4 text-sm text-gray-900">
           <div className="flex items-center">
             <div className="w-4 h-4 bg-green-100 border border-green-200 rounded mr-2"></div>
             <span>Manager</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-cyan-100 border border-cyan-200 rounded mr-2"></div>
+            <span>Open</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded mr-2"></div>
+            <span>Open & Close</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-red-100 border border-red-200 rounded mr-2"></div>
+            <span>Close</span>
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 bg-blue-100 border border-blue-200 rounded mr-2"></div>
@@ -202,7 +218,7 @@ export const RosterPreview = forwardRef<HTMLDivElement, RosterPreviewProps>(
             <span>Backup Barista</span>
           </div>
           <div className="flex items-center">
-            <div className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded mr-2"></div>
+            <div className="w-4 h-4 bg-gray-100 border border-gray-200 rounded mr-2"></div>
             <span>Junior</span>
           </div>
           <div className="flex items-center">
@@ -212,10 +228,6 @@ export const RosterPreview = forwardRef<HTMLDivElement, RosterPreviewProps>(
           <div className="flex items-center">
             <div className="w-4 h-4 bg-pink-100 border border-pink-200 rounded mr-2"></div>
             <span>Counter/Roam</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 bg-red-100 border border-red-200 rounded mr-2"></div>
-            <span>Close</span>
           </div>
           <div className="flex items-center">
             <div className="w-4 h-4 bg-indigo-100 border border-indigo-200 rounded mr-2"></div>

@@ -42,6 +42,19 @@ interface ShiftModalProps {
   existingShifts?: RosterShift[];
 }
 
+// Helper function to get default times based on day of week
+const getDefaultTimes = (dayOfWeek: number) => {
+  // Weekend: Saturday (6) or Sunday (0)
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  if (isWeekend) {
+    return { start: '09:30', end: '16:00' };
+  } else {
+    // Monday-Friday (1-5)
+    return { start: '09:00', end: '18:00' };
+  }
+};
+
 export function ShiftModal({
   isOpen,
   onClose,
@@ -54,9 +67,10 @@ export function ShiftModal({
   existingShifts = []
 }: ShiftModalProps) {
   const toast = useToast();
+  const defaultTimes = getDefaultTimes(dayOfWeek);
   const [staffId, setStaffId] = useState('');
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('16:30');
+  const [startTime, setStartTime] = useState(defaultTimes.start);
+  const [endTime, setEndTime] = useState(defaultTimes.end);
   const [breakMinutes, setBreakMinutes] = useState(30);
   const [shiftRole, setShiftRole] = useState('');
   const [isBackupBarista, setIsBackupBarista] = useState(false);
@@ -73,15 +87,16 @@ export function ShiftModal({
       setIsBackupBarista(shift.isBackupBarista || false);
       setNotes(shift.notes || '');
     } else {
+      const times = getDefaultTimes(dayOfWeek);
       setStaffId(preselectedStaffId || '');
-      setStartTime('08:00');
-      setEndTime('16:30');
+      setStartTime(times.start);
+      setEndTime(times.end);
       setBreakMinutes(30);
       setShiftRole('');
       setIsBackupBarista(false);
       setNotes('');
     }
-  }, [shift, isOpen, preselectedStaffId]);
+  }, [shift, isOpen, preselectedStaffId, dayOfWeek]);
 
   const handleSave = async () => {
     if (!staffId) {
@@ -152,8 +167,9 @@ export function ShiftModal({
   };
 
   const resetToDefaults = () => {
-    setStartTime('08:00');
-    setEndTime('16:30');
+    const times = getDefaultTimes(dayOfWeek);
+    setStartTime(times.start);
+    setEndTime(times.end);
     setBreakMinutes(30);
     setShiftRole('');
     setIsBackupBarista(false);
@@ -351,6 +367,8 @@ export function ShiftModal({
               <SelectContent>
                 <SelectItem value="barista">Barista</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="open & close">Open & Close</SelectItem>
                 <SelectItem value="close">Close</SelectItem>
                 <SelectItem value="kitchen">Kitchen</SelectItem>
                 <SelectItem value="counter/roam">Counter/Roam</SelectItem>

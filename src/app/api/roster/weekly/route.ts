@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
             dayOfWeek: shift.dayOfWeek,
             startTime: shift.startTime,
             endTime: shift.endTime,
-            breakMinutes: shift.breakMinutes || 30,
+            breakMinutes: shift.breakMinutes ?? 0,
             role: shift.role || null,
             isBackupBarista: shift.isBackupBarista || false,
             notes: shift.notes || null
@@ -258,7 +258,7 @@ export async function PUT(request: NextRequest) {
             dayOfWeek: shift.dayOfWeek,
             startTime: shift.startTime,
             endTime: shift.endTime,
-            breakMinutes: shift.breakMinutes || 30,
+            breakMinutes: shift.breakMinutes ?? 0,
             role: shift.role || null,
             isBackupBarista: shift.isBackupBarista || false,
             notes: shift.notes || null

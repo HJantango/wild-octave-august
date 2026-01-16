@@ -7,11 +7,12 @@ import { useAuth } from '@/hooks/useAuth';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: '📊' },
+  { name: 'Diary', href: '/shop-diary', icon: '📝' },
   { name: 'Orders', href: '/orders', icon: '📋' },
   { name: 'Ordering', href: '/ordering', icon: '🛒' },
   { name: 'Invoices', href: '/invoices', icon: '📄' },
   { name: 'Items', href: '/items', icon: '📦' },
-  { name: 'Reports', href: '/reports/wastage-discounts', icon: '📈' },
+  { name: 'Wastage', href: '/reports/wastage-discounts', icon: '🗑️' },
   { name: 'Actions', href: '/reports/product-actions', icon: '✅' },
   { name: 'Roster', href: '/roster', icon: '👥' },
   { name: 'Settings', href: '/settings', icon: '⚙️' },

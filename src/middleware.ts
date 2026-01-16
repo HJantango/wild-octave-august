@@ -12,6 +12,7 @@ const protectedApiRoutes = [
   '/api/items',
   '/api/settings',
   '/api/roster',
+  '/api/shop-diary',
 ];
 
 // Page routes that require authentication
@@ -22,6 +23,7 @@ const protectedPageRoutes = [
   '/items',
   '/settings',
   '/rectification',
+  '/shop-diary',
 ];
 
 function isPublicRoute(pathname: string): boolean {

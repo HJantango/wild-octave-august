@@ -8,7 +8,7 @@ import { ShiftModal } from '@/components/roster/shift-modal';
 import { RosterPreview } from '@/components/roster/roster-preview';
 import { formatCurrency } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
-import { CalendarIcon, UserIcon, ClockIcon, DollarSignIcon, DownloadIcon, SettingsIcon, EditIcon, TrashIcon, CopyIcon, CoffeeIcon, ShieldCheckIcon, KeyIcon, UserCheckIcon, XIcon, ClipboardListIcon, ChevronUpIcon, ChevronDownIcon, PrinterIcon, FileImageIcon } from 'lucide-react';
+import { CalendarIcon, UserIcon, ClockIcon, DollarSignIcon, DownloadIcon, SettingsIcon, EditIcon, TrashIcon, CopyIcon, CoffeeIcon, ShieldCheckIcon, KeyIcon, UserCheckIcon, XIcon, ClipboardListIcon, ChevronUpIcon, ChevronDownIcon, PrinterIcon, FileImageIcon, SunIcon, SunriseIcon } from 'lucide-react';
 import Link from 'next/link';
 
 interface Staff {
@@ -59,6 +59,10 @@ const getRoleIcon = (role: string, isBackupBarista: boolean = false) => {
   switch (role?.toLowerCase()) {
     case 'manager':
       return { icon: KeyIcon, color: 'text-green-600', bgColor: 'bg-green-100', label: 'Manager' };
+    case 'open':
+      return { icon: SunriseIcon, color: 'text-cyan-600', bgColor: 'bg-cyan-100', label: 'Open' };
+    case 'open & close':
+      return { icon: SunIcon, color: 'text-yellow-600', bgColor: 'bg-yellow-100', label: 'Open & Close' };
     case 'close':
       return { icon: XIcon, color: 'text-red-600', bgColor: 'bg-red-100', label: 'Close' };
     case 'barista':

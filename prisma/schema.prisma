@@ -550,3 +550,25 @@ model DiscountRecord {
   @@index([itemId])
   @@map("discount_records")
 }
+
+// SHOP DIARY MODEL
+
+model ShopDiaryEntry {
+  id                String    @id @default(cuid())
+  title             String
+  description       String?   @db.Text
+  urgency           String    @default("medium") // "low", "medium", "high", "urgent"
+  assignedTo        String?   @map("assigned_to") // Staff member name or ID
+  dueDate           DateTime? @map("due_date")
+  isCompleted       Boolean   @default(false) @map("is_completed")
+  completedAt       DateTime? @map("completed_at")
+  completedBy       String?   @map("completed_by")
+  createdBy         String?   @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([isCompleted])
+  @@index([urgency])
+  @@index([dueDate])
+  @@map("shop_diary_entries")
+}
