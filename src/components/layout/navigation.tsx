@@ -4,23 +4,149 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useState, useRef, useEffect } from 'react';
 
-const navigation = [
+interface NavItem {
+  name: string;
+  href?: string;
+  icon: string;
+  submenu?: { name: string; href: string }[];
+}
+
+const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: '📊' },
-  { name: 'Diary', href: '/shop-diary', icon: '📝' },
-  { name: 'Orders', href: '/orders', icon: '📋' },
-  { name: 'Ordering', href: '/ordering', icon: '🛒' },
-  { name: 'Invoices', href: '/invoices', icon: '📄' },
-  { name: 'Items', href: '/items', icon: '📦' },
-  { name: 'Wastage', href: '/reports/wastage-discounts', icon: '🗑️' },
-  { name: 'Actions', href: '/reports/product-actions', icon: '✅' },
-  { name: 'Roster', href: '/roster', icon: '👥' },
+  {
+    name: 'Ordering',
+    icon: '🛒',
+    submenu: [
+      { name: '6 Week Sales Order', href: '/orders' },
+      { name: 'Extended Sales Analysis', href: '/orders/extended' },
+      { name: 'Purchase Orders', href: '/ordering/purchase-orders' },
+      { name: 'Order Calendar', href: '/ordering/calendar' },
+      { name: 'Cafe Schedule', href: '/ordering/cafe-schedule' },
+      { name: 'AI Smart Order', href: '/ordering/suggestions' },
+      { name: 'Invoice Based Suggestions', href: '/ordering/historical' },
+      { name: 'Manage Inventory', href: '/ordering/inventory' },
+      { name: 'Vendor Settings', href: '/ordering/vendors' },
+    ],
+  },
+  {
+    name: 'Receiving',
+    icon: '📦',
+    submenu: [
+      { name: 'Invoices', href: '/invoices' },
+      { name: 'Upload Invoice', href: '/invoices/upload' },
+      { name: 'Rectification', href: '/rectification' },
+    ],
+  },
+  {
+    name: 'Shop Ops',
+    icon: '🏪',
+    submenu: [
+      { name: 'Diary', href: '/shop-diary' },
+      { name: 'Roster', href: '/roster' },
+      { name: 'Xmas Schedule', href: '/ordering/christmas-closures' },
+    ],
+  },
+  {
+    name: 'Efficiencies',
+    icon: '📈',
+    submenu: [
+      { name: 'Wastage & Discounts', href: '/reports/wastage-discounts' },
+      { name: 'Product Actions', href: '/reports/product-actions' },
+      { name: 'Missing Products', href: '/orders/missing-products' },
+    ],
+  },
+  { name: 'Items', href: '/items', icon: '📋' },
   { name: 'Settings', href: '/settings', icon: '⚙️' },
 ];
+
+function DropdownMenu({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium
+          ${isActive
+            ? 'border-primary text-gray-900'
+            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+          }
+        `}
+      >
+        <span className="mr-2">{item.icon}</span>
+        {item.name}
+        <svg
+          className={`ml-1 h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && item.submenu && (
+        <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+          <div className="py-1">
+            {item.submenu.map((subItem) => {
+              const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
+              return (
+                <Link
+                  key={subItem.href}
+                  href={subItem.href}
+                  onClick={() => setIsOpen(false)}
+                  className={`
+                    block px-4 py-2 text-sm
+                    ${isSubActive
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-gray-700 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  {subItem.name}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Navigation() {
   const pathname = usePathname();
   const { logout } = useAuth();
+
+  const isItemActive = (item: NavItem) => {
+    if (item.href) {
+      return pathname === item.href;
+    }
+    if (item.submenu) {
+      return item.submenu.some(subItem =>
+        pathname === subItem.href || pathname.startsWith(subItem.href + '/')
+      );
+    }
+    return false;
+  };
 
   return (
     <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
@@ -41,11 +167,16 @@ export function Navigation() {
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
               {navigation.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = isItemActive(item);
+
+                if (item.submenu) {
+                  return <DropdownMenu key={item.name} item={item} isActive={isActive} />;
+                }
+
                 return (
                   <Link
                     key={item.name}
-                    href={item.href}
+                    href={item.href!}
                     className={`
                       inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium
                       ${isActive
@@ -77,16 +208,89 @@ export function Navigation() {
 
 export function MobileNavigation() {
   const pathname = usePathname();
+  const [openMenus, setOpenMenus] = useState<string[]>([]);
+
+  const toggleMenu = (name: string) => {
+    setOpenMenus(prev =>
+      prev.includes(name) ? prev.filter(m => m !== name) : [...prev, name]
+    );
+  };
+
+  const isItemActive = (item: NavItem) => {
+    if (item.href) {
+      return pathname === item.href;
+    }
+    if (item.submenu) {
+      return item.submenu.some(subItem =>
+        pathname === subItem.href || pathname.startsWith(subItem.href + '/')
+      );
+    }
+    return false;
+  };
 
   return (
     <div className="sm:hidden">
       <div className="pt-2 pb-3 space-y-1">
         {navigation.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = isItemActive(item);
+          const isOpen = openMenus.includes(item.name);
+
+          if (item.submenu) {
+            return (
+              <div key={item.name}>
+                <button
+                  onClick={() => toggleMenu(item.name)}
+                  className={`
+                    w-full flex items-center justify-between pl-3 pr-4 py-2 border-l-4 text-base font-medium
+                    ${isActive
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
+                    }
+                  `}
+                >
+                  <span>
+                    <span className="mr-2">{item.icon}</span>
+                    {item.name}
+                  </span>
+                  <svg
+                    className={`h-5 w-5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {isOpen && (
+                  <div className="bg-gray-50">
+                    {item.submenu.map((subItem) => {
+                      const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
+                      return (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          className={`
+                            block pl-10 pr-4 py-2 text-sm
+                            ${isSubActive
+                              ? 'bg-primary/20 text-primary font-medium'
+                              : 'text-gray-600 hover:bg-gray-100'
+                            }
+                          `}
+                        >
+                          {subItem.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.name}
-              href={item.href}
+              href={item.href!}
               className={`
                 block pl-3 pr-4 py-2 border-l-4 text-base font-medium
                 ${isActive
