@@ -16,6 +16,8 @@ const nextConfig = {
   experimental: {
     // Enable server components
     serverComponentsExternalPackages: ['tesseract.js', 'pdf-parse', 'pdf2pic'],
+    // Skip Suspense boundary requirement for useSearchParams
+    missingSuspenseWithCSRBailout: false,
   },
   
   // Webpack configuration for handling node modules

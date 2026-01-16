@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse, validateRequest } from '@/lib/api-utils';
 import { rectificationFilterSchema } from '@/lib/validations';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);

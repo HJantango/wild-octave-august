@@ -20,7 +20,15 @@
       "Bash(brew upgrade:*)",
       "Bash(brew update:*)",
       "Bash(brew install:*)",
-      "Bash(railway login:*)"
+      "Bash(railway login:*)",
+      "Bash(ssh-add:*)",
+      "Bash(ssh:*)",
+      "Bash(git pull:*)",
+      "Bash(npm install:*)",
+      "Bash(npm view:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(npm run build:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

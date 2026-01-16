@@ -13,6 +13,8 @@ import { formatCurrency } from '@/lib/format';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 interface InventoryItem {
   id: string;
   currentStock: number;
