@@ -104,7 +104,7 @@ function DropdownMenu({ item, isActive }: { item: NavItem; isActive: boolean }) 
       </button>
 
       {isOpen && item.submenu && (
-        <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+        <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
           <div className="py-1">
             {item.submenu.map((subItem) => {
               const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
