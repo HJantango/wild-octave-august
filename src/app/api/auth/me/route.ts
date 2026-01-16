@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -14,7 +16,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       isAuthenticated: true,
-      user: { role: 'admin' }, // Single user system
+      user: {
+        email: session.email,
+        role: session.role,
+      },
     });
 
   } catch (error) {

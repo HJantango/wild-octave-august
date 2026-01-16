@@ -35,6 +35,7 @@
     "@types/nodemailer": "^7.0.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/puppeteer": "^5.4.7",
+    "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
@@ -67,6 +68,7 @@
     "zod": "^4.0.17"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^20",
     "@types/node-cron": "^3.0.11",
     "@types/papaparse": "^5.5.1",

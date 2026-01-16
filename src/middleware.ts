@@ -13,6 +13,11 @@ const protectedApiRoutes = [
   '/api/settings',
   '/api/roster',
   '/api/shop-diary',
+  '/api/inventory',
+  '/api/vendors',
+  '/api/purchase-orders',
+  '/api/orders',
+  '/api/square',
 ];
 
 // Page routes that require authentication
@@ -24,6 +29,9 @@ const protectedPageRoutes = [
   '/settings',
   '/rectification',
   '/shop-diary',
+  '/orders',
+  '/ordering',
+  '/roster',
 ];
 
 function isPublicRoute(pathname: string): boolean {
@@ -31,17 +39,17 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 function isProtectedRoute(pathname: string): boolean {
-  const isProtectedApi = protectedApiRoutes.some(route => 
+  const isProtectedApi = protectedApiRoutes.some(route =>
     pathname.startsWith(route)
   );
-  const isProtectedPage = protectedPageRoutes.some(route => 
+  const isProtectedPage = protectedPageRoutes.some(route =>
     pathname === route || (route !== '/' && pathname.startsWith(route + '/'))
   );
-  
+
   return isProtectedApi || isProtectedPage;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static files and Next.js internals
@@ -60,7 +68,7 @@ export function middleware(request: NextRequest) {
 
   // Check authentication for protected routes
   if (isProtectedRoute(pathname)) {
-    const authenticated = isAuthenticated(request);
+    const authenticated = await isAuthenticated(request);
 
     if (!authenticated) {
       // For API routes, return 401
