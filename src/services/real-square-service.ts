@@ -86,13 +86,22 @@ export interface SquareSalesFilters {
 }
 
 class RealSquareService {
-  private client: SquareClient;
+  private client: SquareClient | null = null;
   private isInitialized = false;
 
   constructor() {
+    // Don't initialize here - defer until connect() is called
+    // This prevents accessing env vars at module import time
+  }
+
+  private initialize(): void {
+    if (this.isInitialized) {
+      return;
+    }
+
     const accessToken = process.env.SQUARE_ACCESS_TOKEN;
-    const environment = process.env.SQUARE_ENVIRONMENT === 'production' 
-      ? SquareEnvironment.Production 
+    const environment = process.env.SQUARE_ENVIRONMENT === 'production'
+      ? SquareEnvironment.Production
       : SquareEnvironment.Sandbox;
 
     if (!accessToken) {
@@ -108,14 +117,21 @@ class RealSquareService {
     console.log(`🟢 Square API initialized for ${environment} environment`);
   }
 
+  private getClient(): SquareClient {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) {
+      throw new Error('Square client initialization failed');
+    }
+    return this.client;
+  }
+
   async connect(): Promise<boolean> {
     try {
-      if (!this.isInitialized) {
-        return false;
-      }
-
       // Test connection by fetching locations
-      const response = await this.client.locations.list();
+      const client = this.getClient();
+      const response = await client.locations.list();
       
       if (response.locations && response.locations.length > 0) {
         console.log(`✅ Connected to Square API - Found ${response.locations.length} location(s)`);
@@ -132,7 +148,8 @@ class RealSquareService {
 
   async getLocations(): Promise<SquareLocation[]> {
     try {
-      const response = await this.client.locations.list();
+      const client = this.getClient();
+      const response = await client.locations.list();
       
       return response.locations?.map(location => ({
         id: location.id!,
@@ -151,7 +168,8 @@ class RealSquareService {
 
   async getCatalogItems(filters?: { types?: string[]; categoryId?: string }): Promise<SquareItem[]> {
     try {
-      const response = await this.client.catalog.list({
+      const client = this.getClient();
+      const response = await client.catalog.list({
         types: filters?.types?.join(',') || 'ITEM'
       });
       
@@ -184,6 +202,8 @@ class RealSquareService {
 
   async searchOrders(filters: SquareSalesFilters = {}): Promise<SquareOrder[]> {
     try {
+      const client = this.getClient();
+
       // Build search query
       const searchQuery: any = {
         filter: {}
@@ -220,7 +240,7 @@ class RealSquareService {
       );
       
       const response = await Promise.race([
-        this.client.orders.search(requestBody),
+        client.orders.search(requestBody),
         timeoutPromise
       ]);
       
@@ -266,6 +286,8 @@ class RealSquareService {
 
   async getPayments(filters: SquareSalesFilters = {}): Promise<SquarePayment[]> {
     try {
+      const client = this.getClient();
+
       // Get active locations for the request
       const locations = await this.getLocations();
       const activeLocations = locations.filter(loc => loc.status === 'ACTIVE');
@@ -298,7 +320,7 @@ class RealSquareService {
       );
       
       const response = await Promise.race([
-        this.client.payments.list(requestParams),
+        client.payments.list(requestParams),
         timeoutPromise
       ]);
       
