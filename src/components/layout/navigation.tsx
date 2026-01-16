@@ -84,7 +84,7 @@ function DropdownMenu({ item, isActive }: { item: NavItem; isActive: boolean }) 
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium
+          inline-flex items-center px-1 pt-1 pb-1 border-b-2 text-sm font-medium h-16
           ${isActive
             ? 'border-primary text-gray-900'
             : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
@@ -178,7 +178,7 @@ export function Navigation() {
                     key={item.name}
                     href={item.href!}
                     className={`
-                      inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium
+                      inline-flex items-center px-1 pt-1 pb-1 border-b-2 text-sm font-medium h-16
                       ${isActive
                         ? 'border-primary text-gray-900'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
