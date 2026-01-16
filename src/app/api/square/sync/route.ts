@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 import { squareService } from '@/services/square-service';
 
+// Force dynamic rendering - don't pre-render this route during build
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Starting Square data sync...');

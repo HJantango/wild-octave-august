@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { realSquareService } from '@/services/real-square-service';
 
+// Force dynamic rendering - don't pre-render this route during build
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // Check authentication status
