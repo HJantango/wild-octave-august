@@ -28,7 +28,11 @@
       "Bash(npm view:*)",
       "Bash(npm cache clean:*)",
       "Bash(npm run build:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(git rm:*)",
+      "Bash(node -e:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

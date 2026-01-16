@@ -5,6 +5,7 @@ import { CategoryMarkups } from '@/components/settings/category-markups';
 import { GeneralSettings } from '@/components/settings/general-settings';
 import { StaffManagement } from '@/components/settings/staff-management';
 import { WhiteLabelSettings } from '@/components/settings/white-label-settings';
+import { UserManagement } from '@/components/settings/user-management';
 
 export default function SettingsPage() {
   return (
@@ -20,6 +21,7 @@ export default function SettingsPage() {
         <div className="space-y-8">
           <WhiteLabelSettings />
           <GeneralSettings />
+          <UserManagement />
           <StaffManagement />
           <CategoryMarkups />
         </div>
