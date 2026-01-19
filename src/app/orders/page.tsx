@@ -360,11 +360,12 @@ export default function OrdersPage() {
     return Math.ceil(quantity / packSize) * packSize;
   };
 
-  const handleOrderQuantityChange = (itemName: string, value: string) => {
+  const handleOrderQuantityChange = (itemName: string, variationName: string | undefined, value: string) => {
     const rawQuantity = parseInt(value) || 0;
 
     const newItems = items.map(item => {
-      if (item.itemName === itemName) {
+      // Match on both itemName and variationName to uniquely identify the item
+      if (item.itemName === itemName && item.variationName === variationName) {
         // Apply pack size rounding if pack size is set
         return {
           ...item,
@@ -377,11 +378,12 @@ export default function OrdersPage() {
     setItems(newItems);
   };
 
-  const handlePackSizeChange = (itemName: string, packSize: string) => {
+  const handlePackSizeChange = (itemName: string, variationName: string | undefined, packSize: string) => {
     const packSizeNum = packSize === '' ? undefined : parseInt(packSize);
 
     const newItems = items.map(item => {
-      if (item.itemName === itemName) {
+      // Match on both itemName and variationName to uniquely identify the item
+      if (item.itemName === itemName && item.variationName === variationName) {
         // Recalculate order quantity with new pack size
         const orderQuantity = item.orderQuantity
           ? roundToPackSize(item.orderQuantity, packSizeNum)
@@ -1377,7 +1379,7 @@ export default function OrdersPage() {
                               )}
                               <select
                                 value={item.packSize || ''}
-                                onChange={(e) => handlePackSizeChange(item.itemName, e.target.value)}
+                                onChange={(e) => handlePackSizeChange(item.itemName, item.variationName, e.target.value)}
                                 className="w-full px-1 py-1 text-center border border-purple-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs"
                               >
                                 <option value="">None</option>
@@ -1391,7 +1393,7 @@ export default function OrdersPage() {
                             <input
                               type="number"
                               value={item.orderQuantity || 0}
-                              onChange={(e) => handleOrderQuantityChange(item.itemName, e.target.value)}
+                              onChange={(e) => handleOrderQuantityChange(item.itemName, item.variationName, e.target.value)}
                               className="w-20 px-1 py-1 text-center border border-green-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
                               min="0"
                             />
