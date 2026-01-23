@@ -189,11 +189,4 @@ export async function POST(request: NextRequest) {
 
 export const dynamic = 'force-dynamic';
 
-// Increase body size limit for large CSV uploads
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '150mb',
-    },
-  },
-};
+// Body size limit is configured in next.config.js
