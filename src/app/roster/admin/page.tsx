@@ -20,6 +20,8 @@ interface Staff {
   saturdayHourlyRate?: number;
   sundayHourlyRate?: number;
   publicHolidayHourlyRate?: number;
+  email?: string;
+  phone?: string;
   isActive: boolean;
 }
 
@@ -49,6 +51,8 @@ export default function AdminPage() {
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffRole, setNewStaffRole] = useState('');
   const [newStaffRate, setNewStaffRate] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffPhone, setNewStaffPhone] = useState('');
   const [customRoles, setCustomRoles] = useState<string[]>([]);
   const [newRoleName, setNewRoleName] = useState('');
 
@@ -193,6 +197,8 @@ export default function AdminPage() {
       name: newStaffName,
       role: newStaffRole,
       baseHourlyRate: parseFloat(newStaffRate),
+      email: newStaffEmail || undefined,
+      phone: newStaffPhone || undefined,
       isActive: true
     };
 
@@ -200,6 +206,8 @@ export default function AdminPage() {
     setNewStaffName('');
     setNewStaffRole('');
     setNewStaffRate('');
+    setNewStaffEmail('');
+    setNewStaffPhone('');
   };
 
   const updateStaff = (id: string, field: keyof Staff, value: any) => {
@@ -373,6 +381,28 @@ export default function AdminPage() {
                   onChange={(e) => setNewStaffRate(e.target.value)}
                 />
               </div>
+              <div>
+                <Label htmlFor="newEmail">Email (Optional)</Label>
+                <Input
+                  id="newEmail"
+                  type="email"
+                  placeholder="staff@example.com"
+                  value={newStaffEmail}
+                  onChange={(e) => setNewStaffEmail(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">For roster email notifications</p>
+              </div>
+              <div>
+                <Label htmlFor="newPhone">Phone Number (Optional)</Label>
+                <Input
+                  id="newPhone"
+                  type="tel"
+                  placeholder="0412 345 678"
+                  value={newStaffPhone}
+                  onChange={(e) => setNewStaffPhone(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">For roster SMS (Australian mobile)</p>
+              </div>
               <Button onClick={addStaff} className="w-full">
                 <PlusIcon className="w-4 h-4 mr-2" />
                 Add Staff Member
@@ -480,6 +510,30 @@ export default function AdminPage() {
                       >
                         <TrashIcon className="w-4 h-4" />
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* Contact Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        placeholder="staff@example.com"
+                        value={person.email || ''}
+                        onChange={(e) => updateStaff(person.id, 'email', e.target.value || null)}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">For roster email notifications</p>
+                    </div>
+                    <div>
+                      <Label>Phone Number</Label>
+                      <Input
+                        type="tel"
+                        placeholder="0412 345 678"
+                        value={person.phone || ''}
+                        onChange={(e) => updateStaff(person.id, 'phone', e.target.value || null)}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">For roster SMS (Australian mobile)</p>
                     </div>
                   </div>
 

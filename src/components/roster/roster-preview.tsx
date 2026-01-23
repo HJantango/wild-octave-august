@@ -102,37 +102,20 @@ export const RosterPreview = forwardRef<HTMLDivElement, RosterPreviewProps>(
         if (!roster) return false;
         return roster.shifts.some(shift => shift.staffId === s.id);
       })
-      .sort((a, b) => {
-        const aIsJunior = a.role.toLowerCase().includes('junior');
-        const bIsJunior = b.role.toLowerCase().includes('junior');
-        if (aIsJunior !== bIsJunior) {
-          return aIsJunior ? 1 : -1;
-        }
-        return a.name.localeCompare(b.name);
-      });
+      .sort((a, b) => a.name.localeCompare(b.name));
 
+    // Separate into seniors and juniors
+    const seniorStaff = activeStaff.filter(s => !s.role.toLowerCase().includes('junior'));
+    const juniorStaff = activeStaff.filter(s => s.role.toLowerCase().includes('junior'));
 
-    return (
-      <div ref={ref} className="bg-white p-8 min-h-screen">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center mr-3">
-              <span className="text-white font-bold text-lg">★</span>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">{companyName} Roster</h1>
-          </div>
-          <div className="text-lg text-gray-900 mb-6">
-            Week of {weekStartDate.toLocaleDateString('en-AU', { 
-              day: 'numeric', 
-              month: 'long', 
-              year: 'numeric' 
-            })}
-          </div>
-          
-        </div>
-
-        {/* Roster Table */}
+    // Helper to render staff table
+    const renderStaffTable = (staffList: Staff[], sectionTitle?: string) => (
+      <div className="mb-8">
+        {sectionTitle && (
+          <h2 className="text-2xl font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-300">
+            {sectionTitle}
+          </h2>
+        )}
         <div className="border border-gray-300 rounded-lg overflow-hidden">
           {/* Header Row */}
           <div className="grid grid-cols-8 bg-gray-100">
@@ -146,13 +129,15 @@ export const RosterPreview = forwardRef<HTMLDivElement, RosterPreviewProps>(
           </div>
 
           {/* Staff Rows */}
-          {activeStaff.map((person) => (
-            <div key={person.id} className="grid grid-cols-8 border-t border-gray-200">
-              {/* Staff Name Column */}
-              <div className="p-3 border-r border-gray-300 bg-gray-50">
-                <div className="font-semibold text-gray-900">{person.name}</div>
-                <div className="text-sm text-gray-900">{person.role}</div>
-              </div>
+          {staffList.map((person) => {
+            const isJunior = person.role.toLowerCase().includes('junior');
+            return (
+              <div key={person.id} className={`grid grid-cols-8 border-t border-gray-200 ${isJunior ? 'bg-blue-50' : ''}`}>
+                {/* Staff Name Column */}
+                <div className={`p-3 border-r border-gray-300 ${isJunior ? 'bg-blue-100' : 'bg-gray-50'}`}>
+                  <div className={`font-semibold ${isJunior ? 'text-blue-900' : 'text-gray-900'}`}>{person.name}</div>
+                  <div className={`text-sm ${isJunior ? 'text-blue-700' : 'text-gray-900'}`}>{person.role}</div>
+                </div>
 
               {/* Day Columns */}
               {DAYS.map((day, dayIndex) => {
@@ -188,8 +173,37 @@ export const RosterPreview = forwardRef<HTMLDivElement, RosterPreviewProps>(
                 );
               })}
             </div>
-          ))}
+          );
+          })}
         </div>
+      </div>
+    );
+
+    return (
+      <div ref={ref} className="bg-white p-8 min-h-screen">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mr-4">
+              <span className="text-white font-bold text-2xl">★</span>
+            </div>
+            <h1 className="text-5xl font-bold text-gray-900">{companyName} Roster</h1>
+          </div>
+          <div className="text-2xl text-gray-900 mb-6">
+            Week of {weekStartDate.toLocaleDateString('en-AU', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })}
+          </div>
+
+        </div>
+
+        {/* Seniors Section */}
+        {seniorStaff.length > 0 && renderStaffTable(seniorStaff, 'Seniors')}
+
+        {/* Juniors Section */}
+        {juniorStaff.length > 0 && renderStaffTable(juniorStaff, 'Juniors')}
 
         {/* Legend */}
         <div className="mt-6 grid grid-cols-5 gap-4 text-sm text-gray-900">

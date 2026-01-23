@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const fileResult = await handleFileUpload(
       request,
       ['text/csv', '.csv', 'application/csv'],
-      50 * 1024 * 1024 // 50MB limit for CSV
+      150 * 1024 * 1024 // 150MB limit for CSV
     );
 
     if (!fileResult.success) {
@@ -156,6 +156,8 @@ export async function POST(request: NextRequest) {
         }
 
         return { report, newAggregatesCount: newAggregates.length };
+      }, {
+        timeout: 300000, // 5 minutes timeout for large CSV files
       })
       );
 
@@ -186,3 +188,12 @@ export async function POST(request: NextRequest) {
 }
 
 export const dynamic = 'force-dynamic';
+
+// Increase body size limit for large CSV uploads
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '150mb',
+    },
+  },
+};

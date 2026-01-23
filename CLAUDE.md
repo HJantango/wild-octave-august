@@ -33,7 +33,7 @@ This is a Next.js 14 App Router application for managing a health food shop/cafe
 3. **Item Management** - Comprehensive inventory tracking with automated pricing calculations, price history, and SKU support
 4. **Ordering Calendar System** - Vendor order schedules with automatic order generation based on frequency (weekly, bi-weekly, fortnightly, monthly)
 5. **Cafe Ordering Schedule** - Weekly visual calendar for cafe-specific vendor orders with regular, fortnightly, and on-demand ordering
-6. **Roster Management** - Staff scheduling system with public holidays and wage calculations
+6. **Roster Management** - Staff scheduling system with public holidays, wage calculations, and SMS notifications with roster images
 
 ### Key Technical Components
 
@@ -124,6 +124,7 @@ This is a Next.js 14 App Router application for managing a health food shop/cafe
 - `GST_RATE` - Default 0.10 (10% GST)
 - `SQUARE_APPLICATION_ID`, `SQUARE_ACCESS_TOKEN` - For Square POS integration
 - `SMTP_*` - Email configuration for vendor notifications
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` - For SMS roster notifications (see TWILIO_SETUP.md)
 
 ### Invoice Processing Business Logic
 

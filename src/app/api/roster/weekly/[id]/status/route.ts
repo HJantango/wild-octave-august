@@ -46,8 +46,9 @@ export async function PATCH(
     });
 
     let emailResults = null;
+    let smsResults = null;
 
-    // If status is being set to 'published', automatically send emails
+    // If status is being set to 'published', automatically send emails and SMS
     if (status === 'published') {
       try {
         const emailResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/roster/weekly/${params.id}/send-emails`, {
@@ -56,7 +57,7 @@ export async function PATCH(
             'Content-Type': 'application/json',
           },
         });
-        
+
         if (emailResponse.ok) {
           emailResults = await emailResponse.json();
         } else {
@@ -65,12 +66,32 @@ export async function PATCH(
       } catch (error) {
         console.error('Error sending emails automatically:', error);
       }
+
+      // Send SMS with roster image
+      try {
+        const smsResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/roster/weekly/${params.id}/send-sms`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (smsResponse.ok) {
+          smsResults = await smsResponse.json();
+          console.log('✅ Roster SMS sent automatically on publish');
+        } else {
+          console.error('Failed to send SMS automatically');
+        }
+      } catch (error) {
+        console.error('Error sending SMS automatically:', error);
+      }
     }
 
     return NextResponse.json({
       success: true,
       data: updatedRoster,
-      emailResults: emailResults
+      emailResults: emailResults,
+      smsResults: smsResults
     });
 
   } catch (error) {

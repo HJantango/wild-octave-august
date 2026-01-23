@@ -306,10 +306,10 @@ export function ShiftModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from({ length: 48 }, (_, i) => {
-                    const hour = Math.floor(i / 2);
-                    const minute = i % 2 === 0 ? '00' : '30';
-                    const time = `${hour.toString().padStart(2, '0')}:${minute}`;
+                  {Array.from({ length: 96 }, (_, i) => {
+                    const hour = Math.floor(i / 4);
+                    const minute = (i % 4) * 15;
+                    const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
                     return (
                       <SelectItem key={time} value={time}>
                         {time}
@@ -327,10 +327,10 @@ export function ShiftModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from({ length: 48 }, (_, i) => {
-                    const hour = Math.floor(i / 2);
-                    const minute = i % 2 === 0 ? '00' : '30';
-                    const time = `${hour.toString().padStart(2, '0')}:${minute}`;
+                  {Array.from({ length: 96 }, (_, i) => {
+                    const hour = Math.floor(i / 4);
+                    const minute = (i % 4) * 15;
+                    const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
                     return (
                       <SelectItem key={time} value={time}>
                         {time}

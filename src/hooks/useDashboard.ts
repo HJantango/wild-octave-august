@@ -237,17 +237,17 @@ export function useDashboardData(dateRange?: DateRange) {
           weekBeforeResponse.json()
         ]);
 
-        // Calculate averages
-        const twelveWeeksRevenue = weeklyAvgResult.success ? weeklyAvgResult.data?.overview?.totalRevenue || 0 : 0;
-        const sixMonthsRevenue = monthlyAvgResult.success ? monthlyAvgResult.data?.overview?.totalRevenue || 0 : 0;
-        const lastWeekRevenue = lastWeekResult.success ? lastWeekResult.data?.overview?.totalRevenue || 0 : 0;
-        const weekBeforeRevenue = weekBeforeResult.success ? weekBeforeResult.data?.overview?.totalRevenue || 0 : 0;
+        // Calculate averages with safety checks
+        const twelveWeeksRevenue = weeklyAvgResult.success ? Number(weeklyAvgResult.data?.overview?.totalRevenue) || 0 : 0;
+        const sixMonthsRevenue = monthlyAvgResult.success ? Number(monthlyAvgResult.data?.overview?.totalRevenue) || 0 : 0;
+        const lastWeekRevenue = lastWeekResult.success ? Number(lastWeekResult.data?.overview?.totalRevenue) || 0 : 0;
+        const weekBeforeRevenue = weekBeforeResult.success ? Number(weekBeforeResult.data?.overview?.totalRevenue) || 0 : 0;
 
-        const averageWeeklyRevenue = twelveWeeksRevenue / 12;
-        const averageMonthlyRevenue = sixMonthsRevenue / 6;
-        
+        const averageWeeklyRevenue = isNaN(twelveWeeksRevenue) || twelveWeeksRevenue === 0 ? 0 : twelveWeeksRevenue / 12;
+        const averageMonthlyRevenue = isNaN(sixMonthsRevenue) || sixMonthsRevenue === 0 ? 0 : sixMonthsRevenue / 6;
+
         // Calculate week-over-week change
-        const lastWeekChange = weekBeforeRevenue > 0 ? 
+        const lastWeekChange = weekBeforeRevenue > 0 ?
           ((lastWeekRevenue - weekBeforeRevenue) / weekBeforeRevenue) * 100 : 0;
 
 
@@ -288,14 +288,22 @@ export function useDashboardData(dateRange?: DateRange) {
       ...salesSummary.data.overview,
       itemCount: dashboardStats.data?.totalItems || 0,
       previousPeriod: previousSalesSummary.data ? {
-        totalRevenue: previousSalesSummary.data.overview.totalRevenue,
-        totalQuantity: previousSalesSummary.data.overview.totalQuantity,
-        revenueChange: salesSummary.data.overview.totalRevenue === 0 ? 0 : 
-          ((salesSummary.data.overview.totalRevenue - previousSalesSummary.data.overview.totalRevenue) / 
-           (previousSalesSummary.data.overview.totalRevenue || 1)) * 100,
-        quantityChange: salesSummary.data.overview.totalQuantity === 0 ? 0 :
-          ((salesSummary.data.overview.totalQuantity - previousSalesSummary.data.overview.totalQuantity) / 
-           (previousSalesSummary.data.overview.totalQuantity || 1)) * 100,
+        totalRevenue: Number(previousSalesSummary.data.overview.totalRevenue) || 0,
+        totalQuantity: Number(previousSalesSummary.data.overview.totalQuantity) || 0,
+        revenueChange: (() => {
+          const current = Number(salesSummary.data.overview.totalRevenue) || 0;
+          const previous = Number(previousSalesSummary.data.overview.totalRevenue) || 0;
+          if (current === 0 || previous === 0) return 0;
+          const change = ((current - previous) / previous) * 100;
+          return isNaN(change) ? 0 : change;
+        })(),
+        quantityChange: (() => {
+          const current = Number(salesSummary.data.overview.totalQuantity) || 0;
+          const previous = Number(previousSalesSummary.data.overview.totalQuantity) || 0;
+          if (current === 0 || previous === 0) return 0;
+          const change = ((current - previous) / previous) * 100;
+          return isNaN(change) ? 0 : change;
+        })(),
       } : undefined,
     },
     topCategories: salesSummary.data.topCategories || [],

@@ -321,19 +321,55 @@ export default function RosterPage() {
     }
   };
 
-  const sendRosterEmails = async () => {
+  const sendRosterSMS = async () => {
     if (!roster) return;
-    
+
     try {
       setLoading(true);
-      
+
+      const response = await fetch(`/api/roster/weekly/${roster.id}/send-sms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        const smsCount = result.details?.smsSent || 0;
+        const failedCount = result.details?.smsFailed || 0;
+        const staffWithPhones = result.details?.staffWithValidPhones || 0;
+
+        let message = `SMS sent successfully! ${smsCount} staff member${smsCount !== 1 ? 's' : ''} notified.`;
+        if (failedCount > 0) {
+          message += ` (${failedCount} failed to send)`;
+        }
+
+        toast.success('Roster SMS Sent', message);
+      } else {
+        toast.error('Failed to send SMS', result.error || 'Unknown error occurred');
+      }
+    } catch (error) {
+      console.error('Error sending roster SMS:', error);
+      toast.error('Failed to send SMS', 'An error occurred while sending roster SMS');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendRosterEmails = async () => {
+    if (!roster) return;
+
+    try {
+      setLoading(true);
+
       const response = await fetch(`/api/roster/weekly/${roster.id}/send-emails`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-      
+
       const result = await response.json();
       if (result.success) {
         const emailCount = result.details?.emailsSent || 0;
@@ -941,14 +977,24 @@ export default function RosterPage() {
                     </Button>
                     
                     {roster.status === 'published' && (
-                      <Button
-                        onClick={sendRosterEmails}
-                        disabled={loading}
-                        variant="outline"
-                        className="border-green-500 text-green-600 hover:bg-green-50"
-                      >
-                        📧 Send Emails Again
-                      </Button>
+                      <>
+                        <Button
+                          onClick={sendRosterEmails}
+                          disabled={loading}
+                          variant="outline"
+                          className="border-green-500 text-green-600 hover:bg-green-50"
+                        >
+                          📧 Send Emails Again
+                        </Button>
+                        <Button
+                          onClick={sendRosterSMS}
+                          disabled={loading}
+                          variant="outline"
+                          className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                        >
+                          📱 Send SMS
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

@@ -126,7 +126,7 @@ export default function SalesAnalyticsPage() {
                 <FileUpload
                   onFileSelect={handleFileUpload}
                   accept=".csv"
-                  maxSize={50}
+                  maxSize={150}
                   disabled={uploadMutation.isPending}
                 >
                   <div className="space-y-4">

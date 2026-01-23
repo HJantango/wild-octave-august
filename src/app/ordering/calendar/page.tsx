@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarView } from '@/components/calendar/calendar-view';
+import { CalendarViewEnhanced } from '@/components/calendar/calendar-view-enhanced';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -207,13 +207,15 @@ export default function OrderCalendarPage() {
 
       {/* Calendar view */}
       {calendarData && (
-        <CalendarView
+        <CalendarViewEnhanced
           month={currentMonth}
           orders={calendarData.orders}
           ordersByDate={calendarData.ordersByDate}
           summary={calendarData.summary}
+          vendors={calendarData.vendors}
           onMonthChange={setCurrentMonth}
           onOrderClick={handleOrderClick}
+          onRefresh={fetchCalendarData}
         />
       )}
     </div>

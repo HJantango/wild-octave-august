@@ -24,8 +24,10 @@ import {
   Legend,
 } from 'recharts';
 import { useDashboardData } from '@/hooks/useDashboard';
+import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '@/lib/format';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 
 interface DateRange {
   startDate: Date | null;
@@ -46,6 +48,24 @@ const getLastWeekRange = (): DateRange => {
   return { startDate: lastWeekStart, endDate: lastWeekEnd };
 };
 
+// Fetch operational dashboard data
+async function fetchOperationalData() {
+  const response = await fetch('/api/dashboard');
+  if (!response.ok) throw new Error('Failed to fetch dashboard data');
+  const result = await response.json();
+  return result.data;
+}
+
+// Fetch calendar orders for current week
+async function fetchWeekCalendarOrders() {
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const response = await fetch(`/api/calendar/orders?month=${month}`);
+  if (!response.ok) throw new Error('Failed to fetch calendar orders');
+  const result = await response.json();
+  return result.data;
+}
+
 export default function Dashboard() {
   const [dateRange, setDateRange] = useState<DateRange>(() => {
     const defaultRange = getLastWeekRange();
@@ -53,6 +73,20 @@ export default function Dashboard() {
   });
   // Using CSV sales data exclusively
   const { data, isLoading, error, refetch, stats } = useDashboardData(dateRange);
+
+  // Fetch operational data (diary, wastage, invoices, low stock)
+  const { data: operationalData, isLoading: isLoadingOps } = useQuery({
+    queryKey: ['dashboard-operational'],
+    queryFn: fetchOperationalData,
+    refetchInterval: 60000, // Refetch every minute
+  });
+
+  // Fetch calendar orders for current week
+  const { data: calendarData, isLoading: isLoadingCalendar } = useQuery({
+    queryKey: ['dashboard-calendar'],
+    queryFn: fetchWeekCalendarOrders,
+    refetchInterval: 300000, // Refetch every 5 minutes
+  });
   
   
   
@@ -72,16 +106,9 @@ export default function Dashboard() {
           <div className="relative">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h1 className="text-3xl font-bold mb-2 flex items-center">
+                <h1 className="text-3xl font-bold mb-2">
                   Health Food Shop Dashboard
-                  <span className="ml-3 flex items-center text-green-300">
-                    <span className="w-2 h-2 rounded-full bg-green-300 mr-1"></span>
-                    CSV Sales Data
-                  </span>
                 </h1>
-                <p className="text-blue-100 text-lg">
-                  Sales analytics powered by imported CSV data and comprehensive reporting
-                </p>
               </div>
               <div className="mt-4 lg:mt-0 flex items-center space-x-3">
                 <Link href="/sales">
@@ -105,6 +132,342 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Operational Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Week Sales */}
+          <Card className="relative overflow-hidden border-0 shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-green-600"></div>
+            <CardContent className="relative p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-100 text-sm font-medium">Week Sales</p>
+                  <p className="text-2xl font-bold">
+                    {isLoadingOps ? '...' : formatCurrency(operationalData?.sales.weekTotal || 0)}
+                  </p>
+                  <p className="text-emerald-100 text-xs mt-1">
+                    {isLoadingOps ? '' : `${operationalData?.sales.weekQuantity || 0} items`}
+                  </p>
+                </div>
+                <div className="text-3xl opacity-80">💰</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Week Margin */}
+          <Card className="relative overflow-hidden border-0 shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-600"></div>
+            <CardContent className="relative p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm font-medium">Week Margin</p>
+                  <p className="text-2xl font-bold">
+                    {isLoadingOps ? '...' : formatCurrency(operationalData?.sales.weekMargin || 0)}
+                  </p>
+                  <p className="text-blue-100 text-xs mt-1">Last 7 days</p>
+                </div>
+                <div className="text-3xl opacity-80">📈</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Low Stock Count */}
+          <Card className="relative overflow-hidden border-0 shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-600"></div>
+            <CardContent className="relative p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-orange-100 text-sm font-medium">Low Stock</p>
+                  <p className="text-2xl font-bold">
+                    {isLoadingOps ? '...' : operationalData?.inventory.lowStockCount || 0}
+                  </p>
+                  <p className="text-orange-100 text-xs mt-1">Items need reorder</p>
+                </div>
+                <div className="text-3xl opacity-80">⚠️</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Overdue Tasks */}
+          <Card className="relative overflow-hidden border-0 shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600"></div>
+            <CardContent className="relative p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-purple-100 text-sm font-medium">Overdue Tasks</p>
+                  <p className="text-2xl font-bold">
+                    {isLoadingOps ? '...' : operationalData?.diary.overdueCount || 0}
+                  </p>
+                  <p className="text-purple-100 text-xs mt-1">Diary entries</p>
+                </div>
+                <div className="text-3xl opacity-80">📋</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Shop Diary & Alerts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Shop Diary */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <span>📔</span>
+                  <span>Shop Diary</span>
+                </CardTitle>
+                <Link href="/shop-diary">
+                  <Button size="sm" variant="outline">View All</Button>
+                </Link>
+              </div>
+              <CardDescription>Upcoming and overdue tasks</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isLoadingOps ? (
+                <p className="text-gray-500 text-sm">Loading...</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Overdue Tasks */}
+                  {operationalData?.diary.overdue && operationalData.diary.overdue.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-red-600 mb-2">Overdue</h4>
+                      <div className="space-y-2">
+                        {operationalData.diary.overdue.slice(0, 3).map((entry: any) => (
+                          <div key={entry.id} className="flex items-start justify-between p-2 bg-red-50 rounded border-l-4 border-red-500">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{entry.title}</p>
+                              <p className="text-xs text-gray-600">{new Date(entry.dueDate).toLocaleDateString()}</p>
+                            </div>
+                            <Badge className="bg-red-100 text-red-800">Overdue</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upcoming Tasks */}
+                  {operationalData?.diary.upcoming && operationalData.diary.upcoming.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-blue-600 mb-2">Upcoming (Next 7 Days)</h4>
+                      <div className="space-y-2">
+                        {operationalData.diary.upcoming.slice(0, 3).map((entry: any) => (
+                          <div key={entry.id} className="flex items-start justify-between p-2 bg-blue-50 rounded border-l-4 border-blue-500">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{entry.title}</p>
+                              <p className="text-xs text-gray-600">{new Date(entry.dueDate).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(!operationalData?.diary.overdue || operationalData.diary.overdue.length === 0) &&
+                   (!operationalData?.diary.upcoming || operationalData.diary.upcoming.length === 0) && (
+                    <p className="text-gray-500 text-sm text-center py-4">No diary entries</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Order Calendar Week View */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <span>📅</span>
+                  <span>Upcoming Orders This Week</span>
+                </CardTitle>
+                <Link href="/ordering/calendar">
+                  <Button size="sm" variant="outline">Full Calendar</Button>
+                </Link>
+              </div>
+              <CardDescription>Scheduled deliveries for the next 7 days</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isLoadingCalendar ? (
+                <p className="text-gray-500 text-sm">Loading...</p>
+              ) : (
+                <div className="space-y-2">
+                  {(() => {
+                    // Get orders for the next 7 days
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const nextWeek = new Date(today);
+                    nextWeek.setDate(today.getDate() + 7);
+
+                    const upcomingOrders = calendarData?.orders
+                      ?.filter((order: any) => {
+                        const deliveryDate = new Date(order.deliveryDate);
+                        return deliveryDate >= today && deliveryDate < nextWeek;
+                      })
+                      .sort((a: any, b: any) => new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime())
+                      .slice(0, 7) || [];
+
+                    if (upcomingOrders.length === 0) {
+                      return <p className="text-gray-500 text-sm text-center py-4">No orders scheduled for this week</p>;
+                    }
+
+                    return upcomingOrders.map((order: any) => {
+                      const deliveryDate = new Date(order.deliveryDate);
+                      const dayName = deliveryDate.toLocaleDateString('en-AU', { weekday: 'short' });
+                      const dateStr = deliveryDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+                      const isToday = deliveryDate.toDateString() === today.toDateString();
+
+                      return (
+                        <div key={order.id} className={`flex items-center justify-between p-3 rounded border-l-4 ${
+                          isToday ? 'bg-green-50 border-green-500' :
+                          order.status === 'due' ? 'bg-yellow-50 border-yellow-500' :
+                          order.status === 'placed' ? 'bg-blue-50 border-blue-500' :
+                          'bg-purple-50 border-purple-500'
+                        }`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <p className="text-sm font-medium text-gray-900">{order.vendorName}</p>
+                              <Badge className={
+                                order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                order.status === 'placed' ? 'bg-blue-100 text-blue-800' :
+                                order.status === 'due' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-purple-100 text-purple-800'
+                              }>
+                                {order.status}
+                              </Badge>
+                            </div>
+                            {order.orderDeadline && (
+                              <p className="text-xs text-gray-600">Order by: {order.orderDeadline}</p>
+                            )}
+                          </div>
+                          <div className="text-right ml-2">
+                            <p className="text-sm font-bold text-gray-900">{dayName}</p>
+                            <p className="text-xs text-gray-600">{dateStr}</p>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Invoices & Wastage/Discounts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Recent Invoices */}
+          <Card className="border-0 shadow-lg lg:col-span-2">
+            <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <span>📄</span>
+                  <span>Recent Invoices</span>
+                  {operationalData?.invoices.rectificationPending > 0 && (
+                    <Badge className="bg-red-500 text-white ml-2">
+                      {operationalData.invoices.rectificationPending} Need Rectification
+                    </Badge>
+                  )}
+                </CardTitle>
+                <Link href="/invoices">
+                  <Button size="sm" variant="outline">View All</Button>
+                </Link>
+              </div>
+              <CardDescription>Last 7 days</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isLoadingOps ? (
+                <p className="text-gray-500 text-sm">Loading...</p>
+              ) : (
+                <div className="space-y-2">
+                  {operationalData?.invoices.recent && operationalData.invoices.recent.length > 0 ? (
+                    operationalData.invoices.recent.map((invoice: any) => (
+                      <div key={invoice.id} className="flex items-center justify-between p-3 bg-gray-50 rounded hover:bg-gray-100">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="text-sm font-medium text-gray-900">{invoice.vendorName}</p>
+                            <Badge className={
+                              invoice.status === 'PROCESSED' ? 'bg-green-100 text-green-800' :
+                              invoice.status === 'RECEIVED' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }>
+                              {invoice.status}
+                            </Badge>
+                            {invoice.needsRectification && (
+                              <Badge className="bg-red-100 text-red-800">Rectify</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600">#{invoice.invoiceNumber}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-gray-900">{formatCurrency(invoice.totalIncGst)}</p>
+                          <p className="text-xs text-gray-500">{new Date(invoice.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm text-center py-4">No recent invoices</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Wastage & Discounts Summary */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-yellow-50 to-orange-50">
+              <CardTitle className="flex items-center space-x-2">
+                <span>📊</span>
+                <span>Loss Summary</span>
+              </CardTitle>
+              <CardDescription>Last 30 days</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isLoadingOps ? (
+                <p className="text-gray-500 text-sm">Loading...</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Wastage */}
+                  <div className="p-3 bg-red-50 rounded">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-red-900">Wastage</p>
+                      <p className="text-lg font-bold text-red-600">
+                        {formatCurrency(operationalData?.wastage.totals.cost || 0)}
+                      </p>
+                    </div>
+                    <p className="text-xs text-red-700">
+                      {operationalData?.wastage.totals.quantity || 0} items wasted
+                    </p>
+                  </div>
+
+                  {/* Discounts */}
+                  <div className="p-3 bg-orange-50 rounded">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-orange-900">Discounts</p>
+                      <p className="text-lg font-bold text-orange-600">
+                        {formatCurrency(operationalData?.discounts.totals.amount || 0)}
+                      </p>
+                    </div>
+                    <p className="text-xs text-orange-700">
+                      {operationalData?.discounts.totals.quantity || 0} items discounted
+                    </p>
+                  </div>
+
+                  {/* Total Loss */}
+                  <div className="p-3 bg-gray-100 rounded border-t-2 border-gray-300">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-900">Total Loss</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        {formatCurrency(
+                          (operationalData?.wastage.totals.cost || 0) +
+                          (operationalData?.discounts.totals.amount || 0)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Average Stats Cards - moved to top */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Average Weekly Revenue */}
@@ -115,7 +478,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-indigo-100 text-sm font-medium">Avg Weekly Revenue</p>
                   <p className="text-2xl font-bold">
-                    {isLoading ? '...' : stats ? formatCurrency(stats.averageWeeklyRevenue) : '$0.00'}
+                    {isLoading ? '...' : stats ? formatCurrency(Number(stats.averageWeeklyRevenue) || 0) : '$0.00'}
                   </p>
                   <p className="text-indigo-100 text-base mt-1">Last 12 weeks</p>
                 </div>
@@ -132,7 +495,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-teal-100 text-sm font-medium">Avg Monthly Revenue</p>
                   <p className="text-2xl font-bold">
-                    {isLoading ? '...' : stats ? formatCurrency(stats.averageMonthlyRevenue) : '$0.00'}
+                    {isLoading ? '...' : stats ? formatCurrency(Number(stats.averageMonthlyRevenue) || 0) : '$0.00'}
                   </p>
                   <p className="text-teal-100 text-base mt-1">Last 6 months</p>
                 </div>
@@ -144,33 +507,33 @@ export default function Dashboard() {
           {/* Revenue Change from Last Week */}
           <Card className="relative overflow-hidden border-0 shadow-lg">
             <div className={`absolute inset-0 bg-gradient-to-r ${
-              (stats?.lastWeekChange || 0) >= 0 
-                ? 'from-emerald-500 to-green-600' 
+              (Number(stats?.lastWeekChange) || 0) >= 0
+                ? 'from-emerald-500 to-green-600'
                 : 'from-red-500 to-pink-600'
             }`}></div>
             <CardContent className="relative p-6 text-white">
               <div className="flex items-center justify-between">
                 <div>
                   <p className={`text-sm font-medium ${
-                    (stats?.lastWeekChange || 0) >= 0 ? 'text-emerald-100' : 'text-red-100'
+                    (Number(stats?.lastWeekChange) || 0) >= 0 ? 'text-emerald-100' : 'text-red-100'
                   }`}>
                     Last Week vs Previous
                   </p>
                   <p className="text-2xl font-bold">
-                    {isLoading ? '...' : stats ? formatCurrency(stats.lastWeekRevenue) : '$0.00'}
+                    {isLoading ? '...' : stats ? formatCurrency(Number(stats.lastWeekRevenue) || 0) : '$0.00'}
                   </p>
                   <div className={`text-sm mt-1 flex items-center space-x-1 ${
-                    (stats?.lastWeekChange || 0) >= 0 ? 'text-emerald-100' : 'text-red-100'
+                    (Number(stats?.lastWeekChange) || 0) >= 0 ? 'text-emerald-100' : 'text-red-100'
                   }`}>
-                    <span>{(stats?.lastWeekChange || 0) >= 0 ? '↗️' : '↘️'}</span>
+                    <span>{(Number(stats?.lastWeekChange) || 0) >= 0 ? '↗️' : '↘️'}</span>
                     <span className="text-lg font-semibold">
-                      {Math.abs(stats?.lastWeekChange || 0).toFixed(0)}% 
-                      {(stats?.lastWeekChange || 0) >= 0 ? ' increase' : ' decrease'}
+                      {Math.abs(Number(stats?.lastWeekChange) || 0).toFixed(0)}%
+                      {(Number(stats?.lastWeekChange) || 0) >= 0 ? ' increase' : ' decrease'}
                     </span>
                   </div>
                 </div>
                 <div className="text-3xl opacity-80">
-                  {(stats?.lastWeekChange || 0) >= 0 ? '📈' : '📉'}
+                  {(Number(stats?.lastWeekChange) || 0) >= 0 ? '📈' : '📉'}
                 </div>
               </div>
             </CardContent>
@@ -254,9 +617,9 @@ export default function Dashboard() {
                       <p>{data.overview.reportCount} report{data.overview.reportCount !== 1 ? 's' : ''}</p>
                       {data.overview.previousPeriod && (
                         <p className="flex items-center space-x-1 mt-1">
-                          <span>{data.overview.previousPeriod.revenueChange >= 0 ? '↗️' : '↘️'}</span>
-                          <span className={`text-lg font-semibold ${data.overview.previousPeriod.revenueChange >= 0 ? 'text-green-200' : 'text-red-200'}`}>
-                            {Math.abs(data.overview.previousPeriod.revenueChange).toFixed(0)}%
+                          <span>{(Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? '↗️' : '↘️'}</span>
+                          <span className={`text-lg font-semibold ${(Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+                            {Math.abs(Number(data.overview.previousPeriod.revenueChange) || 0).toFixed(0)}%
                           </span>
                         </p>
                       )}
@@ -282,9 +645,9 @@ export default function Dashboard() {
                     <p>{stats?.totalItems || 0} total items in catalog</p>
                     {data?.overview.previousPeriod && (
                       <p className="flex items-center space-x-1 mt-1">
-                        <span>{data.overview.previousPeriod.quantityChange >= 0 ? '↗️' : '↘️'}</span>
-                        <span className={`text-lg font-semibold ${data.overview.previousPeriod.quantityChange >= 0 ? 'text-blue-200' : 'text-red-200'}`}>
-                          {Math.abs(data.overview.previousPeriod.quantityChange).toFixed(0)}%
+                        <span>{(Number(data.overview.previousPeriod.quantityChange) || 0) >= 0 ? '↗️' : '↘️'}</span>
+                        <span className={`text-lg font-semibold ${(Number(data.overview.previousPeriod.quantityChange) || 0) >= 0 ? 'text-blue-200' : 'text-red-200'}`}>
+                          {Math.abs(Number(data.overview.previousPeriod.quantityChange) || 0).toFixed(0)}%
                         </span>
                       </p>
                     )}
@@ -303,9 +666,9 @@ export default function Dashboard() {
                 <div>
                   <p className="text-orange-100 text-sm font-medium">Avg Order Value</p>
                   <p className="text-2xl font-bold">
-                    {isLoading ? '...' : 
-                     data?.overview && data.overview.totalQuantity > 0 ? 
-                     formatCurrency(data.overview.totalRevenue / data.overview.totalQuantity) : 
+                    {isLoading ? '...' :
+                     data?.overview && (Number(data.overview.totalQuantity) || 0) > 0 ?
+                     formatCurrency((Number(data.overview.totalRevenue) || 0) / (Number(data.overview.totalQuantity) || 1)) :
                      '$0.00'}
                   </p>
                   <p className="text-orange-100 text-xs mt-1">Per item sold</p>
@@ -574,18 +937,18 @@ export default function Dashboard() {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm font-medium text-gray-700">Average Daily Revenue</span>
                         <span className="text-lg font-bold text-purple-600">
-                          {data.timeSeries && data.timeSeries.length > 0 ? 
-                            formatCurrency(data.timeSeries.reduce((sum, day) => sum + day.revenue, 0) / data.timeSeries.length) : 
+                          {data.timeSeries && data.timeSeries.length > 0 ?
+                            formatCurrency(data.timeSeries.reduce((sum, day) => sum + (Number(day.revenue) || 0), 0) / data.timeSeries.length) :
                             '$0.00'
                           }
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-purple-600 h-2 rounded-full" 
+                        <div
+                          className="bg-purple-600 h-2 rounded-full"
                           style={{
-                            width: data.overview?.totalRevenue && data.timeSeries?.length ? 
-                              `${Math.min(100, (data.overview.totalRevenue / data.timeSeries.length / 1000) * 10)}%` : 
+                            width: data.overview?.totalRevenue && data.timeSeries?.length && data.timeSeries.length > 0 ?
+                              `${Math.min(100, Math.max(0, (Number(data.overview.totalRevenue) || 0) / data.timeSeries.length / 1000 * 10))}%` :
                               '0%'
                           }}
                         ></div>
@@ -597,18 +960,18 @@ export default function Dashboard() {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm font-medium text-gray-700">Average Daily Items</span>
                         <span className="text-lg font-bold text-green-600">
-                          {data.timeSeries && data.timeSeries.length > 0 ? 
-                            Math.round(data.timeSeries.reduce((sum, day) => sum + day.quantity, 0) / data.timeSeries.length) : 
+                          {data.timeSeries && data.timeSeries.length > 0 ?
+                            Math.round(data.timeSeries.reduce((sum, day) => sum + (Number(day.quantity) || 0), 0) / data.timeSeries.length) :
                             0
                           }
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-600 h-2 rounded-full" 
+                        <div
+                          className="bg-green-600 h-2 rounded-full"
                           style={{
-                            width: data.overview?.totalQuantity && data.timeSeries?.length ? 
-                              `${Math.min(100, (data.overview.totalQuantity / data.timeSeries.length / 50) * 100)}%` : 
+                            width: data.overview?.totalQuantity && data.timeSeries?.length && data.timeSeries.length > 0 ?
+                              `${Math.min(100, Math.max(0, ((Number(data.overview.totalQuantity) || 0) / data.timeSeries.length / 50) * 100))}%` :
                               '0%'
                           }}
                         ></div>
@@ -621,18 +984,18 @@ export default function Dashboard() {
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm font-medium text-gray-700">Period Growth</span>
                           <span className={`text-lg font-bold ${
-                            data.overview.previousPeriod.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
+                            (Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                           }`}>
-                            {data.overview.previousPeriod.revenueChange >= 0 ? '+' : ''}{data.overview.previousPeriod.revenueChange.toFixed(1)}%
+                            {(Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? '+' : ''}{(Number(data.overview.previousPeriod.revenueChange) || 0).toFixed(1)}%
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
+                          <div
                             className={`h-2 rounded-full ${
-                              data.overview.previousPeriod.revenueChange >= 0 ? 'bg-green-600' : 'bg-red-600'
+                              (Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? 'bg-green-600' : 'bg-red-600'
                             }`}
                             style={{
-                              width: `${Math.min(100, Math.abs(data.overview.previousPeriod.revenueChange) * 2)}%`
+                              width: `${Math.min(100, Math.max(0, Math.abs(Number(data.overview.previousPeriod.revenueChange) || 0) * 2))}%`
                             }}
                           ></div>
                         </div>

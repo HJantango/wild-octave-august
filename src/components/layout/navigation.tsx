@@ -46,6 +46,7 @@ const navigation: NavItem[] = [
     submenu: [
       { name: 'Diary', href: '/shop-diary' },
       { name: 'Roster', href: '/roster' },
+      { name: 'Staff Leave', href: '/leave' },
       { name: 'Xmas Schedule', href: '/ordering/christmas-closures' },
     ],
   },
