@@ -3,7 +3,8 @@ FROM node:18-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Add build dependencies for native modules like bcrypt
+RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
@@ -53,6 +54,9 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy Prisma schema for runtime migrations
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 USER nextjs
 
