@@ -405,4 +405,366 @@ class RealSquareService {
   }
 }
 
+  /**
+   * Search catalog items by name (for matching invoice items to Square catalog)
+   */
+  async searchCatalogByName(query: string): Promise<SquareItem[]> {
+    try {
+      const client = this.getClient();
+      const response = await client.catalog.search({
+        objectTypes: ['ITEM'],
+        query: {
+          textQuery: {
+            keywords: [query],
+          },
+        },
+        limit: 10,
+      });
+
+      return response.result.objects?.filter(obj => obj.type === 'ITEM').map(obj => {
+        const itemData = obj.itemData;
+        return {
+          id: obj.id!,
+          name: itemData?.name || 'Unknown Item',
+          category: itemData?.categoryId ? {
+            id: itemData.categoryId,
+            name: 'Unknown Category',
+          } : undefined,
+          variations: itemData?.variations?.map(variation => ({
+            id: variation.id!,
+            name: variation.itemVariationData?.name || 'Default',
+            priceMoney: {
+              amount: Number(variation.itemVariationData?.priceMoney?.amount || 0),
+              currency: variation.itemVariationData?.priceMoney?.currency || 'AUD',
+            },
+          })) || [],
+          updatedAt: obj.updatedAt!,
+          createdAt: obj.createdAt!,
+        };
+      }) || [];
+    } catch (error) {
+      console.error('❌ Failed to search catalog:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Preview what changes would be made to Square catalog
+   * Returns a diff of current vs proposed — NO writes.
+   */
+  async previewCatalogChanges(items: CatalogChangeItem[]): Promise<CatalogChangePreview> {
+    const changes: CatalogChange[] = [];
+
+    for (const item of items) {
+      try {
+        // Search for existing item in Square
+        const matches = await this.searchCatalogByName(item.name);
+        const bestMatch = this.findBestMatch(item.name, matches);
+
+        if (bestMatch) {
+          // Existing item — check if price needs updating
+          const currentVariation = bestMatch.variations[0];
+          const currentPriceCents = currentVariation?.priceMoney?.amount || 0;
+          const newPriceCents = Math.round(item.sellPriceIncGst * 100);
+
+          if (currentPriceCents !== newPriceCents) {
+            changes.push({
+              action: 'UPDATE_PRICE',
+              itemName: item.name,
+              squareItemId: bestMatch.id,
+              squareVariationId: currentVariation?.id,
+              currentPrice: currentPriceCents / 100,
+              newPrice: item.sellPriceIncGst,
+              costExGst: item.costExGst,
+              markup: item.markup,
+              confidence: this.matchConfidence(item.name, bestMatch.name),
+            });
+          } else {
+            changes.push({
+              action: 'NO_CHANGE',
+              itemName: item.name,
+              squareItemId: bestMatch.id,
+              currentPrice: currentPriceCents / 100,
+              newPrice: item.sellPriceIncGst,
+              costExGst: item.costExGst,
+              markup: item.markup,
+              confidence: 1.0,
+            });
+          }
+        } else {
+          // New item — would need to create
+          changes.push({
+            action: 'CREATE',
+            itemName: item.name,
+            newPrice: item.sellPriceIncGst,
+            costExGst: item.costExGst,
+            markup: item.markup,
+            confidence: 1.0,
+          });
+        }
+      } catch (error) {
+        console.error(`❌ Error previewing item "${item.name}":`, error);
+        changes.push({
+          action: 'ERROR',
+          itemName: item.name,
+          newPrice: item.sellPriceIncGst,
+          costExGst: item.costExGst,
+          markup: item.markup,
+          confidence: 0,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    const updates = changes.filter(c => c.action === 'UPDATE_PRICE');
+    const creates = changes.filter(c => c.action === 'CREATE');
+    const noChanges = changes.filter(c => c.action === 'NO_CHANGE');
+    const errors = changes.filter(c => c.action === 'ERROR');
+
+    return {
+      changes,
+      summary: {
+        totalItems: items.length,
+        priceUpdates: updates.length,
+        newItems: creates.length,
+        unchanged: noChanges.length,
+        errors: errors.length,
+        totalPriceImpact: updates.reduce((sum, c) => sum + ((c.newPrice || 0) - (c.currentPrice || 0)), 0),
+      },
+    };
+  }
+
+  /**
+   * Apply approved changes to Square catalog.
+   * Takes specific change IDs to apply (user must approve each).
+   */
+  async applyCatalogChanges(
+    changes: CatalogChange[],
+    locationId: string
+  ): Promise<CatalogApplyResult> {
+    const client = this.getClient();
+    const results: CatalogApplyItemResult[] = [];
+    const idempotencyKey = `inv-apply-${Date.now()}`;
+
+    // Batch upsert objects
+    const objectsToUpsert: any[] = [];
+
+    for (const change of changes) {
+      if (change.action === 'UPDATE_PRICE' && change.squareItemId && change.squareVariationId) {
+        // For updates, we need to fetch the current object first to get the version
+        try {
+          const existing = await client.catalog.get({ objectId: change.squareItemId });
+          const obj = existing.result.object;
+          if (!obj) {
+            results.push({
+              itemName: change.itemName,
+              action: 'UPDATE_PRICE',
+              success: false,
+              error: 'Could not fetch current item from Square',
+            });
+            continue;
+          }
+
+          // Update the variation price
+          const itemData = obj.itemData;
+          if (itemData?.variations) {
+            for (const v of itemData.variations) {
+              if (v.id === change.squareVariationId && v.itemVariationData) {
+                v.itemVariationData.priceMoney = {
+                  amount: BigInt(Math.round((change.newPrice || 0) * 100)),
+                  currency: 'AUD',
+                };
+              }
+            }
+          }
+
+          objectsToUpsert.push(obj);
+          results.push({
+            itemName: change.itemName,
+            action: 'UPDATE_PRICE',
+            success: true,
+            squareItemId: change.squareItemId,
+            oldPrice: change.currentPrice,
+            newPrice: change.newPrice,
+          });
+        } catch (error) {
+          results.push({
+            itemName: change.itemName,
+            action: 'UPDATE_PRICE',
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      } else if (change.action === 'CREATE') {
+        // Create new catalog item
+        const tempId = `#new_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        objectsToUpsert.push({
+          type: 'ITEM',
+          id: tempId,
+          presentAtAllLocations: true,
+          itemData: {
+            name: change.itemName,
+            isTaxable: true,
+            variations: [{
+              type: 'ITEM_VARIATION',
+              id: `${tempId}_var`,
+              presentAtAllLocations: true,
+              itemVariationData: {
+                itemId: tempId,
+                name: 'Regular',
+                pricingType: 'FIXED_PRICING',
+                priceMoney: {
+                  amount: BigInt(Math.round((change.newPrice || 0) * 100)),
+                  currency: 'AUD',
+                },
+                sellable: true,
+                stockable: true,
+              },
+            }],
+          },
+        });
+        results.push({
+          itemName: change.itemName,
+          action: 'CREATE',
+          success: true,
+          newPrice: change.newPrice,
+        });
+      }
+    }
+
+    // Execute batch upsert
+    if (objectsToUpsert.length > 0) {
+      try {
+        await client.catalog.batchUpsert({
+          idempotencyKey,
+          batches: [{
+            objects: objectsToUpsert,
+          }],
+        });
+        console.log(`✅ Square batch upsert completed: ${objectsToUpsert.length} objects`);
+      } catch (error) {
+        console.error('❌ Square batch upsert failed:', error);
+        // Mark all as failed
+        for (const r of results) {
+          if (r.success) {
+            r.success = false;
+            r.error = error instanceof Error ? error.message : 'Batch upsert failed';
+          }
+        }
+      }
+    }
+
+    return {
+      results,
+      summary: {
+        attempted: changes.length,
+        succeeded: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+      },
+    };
+  }
+
+  /**
+   * Find the best matching Square item for a given name
+   */
+  private findBestMatch(name: string, candidates: SquareItem[]): SquareItem | null {
+    if (candidates.length === 0) return null;
+
+    const normalized = name.toLowerCase().trim();
+
+    // Exact match
+    const exact = candidates.find(c => c.name.toLowerCase().trim() === normalized);
+    if (exact) return exact;
+
+    // Best partial match — score by word overlap
+    let bestScore = 0;
+    let bestMatch: SquareItem | null = null;
+
+    const nameWords = new Set(normalized.split(/\s+/).filter(w => w.length > 2));
+
+    for (const candidate of candidates) {
+      const candidateWords = new Set(candidate.name.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+      let overlap = 0;
+      for (const word of nameWords) {
+        if (candidateWords.has(word)) overlap++;
+      }
+      const score = overlap / Math.max(nameWords.size, candidateWords.size);
+      if (score > bestScore && score > 0.4) { // At least 40% word overlap
+        bestScore = score;
+        bestMatch = candidate;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  private matchConfidence(invoiceName: string, squareName: string): number {
+    const a = invoiceName.toLowerCase().trim();
+    const b = squareName.toLowerCase().trim();
+    if (a === b) return 1.0;
+
+    const wordsA = new Set(a.split(/\s+/).filter(w => w.length > 2));
+    const wordsB = new Set(b.split(/\s+/).filter(w => w.length > 2));
+    let overlap = 0;
+    for (const w of wordsA) {
+      if (wordsB.has(w)) overlap++;
+    }
+    return overlap / Math.max(wordsA.size, wordsB.size);
+  }
+}
+
+// Types for catalog changes
+export interface CatalogChangeItem {
+  name: string;
+  costExGst: number;
+  sellPriceIncGst: number;
+  markup: number;
+  category: string;
+  hasGst: boolean;
+}
+
+export interface CatalogChange {
+  action: 'UPDATE_PRICE' | 'CREATE' | 'NO_CHANGE' | 'ERROR';
+  itemName: string;
+  squareItemId?: string;
+  squareVariationId?: string;
+  currentPrice?: number;
+  newPrice?: number;
+  costExGst?: number;
+  markup?: number;
+  confidence: number;
+  error?: string;
+}
+
+export interface CatalogChangePreview {
+  changes: CatalogChange[];
+  summary: {
+    totalItems: number;
+    priceUpdates: number;
+    newItems: number;
+    unchanged: number;
+    errors: number;
+    totalPriceImpact: number;
+  };
+}
+
+export interface CatalogApplyItemResult {
+  itemName: string;
+  action: string;
+  success: boolean;
+  squareItemId?: string;
+  oldPrice?: number;
+  newPrice?: number;
+  error?: string;
+}
+
+export interface CatalogApplyResult {
+  results: CatalogApplyItemResult[];
+  summary: {
+    attempted: number;
+    succeeded: number;
+    failed: number;
+  };
+}
+
 export const realSquareService = new RealSquareService();

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, AlertCircle } from 'lucide-react';
+import { Check, X, AlertCircle, ArrowUpRight, Eye, Loader2 } from 'lucide-react';
 
 interface LineItem {
   id: string;
@@ -43,6 +43,13 @@ export default function InvoiceReviewPage() {
   const [items, setItems] = useState<LineItem[]>([]);
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [showHelp, setShowHelp] = useState(false);
+  
+  // Square integration state
+  const [squarePreview, setSquarePreview] = useState<any>(null);
+  const [showSquarePreview, setShowSquarePreview] = useState(false);
+  const [squareLoading, setSquareLoading] = useState(false);
+  const [squareApplying, setSquareApplying] = useState(false);
+  const [squareResult, setSquareResult] = useState<any>(null);
 
   useEffect(() => {
     fetchInvoiceData();
@@ -108,6 +115,64 @@ export default function InvoiceReviewPage() {
       );
       newCorrections.push(correction);
       setCorrections(newCorrections);
+    }
+  };
+
+  const handleSquarePreview = async () => {
+    setSquareLoading(true);
+    setSquareResult(null);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/square-preview`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setSquarePreview(data.data.preview);
+        setShowSquarePreview(true);
+      } else {
+        alert(`Preview failed: ${data.error}`);
+      }
+    } catch (error) {
+      alert('Failed to connect to Square');
+    } finally {
+      setSquareLoading(false);
+    }
+  };
+
+  const handleSquareApply = async () => {
+    if (!squarePreview?.changes) return;
+    
+    const actionable = squarePreview.changes.filter(
+      (c: any) => c.action === 'UPDATE_PRICE' || c.action === 'CREATE'
+    );
+    
+    if (actionable.length === 0) {
+      alert('No changes to apply');
+      return;
+    }
+
+    if (!confirm(`Apply ${actionable.length} changes to Square? This will update your live POS.`)) {
+      return;
+    }
+
+    setSquareApplying(true);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/square-apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changes: actionable }),
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setSquareResult(data.data.result);
+        alert(`✅ Applied ${data.data.result.summary.succeeded} changes to Square!`);
+      } else {
+        alert(`Apply failed: ${data.error}`);
+      }
+    } catch (error) {
+      alert('Failed to apply changes to Square');
+    } finally {
+      setSquareApplying(false);
     }
   };
 
@@ -361,6 +426,115 @@ export default function InvoiceReviewPage() {
         </CardContent>
       </Card>
 
+      {/* Square Preview Panel */}
+      {showSquarePreview && squarePreview && (
+        <Card className="mt-6 border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ArrowUpRight className="h-5 w-5 text-blue-600" />
+              Square Catalog Preview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              <div className="bg-white rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-orange-600">{squarePreview.summary.priceUpdates}</div>
+                <div className="text-xs text-gray-600">Price Updates</div>
+              </div>
+              <div className="bg-white rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-green-600">{squarePreview.summary.newItems}</div>
+                <div className="text-xs text-gray-600">New Items</div>
+              </div>
+              <div className="bg-white rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-gray-400">{squarePreview.summary.unchanged}</div>
+                <div className="text-xs text-gray-600">Unchanged</div>
+              </div>
+              <div className="bg-white rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-red-600">{squarePreview.summary.errors}</div>
+                <div className="text-xs text-gray-600">Errors</div>
+              </div>
+            </div>
+
+            {squarePreview.summary.totalPriceImpact !== 0 && (
+              <Alert className="mb-4">
+                <AlertDescription>
+                  Net price impact: <strong>${squarePreview.summary.totalPriceImpact.toFixed(2)}</strong> across {squarePreview.summary.priceUpdates} items
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="max-h-64 overflow-y-auto mb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="p-1">Action</th>
+                    <th className="p-1">Item</th>
+                    <th className="p-1">Current</th>
+                    <th className="p-1">New</th>
+                    <th className="p-1">Match</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {squarePreview.changes.map((change: any, i: number) => (
+                    <tr key={i} className={`border-b ${
+                      change.action === 'UPDATE_PRICE' ? 'bg-orange-50' :
+                      change.action === 'CREATE' ? 'bg-green-50' :
+                      change.action === 'ERROR' ? 'bg-red-50' : ''
+                    }`}>
+                      <td className="p-1">
+                        <Badge variant="outline" className={`text-xs ${
+                          change.action === 'UPDATE_PRICE' ? 'bg-orange-100 text-orange-700' :
+                          change.action === 'CREATE' ? 'bg-green-100 text-green-700' :
+                          change.action === 'NO_CHANGE' ? 'bg-gray-100 text-gray-500' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {change.action === 'UPDATE_PRICE' ? '↑ Update' :
+                           change.action === 'CREATE' ? '+ New' :
+                           change.action === 'NO_CHANGE' ? '= Same' : '✕ Error'}
+                        </Badge>
+                      </td>
+                      <td className="p-1 font-medium">{change.itemName}</td>
+                      <td className="p-1">{change.currentPrice ? `$${change.currentPrice.toFixed(2)}` : '—'}</td>
+                      <td className="p-1 font-medium">${change.newPrice?.toFixed(2) || '—'}</td>
+                      <td className="p-1">
+                        {change.confidence >= 0.8 ? '✅' : change.confidence >= 0.5 ? '⚠️' : '❓'}
+                        <span className="text-xs text-gray-400 ml-1">{(change.confidence * 100).toFixed(0)}%</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={handleSquareApply}
+                disabled={squareApplying || squarePreview.summary.priceUpdates + squarePreview.summary.newItems === 0}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {squareApplying ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Applying...</>
+                ) : (
+                  <><ArrowUpRight className="h-4 w-4 mr-2" /> Apply {squarePreview.summary.priceUpdates + squarePreview.summary.newItems} Changes to Square</>
+                )}
+              </Button>
+              <Button variant="outline" onClick={() => setShowSquarePreview(false)}>
+                Close Preview
+              </Button>
+            </div>
+
+            {squareResult && (
+              <Alert className="mt-4 bg-green-50 border-green-200">
+                <Check className="h-4 w-4" />
+                <AlertDescription>
+                  Applied: {squareResult.summary.succeeded} succeeded, {squareResult.summary.failed} failed
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="mt-6 flex justify-between">
         <Button
           variant="outline"
@@ -368,12 +542,24 @@ export default function InvoiceReviewPage() {
         >
           Cancel
         </Button>
-        <div className="space-x-2">
+        <div className="flex items-center space-x-3">
           {corrections.length > 0 && (
-            <span className="text-sm text-gray-600 mr-4">
+            <span className="text-sm text-gray-600">
               {corrections.length} corrections will be saved for learning
             </span>
           )}
+          <Button
+            variant="outline"
+            onClick={handleSquarePreview}
+            disabled={squareLoading || items.length === 0}
+            className="border-blue-300 text-blue-700 hover:bg-blue-50"
+          >
+            {squareLoading ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading...</>
+            ) : (
+              <><Eye className="h-4 w-4 mr-2" /> Preview Square Changes</>
+            )}
+          </Button>
           <Button
             onClick={handleSubmit}
             disabled={saving}
