@@ -126,6 +126,37 @@ export async function GET(request: NextRequest) {
       item.totalLoss += Number(record.discountAmount);
     }
 
+    // Enrich with Square sales data for context
+    const salesData = await prisma.squareDailySales.findMany({
+      where: {
+        date: { gte: startDate, lte: endDate },
+      },
+    });
+
+    // Build sales lookup by item name
+    const salesByItem = new Map<string, { totalQty: number; totalRevenue: number }>();
+    for (const sale of salesData) {
+      const key = sale.itemName.toLowerCase().trim();
+      const existing = salesByItem.get(key) || { totalQty: 0, totalRevenue: 0 };
+      existing.totalQty += Number(sale.quantitySold);
+      existing.totalRevenue += sale.grossSalesCents / 100;
+      salesByItem.set(key, existing);
+    }
+
+    // Enrich item data with sales
+    for (const item of itemMap.values()) {
+      const salesInfo = salesByItem.get(item.itemName.toLowerCase().trim());
+      if (salesInfo) {
+        (item as any).avgWeeklySales = salesInfo.totalQty / Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
+        (item as any).totalSalesQty = salesInfo.totalQty;
+        (item as any).totalSalesRevenue = salesInfo.totalRevenue;
+        // Calculate wastage ratio
+        if (salesInfo.totalQty > 0) {
+          (item as any).wastageRatio = (item.wastageQty / (salesInfo.totalQty + item.wastageQty)) * 100;
+        }
+      }
+    }
+
     // Add recommendations based on thresholds
     const items = Array.from(itemMap.values()).map(item => {
       if (item.totalLoss > 100) {

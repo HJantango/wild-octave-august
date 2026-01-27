@@ -28,6 +28,8 @@ import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '@/lib/format';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { SmartAlerts } from '@/components/dashboard/SmartAlerts';
+import { SalesTrends } from '@/components/dashboard/SalesTrends';
 
 interface DateRange {
   startDate: Date | null;
@@ -349,6 +351,12 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        {/* Smart Alerts & Sales Trends */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SmartAlerts />
+          <SalesTrends />
         </div>
 
         {/* Invoices & Wastage/Discounts Row */}

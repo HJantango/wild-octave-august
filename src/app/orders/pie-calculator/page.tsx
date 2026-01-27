@@ -46,6 +46,9 @@ export default function PieCalculatorPage() {
   const [generalBuffer, setGeneralBuffer] = useState(0); // % buffer for all days
   const [deliveryBuffer, setDeliveryBuffer] = useState(0); // Additional % buffer for delivery days
   const [printMode, setPrintMode] = useState<'full' | 'staff'>('full'); // Control what to print
+  const [dataSource, setDataSource] = useState<'square' | 'csv'>('square');
+  const [squareWeeks, setSquareWeeks] = useState(6);
+  const [isSquareLoading, setIsSquareLoading] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -83,6 +86,27 @@ export default function PieCalculatorPage() {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSquareAnalyze = async () => {
+    setIsSquareLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/square/pie-analysis?weeks=${squareWeeks}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to analyze pie sales from Square');
+      }
+
+      const result = await response.json();
+      const data = result.data || result;
+      setAnalysis(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsSquareLoading(false);
     }
   };
 
@@ -542,28 +566,88 @@ export default function PieCalculatorPage() {
           </div>
         </div>
 
-        {/* Upload Section */}
+        {/* Data Source Section */}
         <div className="no-print bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Upload Square Sales Data</h2>
-        <div className="flex items-center gap-4 mb-4">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileChange}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
-          />
-          <button
-            onClick={handleAnalyze}
-            disabled={!file || loading}
-            className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            {loading ? 'Analyzing...' : 'Analyze'}
-          </button>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Pie Sales Data</h2>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              onClick={() => setDataSource('square')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                dataSource === 'square'
+                  ? 'bg-white text-purple-700 shadow-sm border border-gray-200'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              ⬛ Square Data
+            </button>
+            <button
+              onClick={() => setDataSource('csv')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                dataSource === 'csv'
+                  ? 'bg-white text-purple-700 shadow-sm border border-gray-200'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              📄 CSV Upload
+            </button>
+          </div>
         </div>
+
+        {dataSource === 'square' ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Weeks to Analyze</label>
+                <select
+                  value={squareWeeks}
+                  onChange={(e) => setSquareWeeks(parseInt(e.target.value))}
+                  className="block w-full pl-3 pr-10 py-2 text-base bg-white text-gray-900 border border-gray-300 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm rounded-md"
+                >
+                  <option value="2">2 weeks</option>
+                  <option value="4">4 weeks</option>
+                  <option value="6">6 weeks</option>
+                  <option value="8">8 weeks</option>
+                  <option value="12">12 weeks</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={handleSquareAnalyze}
+                  disabled={isSquareLoading}
+                  className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {isSquareLoading ? 'Analyzing...' : 'Analyze Square Data'}
+                </button>
+              </div>
+            </div>
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-md">
+              <p className="text-sm text-purple-800 font-medium">💡 Pulls pie/pastry sales directly from Square POS synced data</p>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center gap-4 mb-4">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+              />
+              <button
+                onClick={handleAnalyze}
+                disabled={!file || loading}
+                className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {loading ? 'Analyzing...' : 'Analyze'}
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload Square &quot;Item Sales Detail&quot; CSV export for Byron Bay Gourmet Pies
+            </p>
+          </div>
+        )}
         {error && <p className="text-red-600 mt-2">{error}</p>}
-        <p className="text-sm text-gray-600 mb-4">
-          Upload Square &quot;Item Sales Detail&quot; CSV export for Byron Bay Gourmet Pies
-        </p>
 
         {analysis && (
           <div className="border-t pt-4 mt-4">

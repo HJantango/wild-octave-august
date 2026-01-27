@@ -24,13 +24,48 @@ interface ImportResult {
 export function SquareCSVImport({ onImportComplete }: { onImportComplete?: () => void }) {
   const toast = useToast();
   const [isImporting, setIsImporting] = useState(false);
+  const [isSyncingCatalog, setIsSyncingCatalog] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [importMode, setImportMode] = useState<'csv' | 'api'>('csv');
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files));
       setResult(null);
+    }
+  };
+
+  const handleCatalogSync = async () => {
+    setIsSyncingCatalog(true);
+    try {
+      const response = await fetch('/api/square/catalog-sync', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (data.success || data.data) {
+        const syncResult = data.data;
+        setResult({
+          summary: syncResult.summary,
+          details: syncResult.details,
+        });
+        const { created, updated } = syncResult.summary;
+        toast.success(
+          'Success',
+          `Synced catalog: ${created} created, ${updated} updated`
+        );
+        if (onImportComplete) {
+          onImportComplete();
+        }
+      } else {
+        toast.error('Error', data.error?.message || 'Failed to sync catalog');
+      }
+    } catch (error) {
+      toast.error('Error', 'Failed to sync catalog from Square API');
+    } finally {
+      setIsSyncingCatalog(false);
     }
   };
 
@@ -74,37 +109,83 @@ export function SquareCSVImport({ onImportComplete }: { onImportComplete?: () =>
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Import Square Vendor Sales CSV</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Import Square Catalog</CardTitle>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              onClick={() => setImportMode('api')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                importMode === 'api'
+                  ? 'bg-white text-blue-700 shadow-sm border border-gray-200'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              ⬛ Square API
+            </button>
+            <button
+              onClick={() => setImportMode('csv')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                importMode === 'csv'
+                  ? 'bg-white text-blue-700 shadow-sm border border-gray-200'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              📄 CSV
+            </button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-sm text-gray-600 mb-3">
-            Upload 1-6 weeks of Square "Vendor Sales" CSV exports to automatically create and categorize items.
-            Multiple weeks will be averaged for better data. <strong>New items will be created with estimated pricing based on your markup settings.</strong>
-          </p>
-          <div className="flex items-center space-x-3">
-            <input
-              type="file"
-              accept=".csv"
-              multiple
-              onChange={handleFileSelect}
-              className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-md file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100"
-            />
-            <Button
-              onClick={handleImport}
-              disabled={files.length === 0 || isImporting}
-            >
-              {isImporting ? 'Importing...' : `Import ${files.length} file${files.length !== 1 ? 's' : ''}`}
-            </Button>
-          </div>
-          {files.length > 0 && (
-            <div className="mt-2 text-sm text-gray-600">
-              Selected: {files.map(f => f.name).join(', ')}
+          {importMode === 'api' ? (
+            <div>
+              <p className="text-sm text-gray-600 mb-3">
+                Sync items directly from your Square catalog. New items will be created automatically with pricing from Square.
+              </p>
+              <Button
+                onClick={handleCatalogSync}
+                disabled={isSyncingCatalog}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isSyncingCatalog ? 'Syncing Catalog...' : '🔄 Sync from Square API'}
+              </Button>
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-xs text-blue-800">
+                  💡 This pulls your full catalog directly from Square POS. Items without cost prices will need manual updates.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-gray-600 mb-3">
+                Upload 1-6 weeks of Square "Vendor Sales" CSV exports to automatically create and categorize items.
+                Multiple weeks will be averaged for better data. <strong>New items will be created with estimated pricing based on your markup settings.</strong>
+              </p>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="file"
+                  accept=".csv"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100"
+                />
+                <Button
+                  onClick={handleImport}
+                  disabled={files.length === 0 || isImporting}
+                >
+                  {isImporting ? 'Importing...' : `Import ${files.length} file${files.length !== 1 ? 's' : ''}`}
+                </Button>
+              </div>
+              {files.length > 0 && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Selected: {files.map(f => f.name).join(', ')}
+                </div>
+              )}
             </div>
           )}
         </div>
