@@ -85,7 +85,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate trends per item
-    const itemTrends = Array.from(itemData.values())
+    const itemValues = Array.from(itemData.values());
+    const itemTrends = itemValues
       .filter(d => d.currentQty > 0 || d.prevQty > 0)
       .map(d => {
         const change = d.prevQty > 0
@@ -159,8 +160,8 @@ export async function GET(request: NextRequest) {
 
     // Week-over-week totals
     const weekTotals = new Map<string, { qty: number; revenue: number }>();
-    for (const item of itemData.values()) {
-      for (const [week, qty] of item.weeklyData) {
+    for (const item of Array.from(itemData.values())) {
+      for (const [week, qty] of Array.from(item.weeklyData.entries())) {
         const existing = weekTotals.get(week) || { qty: 0, revenue: 0 };
         existing.qty += qty;
         weekTotals.set(week, existing);

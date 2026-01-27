@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Enrich item data with sales
-    for (const item of itemMap.values()) {
+    for (const item of Array.from(itemMap.values())) {
       const salesInfo = salesByItem.get(item.itemName.toLowerCase().trim());
       if (salesInfo) {
         (item as any).avgWeeklySales = salesInfo.totalQty / Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));

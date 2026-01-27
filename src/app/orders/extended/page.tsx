@@ -376,8 +376,13 @@ export default function OrdersPage() {
         setOrderFrequency(squareOrderFrequency);
 
         // Extract unique vendor names
-        const uniqueVendors = Array.from(new Set(analyzedItems.map((item: OrderItem) => item.vendorName))).filter(Boolean) as string[];
+        const uniqueVendors: string[] = Array.from(new Set(analyzedItems.map((item: OrderItem) => item.vendorName))).filter(Boolean) as string[];
         setCsvVendors(uniqueVendors);
+
+        // If only one vendor, auto-select it
+        if (uniqueVendors.length === 1 && !selectedVendor) {
+          setSelectedVendor(uniqueVendors[0] as string);
+        }
 
         const summary = data.data?.summary;
         toast.success('Success', `Loaded ${analyzedItems.length} items from Square data${summary ? ` (${summary.weeksAnalyzed} weeks)` : ''}`);

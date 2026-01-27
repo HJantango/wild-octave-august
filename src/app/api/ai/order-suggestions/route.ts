@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     // Build wastage summary
     const wastageByItem = new Map<string, { qty: number; cost: number }>();
     for (const wr of wastageRecords) {
-      const name = wr.item.name;
+      const name = wr.item?.name || wr.itemName;
       const existing = wastageByItem.get(name) || { qty: 0, cost: 0 };
       existing.qty += Number(wr.quantity);
       existing.cost += Number(wr.totalCost);

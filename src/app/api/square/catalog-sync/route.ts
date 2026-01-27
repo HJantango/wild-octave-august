@@ -31,14 +31,21 @@ export async function POST(request: NextRequest) {
         });
 
         if (existingItem) {
-          // Update with Square catalog ID if not already set
-          if (!existingItem.squareCatalogId) {
+          // Item already exists - update pricing if needed
+          const defaultVariation = catalogItem.variations[0];
+          const priceAmount = defaultVariation?.priceMoney?.amount || 0;
+          const priceInDollars = priceAmount / 100;
+
+          if (priceInDollars > 0 && Number(existingItem.currentSellIncGst) === 0) {
             await prisma.item.update({
               where: { id: existingItem.id },
-              data: { squareCatalogId: catalogItem.id },
+              data: {
+                currentSellIncGst: priceInDollars,
+                currentSellExGst: priceInDollars / 1.1,
+              },
             });
             updated++;
-            updatedItems.push({ name: catalogItem.name, action: 'linked_square_id' });
+            updatedItems.push({ name: catalogItem.name, action: 'updated_pricing' });
           } else {
             skipped++;
             skippedItems.push({ name: catalogItem.name, reason: 'already_exists' });
@@ -57,8 +64,7 @@ export async function POST(request: NextRequest) {
               currentSellIncGst: priceInDollars,
               currentSellExGst: priceInDollars / 1.1, // Remove GST
               currentCostExGst: 0, // Unknown from Square
-              squareCatalogId: catalogItem.id,
-              isActive: true,
+              currentMarkup: 0,
             },
           });
           created++;

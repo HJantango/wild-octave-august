@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     // Aggregate wastage by item
     const wastageByItem = new Map<string, { qty: number; cost: number }>();
     for (const wr of wastageRecords) {
-      const name = wr.item.name;
+      const name = wr.item?.name || wr.itemName;
       const existing = wastageByItem.get(name) || { qty: 0, cost: 0 };
       existing.qty += Number(wr.quantity);
       existing.cost += Number(wr.totalCost);
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     // Check for declining sales
-    for (const [item, recent] of recentByItem) {
+    for (const [item, recent] of Array.from(recentByItem.entries())) {
       const prev = prevByItem.get(item);
       if (prev && prev.qty > 2) {
         const change = ((recent.qty - prev.qty) / prev.qty) * 100;
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check for increasing sales
-    for (const [item, recent] of recentByItem) {
+    for (const [item, recent] of Array.from(recentByItem.entries())) {
       const prev = prevByItem.get(item);
       if (prev && prev.qty > 2) {
         const change = ((recent.qty - prev.qty) / prev.qty) * 100;
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check for high wastage ratio
-    for (const [item, wastage] of wastageByItem) {
+    for (const [item, wastage] of Array.from(wastageByItem.entries())) {
       const sales = recentByItem.get(item);
       const salesQty = sales?.qty || 0;
       if (salesQty > 0) {
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check for dead stock (items sold previously but not in last 2 weeks)
-    for (const [item, prev] of prevByItem) {
+    for (const [item, prev] of Array.from(prevByItem.entries())) {
       if (prev.qty >= 2) {
         const recent = recentByItem.get(item);
         const recentQty = recent?.qty || 0;

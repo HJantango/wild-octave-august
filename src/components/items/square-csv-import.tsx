@@ -12,6 +12,7 @@ interface ImportResult {
     updated: number;
     skipped: number;
     errors: number;
+    weeks?: number;
   };
   details: {
     created: any[];
