@@ -135,7 +135,7 @@ export default function Dashboard() {
         </div>
 
         {/* Operational Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {/* Week Sales */}
           <Card className="relative overflow-hidden border-0 shadow-lg">
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-green-600"></div>
@@ -168,6 +168,29 @@ export default function Dashboard() {
                   <p className="text-blue-100 text-xs mt-1">Last 7 days</p>
                 </div>
                 <div className="text-3xl opacity-80">📈</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Net Profit Estimate */}
+          <Card className="relative overflow-hidden border-0 shadow-lg">
+            <div className={`absolute inset-0 bg-gradient-to-r ${
+              !isLoadingOps && (operationalData?.sales.weekNetProfit || 0) >= 0
+                ? 'from-teal-500 to-emerald-600'
+                : 'from-red-500 to-pink-600'
+            }`}></div>
+            <CardContent className="relative p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-teal-100 text-sm font-medium">Net Profit Est.</p>
+                  <p className="text-2xl font-bold">
+                    {isLoadingOps ? '...' : formatCurrency(operationalData?.sales.weekNetProfit || 0)}
+                  </p>
+                  <p className="text-teal-100 text-xs mt-1">
+                    {isLoadingOps ? '' : `Margin − $${((operationalData?.sales.weekWastage || 0) + (operationalData?.sales.weekDiscounts || 0)).toFixed(0)} losses`}
+                  </p>
+                </div>
+                <div className="text-3xl opacity-80">💵</div>
               </div>
             </CardContent>
           </Card>

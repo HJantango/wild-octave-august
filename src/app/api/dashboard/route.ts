@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
       salesSummary,
       topSellingItems,
       rectificationPending,
+      weekWastageTotals,
+      weekDiscountTotals,
     ] = await Promise.all([
       // Upcoming diary entries (next 7 days)
       prisma.shopDiaryEntry.findMany({
@@ -136,6 +138,26 @@ export async function GET(request: NextRequest) {
           rectificationResolvedAt: null,
         },
       }),
+
+      // Week wastage totals (last 7 days)
+      prisma.wastageRecord.aggregate({
+        where: {
+          adjustmentDate: { gte: weekAgo },
+        },
+        _sum: {
+          totalCost: true,
+        },
+      }),
+
+      // Week discount totals (last 7 days)
+      prisma.discountRecord.aggregate({
+        where: {
+          saleDate: { gte: weekAgo },
+        },
+        _sum: {
+          discountAmount: true,
+        },
+      }),
     ]);
 
     // Filter low stock items (compare currentStock to reorderPoint or minimumStock)
@@ -235,6 +257,9 @@ export async function GET(request: NextRequest) {
         weekTotal: Number(salesSummary._sum.revenue || 0),
         weekQuantity: Number(salesSummary._sum.quantity || 0),
         weekMargin: Number(salesSummary._sum.margin || 0),
+        weekWastage: Number(weekWastageTotals._sum.totalCost || 0),
+        weekDiscounts: Number(weekDiscountTotals._sum.discountAmount || 0),
+        weekNetProfit: Number(salesSummary._sum.margin || 0) - Number(weekWastageTotals._sum.totalCost || 0) - Number(weekDiscountTotals._sum.discountAmount || 0),
         topItems: topSellingItems.map(item => ({
           itemName: item.itemName,
           category: item.category,

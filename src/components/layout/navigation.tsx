@@ -54,6 +54,8 @@ const navigation: NavItem[] = [
     name: 'Efficiencies',
     icon: '📈',
     submenu: [
+      { name: 'Profit Margins', href: '/reports/margins' },
+      { name: 'Vendor Performance', href: '/reports/vendor-performance' },
       { name: 'Wastage & Discounts', href: '/reports/wastage-discounts' },
       { name: 'Product Actions', href: '/reports/product-actions' },
       { name: 'Missing Products', href: '/orders/missing-products' },
