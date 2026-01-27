@@ -51,11 +51,25 @@ export default function InvoiceReviewPage() {
   const fetchInvoiceData = async () => {
     try {
       const res = await fetch(`/api/invoices/${invoiceId}`);
-      const data = await res.json();
+      const json = await res.json();
+      const data = json.data || json;
       
-      if (data.processingData) {
+      if (data) {
         setInvoice(data);
-        setItems(data.processingData.items || []);
+        // Map lineItems from DB schema to the format the review UI expects
+        const lineItems = (data.lineItems || []).map((li: any) => ({
+          id: li.id,
+          itemDescription: li.name || li.itemDescription || '',
+          quantity: parseFloat(li.quantity) || 1,
+          unitType: li.unitType || 'unit',
+          unitCostExGst: parseFloat(li.unitCostExGst) || 0,
+          category: li.category || 'Groceries',
+          hasGst: li.hasGst ?? false,
+          confidence: li.needsValidation ? 0.6 : 0.9,
+          validationFlags: li.validationFlags || [],
+          rawQuantityText: li.originalParsedData?.quantity?.toString(),
+        }));
+        setItems(lineItems);
       }
       setLoading(false);
     } catch (error) {
