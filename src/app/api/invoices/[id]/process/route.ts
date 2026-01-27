@@ -167,7 +167,7 @@ async function convertToImages(buffer: Buffer): Promise<Buffer[]> {
     const fs = await import('fs');
     const path = await import('path');
 
-    const tempDir = path.join(process.cwd(), 'temp');
+    const tempDir = path.join('/tmp', 'invoice-convert');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
