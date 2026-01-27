@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import Link from 'next/link';
+import RefreshFromSquare from '@/components/ordering/RefreshFromSquare';
 
 const SHELF_LOCATIONS = [
   'Ice Cream Freezer',
@@ -117,6 +118,13 @@ export default function OrdersPage() {
   const [itemVendorFilter, setItemVendorFilter] = useState('');
   const [invoiceTotal, setInvoiceTotal] = useState<string>(''); // Vendor invoice total for the period
   const [showAnalyticsReport, setShowAnalyticsReport] = useState(false);
+  
+  // Square Data source state
+  const [dataSource, setDataSource] = useState<'square' | 'csv'>('square');
+  const [squareVendor, setSquareVendor] = useState<string>('');
+  const [squareWeeks, setSquareWeeks] = useState<number>(6);
+  const [squareOrderFrequency, setSquareOrderFrequency] = useState<number>(1);
+  const [isSquareAnalyzing, setIsSquareAnalyzing] = useState(false);
 
   useEffect(() => {
     loadVendors();
@@ -349,6 +357,48 @@ export default function OrdersPage() {
       toast.error('Error', 'Failed to analyze sales data');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleSquareAnalyze = async () => {
+    setIsSquareAnalyzing(true);
+    try {
+      const params = new URLSearchParams({
+        weeks: squareWeeks.toString(),
+        orderFrequency: squareOrderFrequency.toString(),
+      });
+      if (squareVendor) {
+        params.append('vendor', squareVendor);
+      }
+
+      const response = await fetch(`/api/square/sales-analysis?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success || data.data) {
+        const analyzedItems = (data.data?.items || []).map((item: OrderItem) => ({
+          ...item,
+          orderQuantity: 0,
+          packSize: undefined,
+        }));
+        setItems(analyzedItems);
+
+        // Sync order frequency to the shared state used by the rest of the page
+        setOrderFrequency(squareOrderFrequency);
+        setActualWeeks(squareWeeks);
+
+        // Extract unique vendor names from the data
+        const uniqueVendors = Array.from(new Set(analyzedItems.map((item: OrderItem) => item.vendorName))).filter(Boolean) as string[];
+        setCsvVendors(uniqueVendors);
+
+        const summary = data.data?.summary;
+        toast.success('Success', `Loaded ${analyzedItems.length} items from Square data${summary ? ` (${summary.weeksAnalyzed} weeks)` : ''}`);
+      } else {
+        toast.error('Error', data.error?.message || 'Failed to load Square sales data');
+      }
+    } catch (error) {
+      toast.error('Error', 'Failed to load Square sales data');
+    } finally {
+      setIsSquareAnalyzing(false);
     }
   };
 
@@ -847,121 +897,221 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {/* Upload and Settings */}
+        {/* Data Source & Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>Upload Sales Data</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Sales Data</CardTitle>
+              {/* Data Source Tabs */}
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                <button
+                  onClick={() => setDataSource('square')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    dataSource === 'square'
+                      ? 'bg-white text-blue-700 shadow-sm border border-gray-200'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  ⬛ Square Data
+                </button>
+                <button
+                  onClick={() => setDataSource('csv')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    dataSource === 'csv'
+                      ? 'bg-white text-blue-700 shadow-sm border border-gray-200'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  📄 CSV Upload
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="vendor-select">Select Vendor{csvVendors.length > 0 ? ' (from analysis)' : ' (optional)'}</Label>
-                <select
-                  id="vendor-select"
-                  value={selectedVendor}
-                  onChange={(e) => setSelectedVendor(e.target.value)}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                >
-                  <option value="">All Vendors</option>
-                  {csvVendors.length > 0 ? (
-                    <>
-                      {csvVendors.map(vendorName => (
-                        <option key={vendorName} value={vendorName}>{vendorName}</option>
-                      ))}
-                    </>
-                  ) : (
-                    <>
+            {dataSource === 'square' ? (
+              <>
+                {/* Square Data Source */}
+                <div className="flex items-center gap-4 mb-4">
+                  <RefreshFromSquare weeks={squareWeeks} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="square-vendor-select">Select Vendor</Label>
+                    <select
+                      id="square-vendor-select"
+                      value={squareVendor}
+                      onChange={(e) => setSquareVendor(e.target.value)}
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    >
+                      <option value="">All Vendors</option>
                       {vendors.map(vendor => (
                         <option key={vendor.id} value={vendor.name}>{vendor.name}</option>
                       ))}
-                    </>
-                  )}
-                </select>
-              </div>
+                    </select>
+                  </div>
 
-              <div>
-                <Label htmlFor="order-frequency">Order Frequency</Label>
-                <select
-                  id="order-frequency"
-                  value={orderFrequency}
-                  onChange={(e) => handleOrderFrequencyChange(parseFloat(e.target.value))}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                >
-                  <option value="0.5">Semi-weekly (Twice per week)</option>
-                  <option value="1">Weekly</option>
-                  <option value="2">Bi-weekly (Every 2 weeks)</option>
-                  <option value="3">3 Weeks</option>
-                  <option value="4">Monthly (Every 4 weeks)</option>
-                  <option value="6">6 Weeks</option>
-                </select>
-              </div>
+                  <div>
+                    <Label htmlFor="square-weeks">Weeks to Analyze</Label>
+                    <select
+                      id="square-weeks"
+                      value={squareWeeks}
+                      onChange={(e) => setSquareWeeks(parseInt(e.target.value))}
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    >
+                      <option value="2">2 weeks</option>
+                      <option value="4">4 weeks</option>
+                      <option value="6">6 weeks</option>
+                      <option value="8">8 weeks</option>
+                      <option value="12">12 weeks</option>
+                    </select>
+                  </div>
 
-              <div>
-                <Label htmlFor="actual-weeks">Actual Weeks in Period</Label>
-                <input
-                  id="actual-weeks"
-                  type="number"
-                  min="1"
-                  max="52"
-                  value={actualWeeks}
-                  onChange={(e) => setActualWeeks(parseInt(e.target.value) || 6)}
-                  className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                  placeholder="6"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Set to 6 even if uploading fewer CSVs (e.g., 4 weeks of data over a 6-week period)
-                </p>
-              </div>
-
-              <div className="flex items-end">
-                <div className="w-full">
-                  <Label htmlFor="csv-upload">Upload Vendor Sales CSV Files (1-6 weeks)</Label>
-                  <input
-                    id="csv-upload"
-                    type="file"
-                    accept=".csv"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="mt-1 block w-full text-sm text-gray-500
-                      file:mr-4 file:py-2 file:px-4
-                      file:rounded-md file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-blue-50 file:text-blue-700
-                      hover:file:bg-blue-100"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-end">
-                <div className="w-full">
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                    <p className="text-sm text-blue-800 font-medium mb-1">💡 Cost prices & shelf labels from database</p>
-                    <p className="text-xs text-blue-600">
-                      Update your Square MPL via <Link href="/items" className="underline font-semibold">Items page</Link> to keep product costs and shelf locations current
-                    </p>
+                  <div>
+                    <Label htmlFor="square-order-frequency">Order Frequency</Label>
+                    <select
+                      id="square-order-frequency"
+                      value={squareOrderFrequency}
+                      onChange={(e) => setSquareOrderFrequency(parseFloat(e.target.value))}
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    >
+                      <option value="0.5">Semi-weekly (Twice per week)</option>
+                      <option value="1">Weekly</option>
+                      <option value="2">Bi-weekly (Every 2 weeks)</option>
+                      <option value="3">3 Weeks</option>
+                      <option value="4">Monthly (Every 4 weeks)</option>
+                      <option value="6">6 Weeks</option>
+                    </select>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 mb-2">Or load a previously saved analysis</p>
+                <div className="flex items-center gap-3">
+                  <Button onClick={handleSquareAnalyze} disabled={isSquareAnalyzing}>
+                    {isSquareAnalyzing ? 'Analyzing...' : 'Analyze Square Sales'}
+                  </Button>
                   <Button onClick={handleLoadAnalysis} variant="secondary" className="bg-purple-50 hover:bg-purple-100 text-purple-700">
                     📂 Load Saved Analysis
                   </Button>
+                  <div className="ml-auto">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-800 font-medium">💡 Data pulled directly from Square POS</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            ) : (
+              <>
+                {/* CSV Upload Source (existing UI) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="vendor-select">Select Vendor{csvVendors.length > 0 ? ' (from analysis)' : ' (optional)'}</Label>
+                    <select
+                      id="vendor-select"
+                      value={selectedVendor}
+                      onChange={(e) => setSelectedVendor(e.target.value)}
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    >
+                      <option value="">All Vendors</option>
+                      {csvVendors.length > 0 ? (
+                        <>
+                          {csvVendors.map(vendorName => (
+                            <option key={vendorName} value={vendorName}>{vendorName}</option>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          {vendors.map(vendor => (
+                            <option key={vendor.id} value={vendor.name}>{vendor.name}</option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
 
-            {files.length > 0 && (
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded">
-                <span className="text-sm text-blue-800">
-                  {files.length} file{files.length !== 1 ? 's' : ''} selected: {files.map(f => f.name).join(', ')}
-                </span>
-                <Button onClick={handleAnalyze} disabled={isAnalyzing}>
-                  {isAnalyzing ? 'Analyzing...' : `Analyze ${files.length} Week${files.length !== 1 ? 's' : ''}`}
-                </Button>
-              </div>
+                  <div>
+                    <Label htmlFor="order-frequency">Order Frequency</Label>
+                    <select
+                      id="order-frequency"
+                      value={orderFrequency}
+                      onChange={(e) => handleOrderFrequencyChange(parseFloat(e.target.value))}
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    >
+                      <option value="0.5">Semi-weekly (Twice per week)</option>
+                      <option value="1">Weekly</option>
+                      <option value="2">Bi-weekly (Every 2 weeks)</option>
+                      <option value="3">3 Weeks</option>
+                      <option value="4">Monthly (Every 4 weeks)</option>
+                      <option value="6">6 Weeks</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="actual-weeks">Actual Weeks in Period</Label>
+                    <input
+                      id="actual-weeks"
+                      type="number"
+                      min="1"
+                      max="52"
+                      value={actualWeeks}
+                      onChange={(e) => setActualWeeks(parseInt(e.target.value) || 6)}
+                      className="mt-1 block w-full pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                      placeholder="6"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Set to 6 even if uploading fewer CSVs (e.g., 4 weeks of data over a 6-week period)
+                    </p>
+                  </div>
+
+                  <div className="flex items-end">
+                    <div className="w-full">
+                      <Label htmlFor="csv-upload">Upload Vendor Sales CSV Files (1-6 weeks)</Label>
+                      <input
+                        id="csv-upload"
+                        type="file"
+                        accept=".csv"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="mt-1 block w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-md file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-blue-50 file:text-blue-700
+                          hover:file:bg-blue-100"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-end">
+                    <div className="w-full">
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <p className="text-sm text-blue-800 font-medium mb-1">💡 Cost prices & shelf labels from database</p>
+                        <p className="text-xs text-blue-600">
+                          Update your Square MPL via <Link href="/items" className="underline font-semibold">Items page</Link> to keep product costs and shelf locations current
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600 mb-2">Or load a previously saved analysis</p>
+                      <Button onClick={handleLoadAnalysis} variant="secondary" className="bg-purple-50 hover:bg-purple-100 text-purple-700">
+                        📂 Load Saved Analysis
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {files.length > 0 && (
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded">
+                    <span className="text-sm text-blue-800">
+                      {files.length} file{files.length !== 1 ? 's' : ''} selected: {files.map(f => f.name).join(', ')}
+                    </span>
+                    <Button onClick={handleAnalyze} disabled={isAnalyzing}>
+                      {isAnalyzing ? 'Analyzing...' : `Analyze ${files.length} Week${files.length !== 1 ? 's' : ''}`}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
