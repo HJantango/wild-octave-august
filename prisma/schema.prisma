@@ -575,6 +575,30 @@ model DiscountRecord {
   @@map("discount_records")
 }
 
+// SQUARE DAILY SALES SYNC MODEL
+
+model SquareDailySales {
+  id                String   @id @default(cuid())
+  date              DateTime @db.Date
+  itemName          String   @map("item_name")
+  variationName     String   @default("") @map("variation_name")
+  category          String?
+  vendorName        String?  @map("vendor_name")
+  quantitySold      Decimal  @map("quantity_sold") @db.Decimal(10, 4)
+  grossSalesCents   Int      @map("gross_sales_cents") // Store in cents to avoid float issues
+  netSalesCents     Int      @default(0) @map("net_sales_cents")
+  squareCatalogId   String?  @map("square_catalog_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([date, itemName, variationName], name: "unique_daily_item_variation")
+  @@index([date])
+  @@index([itemName])
+  @@index([category])
+  @@index([vendorName])
+  @@map("square_daily_sales")
+}
+
 // SHOP DIARY MODEL
 
 model ShopDiaryEntry {
