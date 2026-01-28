@@ -54,7 +54,7 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
       style={{
         backgroundColor: label.bgColor,
         padding: forPrint ? '14px 12px' : '36px 32px',
-        borderRadius: forPrint ? '8px' : '14px',
+        borderRadius: forPrint ? '0' : '14px',
         minHeight: forPrint ? 'auto' : '320px',
         height: forPrint ? '100%' : 'auto',
         width: '100%',
@@ -246,10 +246,10 @@ export default function CafeLabelsPage() {
           #print-sheet .print-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-auto-rows: calc((297mm - 16mm) / 4);
-            gap: 3mm;
-            padding: 5mm;
-            width: 100%;
+            grid-auto-rows: calc(297mm / 4);
+            gap: 0;
+            padding: 0;
+            width: 210mm;
             height: auto;
           }
           #print-sheet .label-card {
@@ -262,12 +262,37 @@ export default function CafeLabelsPage() {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             color-adjust: exact;
-            border: 1px solid #ccc;
-            border-radius: 8px;
+            border: none;
+            border-radius: 0;
           }
+          /* Crop marks */
+          #print-sheet .print-grid {
+            position: relative;
+          }
+          #print-sheet .crop-mark {
+            position: absolute;
+            background: #000;
+            z-index: 10;
+          }
+          /* Vertical crop marks (center column) */
+          #print-sheet .crop-v {
+            width: 0.3mm;
+            height: 5mm;
+            left: 50%;
+            transform: translateX(-50%);
+          }
+          /* Horizontal crop marks (row dividers) */
+          #print-sheet .crop-h {
+            height: 0.3mm;
+            width: 5mm;
+          }
+          #print-sheet .crop-left { left: -6mm; }
+          #print-sheet .crop-right { right: -6mm; }
+          #print-sheet .crop-top { top: -6mm; }
+          #print-sheet .crop-bottom { bottom: -6mm; }
           @page {
             size: A4;
-            margin: 3mm;
+            margin: 0;
           }
         }
       `}</style>
@@ -447,9 +472,24 @@ export default function CafeLabelsPage() {
 
       {/* Hidden print-only sheet — 2×4 grid filling A4 */}
       <div id="print-sheet" style={{ display: 'none' }} ref={printRef}>
-        <div className="print-grid">
+        <div className="print-grid" style={{ position: 'relative' }}>
           {labels.map((label) => (
             <LabelCard key={label.id} label={label} forPrint />
+          ))}
+          {/* Crop marks — centre column */}
+          <div className="crop-mark crop-v crop-top" />
+          <div className="crop-mark crop-v crop-bottom" />
+          {/* Crop marks — row lines, left side */}
+          {[1, 2, 3].map((row) => (
+            <div key={`hl-${row}`} className="crop-mark crop-h crop-left" style={{ top: `${(row / 4) * 100}%`, transform: 'translateY(-50%)' }} />
+          ))}
+          {/* Crop marks — row lines, right side */}
+          {[1, 2, 3].map((row) => (
+            <div key={`hr-${row}`} className="crop-mark crop-h crop-right" style={{ top: `${(row / 4) * 100}%`, transform: 'translateY(-50%)' }} />
+          ))}
+          {/* Crop marks — centre column at each row intersection */}
+          {[1, 2, 3].map((row) => (
+            <div key={`vc-${row}`} className="crop-mark crop-v" style={{ top: `calc(${(row / 4) * 100}% - 2.5mm)` }} />
           ))}
         </div>
       </div>
