@@ -80,7 +80,7 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
         style={{
           fontFamily: "'Playfair Display', Georgia, serif",
           fontWeight: 800,
-          fontSize: forPrint ? '18px' : '32px',
+          fontSize: forPrint ? '24px' : '38px',
           color: DARK_GREEN,
           textTransform: 'uppercase',
           lineHeight: 1.15,
@@ -262,6 +262,8 @@ export default function CafeLabelsPage() {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             color-adjust: exact;
+            border: 1px solid #ccc;
+            border-radius: 8px;
           }
           @page {
             size: A4;
