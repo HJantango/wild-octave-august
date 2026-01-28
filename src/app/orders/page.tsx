@@ -491,6 +491,7 @@ export default function OrdersPage() {
   };
 
   const handleOrderFrequencyChange = (newFrequency: number) => {
+    console.log(`📊 Frequency changed to: ${newFrequency}, items: ${items.length}, actualWeeks: ${actualWeeks}`);
     setOrderFrequency(newFrequency);
 
     // Recalculate suggested orders for all items based on new frequency
@@ -511,11 +512,14 @@ export default function OrdersPage() {
         // Apply pack size rounding to suggested order
         const suggestedOrder = roundToPackSize(baseSuggestedOrder, item.packSize);
 
+        if (item.itemName && items.indexOf(item) < 3) {
+          console.log(`  ${item.itemName}: avgWeekly=${item.avgWeekly}, totalUnits=${item.totalUnits}, calculated avgWeekly=${avgWeekly}, stock=${currentStock}, suggested=${suggestedOrder}`);
+        }
+
         return {
           ...item,
-          avgWeekly: avgWeekly || item.avgWeekly, // Ensure avgWeekly is populated
+          avgWeekly: avgWeekly > 0 ? parseFloat(avgWeekly.toFixed(1)) : item.avgWeekly,
           suggestedOrder,
-          // Keep orderQuantity empty - don't prepopulate
         };
       });
       setItems(updatedItems);
