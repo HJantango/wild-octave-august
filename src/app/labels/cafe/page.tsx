@@ -226,45 +226,51 @@ export default function CafeLabelsPage() {
       {/* Print-only styles — 8 labels per A4 page, filling the space */}
       <style jsx global>{`
         @media print {
-          /* Hide everything except print sheet */
-          body * {
-            visibility: hidden;
-          }
-          #print-sheet,
-          #print-sheet * {
-            visibility: visible;
+          /* Hide the UI, show only print sheet */
+          .print\\:hidden,
+          .no-print {
+            display: none !important;
           }
           #print-sheet {
-            position: absolute;
+            display: block !important;
+            position: fixed;
             left: 0;
             top: 0;
-            width: 190mm;
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
+            background: white;
+            z-index: 99999;
           }
           #print-sheet .print-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-auto-rows: calc((297mm - 20mm) / 4);
+            grid-auto-rows: calc((297mm - 16mm) / 4);
             gap: 3mm;
             padding: 5mm;
+            width: 100%;
+            height: auto;
           }
           #print-sheet .label-card {
             break-inside: avoid;
             page-break-inside: avoid;
-            display: flex;
+            display: flex !important;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            color-adjust: exact;
           }
           @page {
             size: A4;
-            margin: 5mm;
+            margin: 3mm;
           }
         }
       `}</style>
 
-      <div className="space-y-6 print:hidden">
+      <div className="space-y-6 no-print">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Cafe Label Maker</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -438,7 +444,7 @@ export default function CafeLabelsPage() {
       </div>
 
       {/* Hidden print-only sheet — 2×4 grid filling A4 */}
-      <div id="print-sheet" className="hidden print:block" ref={printRef}>
+      <div id="print-sheet" style={{ display: 'none' }} ref={printRef}>
         <div className="print-grid">
           {labels.map((label) => (
             <LabelCard key={label.id} label={label} forPrint />
