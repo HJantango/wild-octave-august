@@ -485,10 +485,15 @@ export default function OrdersPage() {
     // Recalculate suggested orders for all items based on new frequency
     if (items.length > 0) {
       const updatedItems = items.map(item => {
+        const avgWeekly = (item.avgWeekly && item.avgWeekly > 0) 
+          ? item.avgWeekly 
+          : (item.totalUnits > 0 && actualWeeks > 0) 
+            ? item.totalUnits / actualWeeks 
+            : 0;
         const currentStock = item.currentStock || 0;
         const baseSuggestedOrder = Math.max(
           0,
-          Math.ceil(item.avgWeekly * newFrequency) - currentStock
+          Math.ceil(avgWeekly * newFrequency) - currentStock
         );
 
         // Apply pack size rounding to suggested order
@@ -496,6 +501,7 @@ export default function OrdersPage() {
 
         return {
           ...item,
+          avgWeekly: avgWeekly > 0 ? parseFloat(avgWeekly.toFixed(1)) : item.avgWeekly,
           suggestedOrder,
           orderQuantity: suggestedOrder, // Update order quantity to match new suggestion
         };
@@ -956,7 +962,13 @@ export default function OrdersPage() {
                     <select
                       id="square-order-frequency"
                       value={squareOrderFrequency}
-                      onChange={(e) => setSquareOrderFrequency(parseFloat(e.target.value))}
+                      onChange={(e) => {
+                        const newFreq = parseFloat(e.target.value);
+                        setSquareOrderFrequency(newFreq);
+                        if (items.length > 0) {
+                          handleOrderFrequencyChange(newFreq);
+                        }
+                      }}
                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white text-gray-900 border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                     >
                       <option value="0.5">Semi-weekly (Twice per week)</option>

@@ -985,7 +985,14 @@ export default function OrdersPage() {
                     <select
                       id="square-order-frequency"
                       value={squareOrderFrequency}
-                      onChange={(e) => setSquareOrderFrequency(parseFloat(e.target.value))}
+                      onChange={(e) => {
+                        const newFreq = parseFloat(e.target.value);
+                        setSquareOrderFrequency(newFreq);
+                        // Also recalculate if items are already loaded
+                        if (items.length > 0) {
+                          handleOrderFrequencyChange(newFreq);
+                        }
+                      }}
                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white text-gray-900 border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                     >
                       <option value="0.5">Semi-weekly (Twice per week)</option>
