@@ -403,7 +403,6 @@ class RealSquareService {
     console.log(`💰 Total payments retrieved: ${allPayments.length} (${pageCount} pages)`);
     return allPayments;
   }
-}
 
   /**
    * Search catalog items by name (for matching invoice items to Square catalog)
