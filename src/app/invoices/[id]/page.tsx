@@ -17,6 +17,7 @@ interface LineItem {
   quantity: number;
   unitType: string;
   unitCostExGst: number;
+  packSize: number;
   category: string;
   hasGst: boolean;
   confidence?: number;
@@ -70,6 +71,7 @@ export default function InvoiceReviewPage() {
           quantity: parseFloat(li.quantity) || 1,
           unitType: li.unitType || 'unit',
           unitCostExGst: parseFloat(li.unitCostExGst) || 0,
+          packSize: li.detectedPackSize || 1,
           category: li.category || 'Groceries',
           hasGst: li.hasGst ?? false,
           confidence: li.needsValidation ? 0.6 : 0.9,
@@ -284,6 +286,7 @@ export default function InvoiceReviewPage() {
                 <tr className="border-b text-left text-sm font-medium">
                   <th className="p-2">Description</th>
                   <th className="p-2">Qty</th>
+                  <th className="p-2">Pack</th>
                   <th className="p-2">Unit</th>
                   <th className="p-2">Unit Cost</th>
                   <th className="p-2">GST</th>
@@ -331,6 +334,18 @@ export default function InvoiceReviewPage() {
                         )}
                       </td>
                       <td className="p-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.packSize}
+                          onChange={(e) => handleFieldChange(
+                            index, 'packSize', Math.max(1, parseInt(e.target.value) || 1)
+                          )}
+                          className="w-16"
+                        />
+                      </td>
+                      <td className="p-2">
                         <select
                           value={item.unitType}
                           onChange={(e) => handleFieldChange(
@@ -354,6 +369,11 @@ export default function InvoiceReviewPage() {
                           )}
                           className="w-24"
                         />
+                        {item.packSize > 1 && (
+                          <div className="text-xs text-green-600 mt-1">
+                            ÷{item.packSize} = ${(item.unitCostExGst / item.packSize).toFixed(2)}/unit
+                          </div>
+                        )}
                       </td>
                       <td className="p-2">
                         <select
@@ -406,17 +426,17 @@ export default function InvoiceReviewPage() {
               </tbody>
               <tfoot>
                 <tr className="font-medium">
-                  <td colSpan={6} className="p-2 text-right">Subtotal (Ex GST):</td>
+                  <td colSpan={7} className="p-2 text-right">Subtotal (Ex GST):</td>
                   <td className="p-2">${totals.subtotal.toFixed(2)}</td>
                   <td></td>
                 </tr>
                 <tr className="font-medium">
-                  <td colSpan={6} className="p-2 text-right">GST:</td>
+                  <td colSpan={7} className="p-2 text-right">GST:</td>
                   <td className="p-2">${totals.gst.toFixed(2)}</td>
                   <td></td>
                 </tr>
                 <tr className="font-bold text-lg">
-                  <td colSpan={6} className="p-2 text-right">Total (Inc GST):</td>
+                  <td colSpan={7} className="p-2 text-right">Total (Inc GST):</td>
                   <td className="p-2">${totals.total.toFixed(2)}</td>
                   <td></td>
                 </tr>

@@ -9,6 +9,7 @@ const updateLineItemSchema = z.object({
   notes: z.string().optional(),
   quantity: z.number().positive().optional(),
   unitCostExGst: z.number().positive().optional(),
+  packSize: z.number().int().positive().optional(),
 });
 
 interface RouteParams {
@@ -37,7 +38,7 @@ async function PATCH(request: NextRequest, { params }: RouteParams) {
       return validation.error;
     }
 
-    const { category, notes, quantity, unitCostExGst } = validation.data;
+    const { category, notes, quantity, unitCostExGst, packSize } = validation.data;
 
     // Check if invoice and line item exist
     const existingItem = await prisma.invoiceLineItem.findFirst({
@@ -66,27 +67,34 @@ async function PATCH(request: NextRequest, { params }: RouteParams) {
       updateData.notes = notes;
     }
 
-    // Handle quantity or unit cost updates - recalculate pricing
+    // Handle pack size updates
+    if (packSize !== undefined) {
+      updateData.detectedPackSize = packSize;
+      changes.push(`pack size: ${packSize}`);
+    }
+
+    // Handle quantity, unit cost, or pack size updates - recalculate pricing
     const newQuantity = quantity !== undefined ? quantity : Number(existingItem.quantity);
     const newUnitCost = unitCostExGst !== undefined ? unitCostExGst : Number(existingItem.unitCostExGst);
+    const newPackSize = packSize !== undefined ? packSize : (existingItem.detectedPackSize || 1);
     const categoryForPricing = category !== undefined ? category : existingItem.category;
     
-    if (quantity !== undefined || unitCostExGst !== undefined) {
+    if (quantity !== undefined || unitCostExGst !== undefined || packSize !== undefined) {
       // Get markup for pricing calculation
       const markup = await getDefaultMarkup(categoryForPricing);
       
-      // Calculate new pricing
+      // Calculate new pricing with pack size
       const pricing = calculatePricing(
         newUnitCost,
         markup,
-        1, // packSize
+        newPackSize,
         0.10 // GST rate
       );
       
       // Update pricing fields
       updateData.quantity = newQuantity;
       updateData.unitCostExGst = newUnitCost;
-      updateData.effectiveUnitCostExGst = newUnitCost;
+      updateData.effectiveUnitCostExGst = newUnitCost / newPackSize;
       updateData.markup = pricing.markup;
       updateData.sellExGst = pricing.sellExGst;
       updateData.sellIncGst = pricing.sellIncGst;
