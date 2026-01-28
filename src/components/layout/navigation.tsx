@@ -48,6 +48,7 @@ const navigation: NavItem[] = [
       { name: 'Roster', href: '/roster' },
       { name: 'Staff Leave', href: '/leave' },
       { name: 'Xmas Schedule', href: '/ordering/christmas-closures' },
+      { name: 'Cafe Labels', href: '/labels/cafe' },
     ],
   },
   {
