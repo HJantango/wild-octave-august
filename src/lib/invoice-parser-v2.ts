@@ -187,6 +187,9 @@ RULES:
 11. If text is unclear, include what you can read and set confidence lower.
 12. The totals object should match the invoice footer totals.
 13. After extraction, verify: sum of all totalExGst ≈ totals.subtotalExGst. If not, you missed items.
+14. **CRITICAL GST HANDLING:** Some vendors show prices INCLUSIVE of GST. If the invoice shows "Inc GST" prices or the line prices include tax, you MUST back-calculate: unitCostExGst = priceIncGst / 1.1 for GST items. Always ensure unitCostExGst is the TRUE ex-GST cost.
+15. **GST detection:** Look for GST/Tax columns, "G" or "*" markers next to items, or separate GST lines. In Australia, most fresh food is GST-free. Packaged/processed items often have GST.
+16. If you cannot determine whether a price is ex or inc GST, set confidence lower and add a note explaining the ambiguity.
 
 This is for an Australian health food store. Products include organic groceries, supplements, personal care, bulk wholefoods, drinks, fresh bread, and produce.`;
   }
