@@ -34,12 +34,14 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Install system dependencies for OCR (Tesseract)
+# Install system dependencies for OCR and PDF conversion
 RUN apk add --no-cache \
     tesseract-ocr \
     tesseract-ocr-data-eng \
     imagemagick \
-    poppler-utils
+    graphicsmagick \
+    poppler-utils \
+    ghostscript
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
