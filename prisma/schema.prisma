@@ -486,6 +486,7 @@ model VendorOrderSchedule {
   weekOffset       Int      @default(0) @map("week_offset") // For fortnightly/monthly (0 or 1)
   leadTimeDays     Int      @default(1) @map("lead_time_days") // Days between order and delivery
   isActive         Boolean  @default(true) @map("is_active")
+  orderDeadline    String?  @map("order_deadline") // Time deadline (e.g., "11:00 AM")
   notes            String?
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")

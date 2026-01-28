@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       weekOffset,
       leadTimeDays,
       isActive,
+      orderDeadline,
       notes,
     } = body;
 
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
         weekOffset: weekOffset !== undefined ? weekOffset : 0,
         leadTimeDays: leadTimeDays !== undefined ? leadTimeDays : 1,
         isActive: isActive !== undefined ? isActive : true,
+        orderDeadline: orderDeadline || null,
         notes,
       },
       include: {

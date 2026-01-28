@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/format';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { TodaysOrders } from '@/components/ordering/todays-orders';
 
 interface OrderingSummary {
   totalActiveOrders: number;
@@ -137,6 +138,9 @@ export default function OrderingDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Today's Orders */}
+        <TodaysOrders />
 
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -54,6 +54,7 @@ export async function PUT(
         weekOffset: body.weekOffset,
         leadTimeDays: body.leadTimeDays,
         isActive: body.isActive,
+        orderDeadline: body.orderDeadline !== undefined ? (body.orderDeadline || null) : undefined,
         notes: body.notes,
       },
       include: {

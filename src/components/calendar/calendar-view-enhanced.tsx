@@ -278,17 +278,31 @@ export function CalendarViewEnhanced({
     }
   };
 
-  // Status colors
-  const getStatusColor = (status: string): string => {
+  // Status colors with overdue support
+  const getStatusColor = (status: string, order?: ScheduledOrder): string => {
+    // Check if the order is overdue (schedule date is in the past and not placed/delivered)
+    if (order && (status === 'upcoming' || status === 'due')) {
+      const scheduleDate = new Date(order.deliveryDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      scheduleDate.setHours(0, 0, 0, 0);
+      if (scheduleDate < today) {
+        return 'bg-red-100 text-red-800 border-red-400';
+      }
+    }
     switch (status) {
       case 'upcoming':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
+        return 'bg-green-100 text-green-800 border-green-300';
       case 'due':
         return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'overdue':
+        return 'bg-red-100 text-red-800 border-red-400';
       case 'placed':
-        return 'bg-green-100 text-green-800 border-green-300';
+        return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'delivered':
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+        return 'bg-gray-200 text-gray-600 border-gray-300';
+      case 'cancelled':
+        return 'bg-gray-100 text-gray-500 border-gray-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300';
     }
@@ -419,12 +433,12 @@ export function CalendarViewEnhanced({
                         onClick={(e) => handleOrderLeftClick(order, e)}
                         onContextMenu={(e) => handleOrderRightClick(order, e)}
                         className={`w-full text-left px-2 py-1 rounded text-xs border transition-all hover:shadow-md cursor-move ${getStatusColor(
-                          order.status
+                          order.status, order
                         )}`}
                       >
                         <div className="font-medium truncate">{order.vendorName}</div>
                         {order.orderDeadline && (
-                          <div className="text-[10px] opacity-75 font-semibold">⏰ {order.orderDeadline}</div>
+                          <div className="text-[10px] font-bold">⏰ {order.orderDeadline}</div>
                         )}
                         {order.orderedBy && (
                           <div className="text-[10px] opacity-75">By: {order.orderedBy}</div>
@@ -449,19 +463,23 @@ export function CalendarViewEnhanced({
         <CardContent className="p-4">
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded"></div>
+              <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
               <span>Upcoming</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
-              <span>Due</span>
+              <span>Due Today</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+              <div className="w-4 h-4 bg-red-100 border border-red-400 rounded"></div>
+              <span>Overdue</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded"></div>
               <span>Placed</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
+              <div className="w-4 h-4 bg-gray-200 border border-gray-300 rounded"></div>
               <span>Delivered</span>
             </div>
             <div className="ml-auto text-gray-600 italic text-xs flex items-center space-x-2">
