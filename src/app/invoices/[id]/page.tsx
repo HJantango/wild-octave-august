@@ -16,7 +16,8 @@ interface LineItem {
   itemDescription: string;
   quantity: number;
   unitType: string;
-  unitCostExGst: number;
+  invoiceCost: number;    // Original cost from invoice (e.g. $63.05 for a 6-pack)
+  unitCostExGst: number;  // Effective per-unit cost (invoiceCost ÷ packSize)
   packSize: number;
   category: string;
   hasGst: boolean;
@@ -70,7 +71,10 @@ export default function InvoiceReviewPage() {
           itemDescription: li.name || li.itemDescription || '',
           quantity: parseFloat(li.quantity) || 1,
           unitType: li.unitType || 'unit',
-          unitCostExGst: parseFloat(li.unitCostExGst) || 0,
+          invoiceCost: parseFloat(li.unitCostExGst) || 0,
+          unitCostExGst: (li.detectedPackSize && li.detectedPackSize > 1)
+            ? (parseFloat(li.unitCostExGst) || 0) / li.detectedPackSize
+            : (parseFloat(li.unitCostExGst) || 0),
           packSize: li.detectedPackSize || 1,
           category: li.category || 'Groceries',
           hasGst: li.hasGst ?? false,
@@ -98,7 +102,18 @@ export default function InvoiceReviewPage() {
     
     // Update item
     const newItems = [...items];
-    newItems[itemIndex] = { ...item, [field]: value };
+    const updatedItem = { ...item, [field]: value };
+    
+    // When pack size changes, recalculate effective unit cost
+    if (field === 'packSize') {
+      updatedItem.unitCostExGst = updatedItem.invoiceCost / value;
+    }
+    // When invoice cost changes, recalculate effective unit cost
+    if (field === 'invoiceCost') {
+      updatedItem.unitCostExGst = value / updatedItem.packSize;
+    }
+    
+    newItems[itemIndex] = updatedItem;
     setItems(newItems);
 
     // Track correction if value changed
@@ -204,12 +219,12 @@ export default function InvoiceReviewPage() {
 
   const calculateTotals = () => {
     const subtotal = items.reduce((sum, item) => 
-      sum + (item.quantity * item.unitCostExGst), 0
+      sum + (item.quantity * item.invoiceCost), 0
     );
     const gst = items
       .filter(item => item.hasGst)
       .reduce((sum, item) => 
-        sum + (item.quantity * item.unitCostExGst * 0.1), 0
+        sum + (item.quantity * item.invoiceCost * 0.1), 0
       );
     return { subtotal, gst, total: subtotal + gst };
   };
@@ -288,7 +303,7 @@ export default function InvoiceReviewPage() {
                   <th className="p-2">Qty</th>
                   <th className="p-2">Pack</th>
                   <th className="p-2">Unit</th>
-                  <th className="p-2">Unit Cost</th>
+                  <th className="p-2">Invoice Cost</th>
                   <th className="p-2">GST</th>
                   <th className="p-2">Category</th>
                   <th className="p-2">Line Total</th>
@@ -299,7 +314,7 @@ export default function InvoiceReviewPage() {
                 {items.map((item, index) => {
                   const needsReview = (item.confidence || 1) < 0.8 || 
                     item.validationFlags?.length;
-                  const lineTotal = item.quantity * item.unitCostExGst;
+                  const lineTotal = item.quantity * item.invoiceCost;
                   
                   return (
                     <tr 
@@ -363,15 +378,15 @@ export default function InvoiceReviewPage() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={item.unitCostExGst}
+                          value={item.invoiceCost}
                           onChange={(e) => handleFieldChange(
-                            index, 'unitCostExGst', parseFloat(e.target.value)
+                            index, 'invoiceCost', parseFloat(e.target.value) || 0
                           )}
                           className="w-24"
                         />
                         {item.packSize > 1 && (
-                          <div className="text-xs text-green-600 mt-1">
-                            ÷{item.packSize} = ${(item.unitCostExGst / item.packSize).toFixed(2)}/unit
+                          <div className="text-xs text-green-600 mt-1 font-medium">
+                            ÷{item.packSize} = ${item.unitCostExGst.toFixed(2)}/unit
                           </div>
                         )}
                       </td>
