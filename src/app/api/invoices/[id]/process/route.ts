@@ -53,7 +53,7 @@ export async function POST(
         gstAmount: extracted.totals.gstAmount,
         totalIncGst: extracted.totals.totalIncGst,
         parsedJson: extracted as any,
-        status: 'PROCESSED',
+        status: 'REVIEWED',
         updatedAt: new Date(),
       },
     });
