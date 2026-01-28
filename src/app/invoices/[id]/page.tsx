@@ -304,6 +304,7 @@ export default function InvoiceReviewPage() {
                   <th className="p-2">Pack</th>
                   <th className="p-2">Unit</th>
                   <th className="p-2">Invoice Cost</th>
+                  <th className="p-2">Unit Cost</th>
                   <th className="p-2">GST</th>
                   <th className="p-2">Category</th>
                   <th className="p-2">Line Total</th>
@@ -385,8 +386,18 @@ export default function InvoiceReviewPage() {
                           className="w-24"
                         />
                         {item.packSize > 1 && (
-                          <div className="text-xs text-green-600 mt-1 font-medium">
-                            ÷{item.packSize} = ${item.unitCostExGst.toFixed(2)}/unit
+                          <div className="text-xs text-gray-400 mt-1">
+                            ÷{item.packSize}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <div className={`font-medium ${item.packSize > 1 ? 'text-green-700' : ''}`}>
+                          ${item.unitCostExGst.toFixed(2)}
+                        </div>
+                        {item.packSize > 1 && (
+                          <div className="text-xs text-green-600 mt-1">
+                            → Square
                           </div>
                         )}
                       </td>
@@ -441,17 +452,17 @@ export default function InvoiceReviewPage() {
               </tbody>
               <tfoot>
                 <tr className="font-medium">
-                  <td colSpan={7} className="p-2 text-right">Subtotal (Ex GST):</td>
+                  <td colSpan={8} className="p-2 text-right">Subtotal (Ex GST):</td>
                   <td className="p-2">${totals.subtotal.toFixed(2)}</td>
                   <td></td>
                 </tr>
                 <tr className="font-medium">
-                  <td colSpan={7} className="p-2 text-right">GST:</td>
+                  <td colSpan={8} className="p-2 text-right">GST:</td>
                   <td className="p-2">${totals.gst.toFixed(2)}</td>
                   <td></td>
                 </tr>
                 <tr className="font-bold text-lg">
-                  <td colSpan={7} className="p-2 text-right">Total (Inc GST):</td>
+                  <td colSpan={8} className="p-2 text-right">Total (Inc GST):</td>
                   <td className="p-2">${totals.total.toFixed(2)}</td>
                   <td></td>
                 </tr>

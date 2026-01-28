@@ -41,7 +41,10 @@ export async function POST(
     const changeItems: CatalogChangeItem[] = [];
     for (const li of invoice.lineItems) {
       const markup = Number(li.markup) || await getDefaultMarkup(li.category);
-      const costExGst = Number(li.unitCostExGst) || 0;
+      // Use effective unit cost (accounts for pack size) — this is what goes to Square
+      const packSize = li.detectedPackSize || 1;
+      const rawCost = Number(li.unitCostExGst) || 0;
+      const costExGst = packSize > 1 ? rawCost / packSize : rawCost;
       const sellExGst = costExGst * markup;
       const sellIncGst = li.hasGst ? sellExGst * 1.1 : sellExGst;
 
