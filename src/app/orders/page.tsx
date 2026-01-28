@@ -459,7 +459,10 @@ export default function OrdersPage() {
             ...item,
             currentStock: newStock,
             // Recalculate suggested order with new stock
-            suggestedOrder: Math.max(0, Math.ceil(item.avgWeekly * orderFrequency) - newStock)
+            suggestedOrder: Math.max(0, Math.ceil(
+              ((item.avgWeekly && item.avgWeekly > 0) ? item.avgWeekly : (item.totalUnits > 0 && actualWeeks > 0) ? item.totalUnits / actualWeeks : 0)
+              * orderFrequency
+            ) - newStock)
           }
         : item
     );
@@ -493,10 +496,16 @@ export default function OrdersPage() {
     // Recalculate suggested orders for all items based on new frequency
     if (items.length > 0) {
       const updatedItems = items.map(item => {
+        // Use avgWeekly if set, otherwise calculate from totalUnits / actualWeeks
+        const avgWeekly = (item.avgWeekly && item.avgWeekly > 0) 
+          ? item.avgWeekly 
+          : (item.totalUnits > 0 && actualWeeks > 0) 
+            ? item.totalUnits / actualWeeks 
+            : 0;
         const currentStock = item.currentStock || 0;
         const baseSuggestedOrder = Math.max(
           0,
-          Math.ceil(item.avgWeekly * newFrequency) - currentStock
+          Math.ceil(avgWeekly * newFrequency) - currentStock
         );
 
         // Apply pack size rounding to suggested order
@@ -504,6 +513,7 @@ export default function OrdersPage() {
 
         return {
           ...item,
+          avgWeekly: avgWeekly || item.avgWeekly, // Ensure avgWeekly is populated
           suggestedOrder,
           // Keep orderQuantity empty - don't prepopulate
         };
