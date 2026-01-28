@@ -22,16 +22,16 @@ interface CafeLabel {
   bgColor: string;
 }
 
-// ── Palette ────────────────────────────────────────────────────────────────
+// ── Palette (extracted from reference PDF) ─────────────────────────────────
 const PALETTE = [
-  { name: 'Lavender', value: '#E8E0F0' },
-  { name: 'Sage', value: '#D4E2D4' },
-  { name: 'Cream', value: '#F5F0E0' },
-  { name: 'Lime', value: '#E8F0D4' },
+  { name: 'Lavender', value: '#E2E3F0' },
+  { name: 'Sage', value: '#A9D196' },
+  { name: 'Cream', value: '#FCF9C1' },
+  { name: 'Lime', value: '#D4E8C4' },
   { name: 'White', value: '#FFFFFF' },
 ];
 
-const DARK_GREEN = '#2D5016';
+const DARK_GREEN = '#054921';
 
 // ── Google Fonts (loaded once via <link>) ──────────────────────────────────
 function FontLoader() {
@@ -45,7 +45,7 @@ function FontLoader() {
 }
 
 // ── Single label card (used in preview + print sheet) ──────────────────────
-function LabelCard({ label, compact }: { label: CafeLabel; compact?: boolean }) {
+function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }) {
   const hasDietaryTags = label.vegan || label.glutenFree;
 
   return (
@@ -53,20 +53,21 @@ function LabelCard({ label, compact }: { label: CafeLabel; compact?: boolean }) 
       className="label-card relative flex flex-col items-center justify-center text-center overflow-hidden"
       style={{
         backgroundColor: label.bgColor,
-        padding: compact ? '24px 20px' : '32px 28px',
-        borderRadius: '12px',
-        minHeight: compact ? '220px' : '280px',
+        padding: forPrint ? '14px 12px' : '36px 32px',
+        borderRadius: forPrint ? '8px' : '14px',
+        minHeight: forPrint ? 'auto' : '320px',
+        height: forPrint ? '100%' : 'auto',
         width: '100%',
       }}
     >
-      {/* Organic script */}
+      {/* Organic script — ABOVE item name */}
       {label.organic && (
         <p
           style={{
             fontFamily: "'Dancing Script', cursive",
-            fontSize: compact ? '22px' : '28px',
+            fontSize: forPrint ? '20px' : '34px',
             color: DARK_GREEN,
-            marginBottom: '2px',
+            marginBottom: forPrint ? '2px' : '4px',
             lineHeight: 1.2,
           }}
         >
@@ -74,17 +75,35 @@ function LabelCard({ label, compact }: { label: CafeLabel; compact?: boolean }) 
         </p>
       )}
 
-      {/* Dietary badges row */}
+      {/* Item name */}
+      <h2
+        style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontWeight: 800,
+          fontSize: forPrint ? '18px' : '32px',
+          color: DARK_GREEN,
+          textTransform: 'uppercase',
+          lineHeight: 1.15,
+          margin: forPrint ? '4px 0 6px' : '8px 0 12px',
+          letterSpacing: '0.02em',
+          maxWidth: '100%',
+          wordBreak: 'break-word',
+        }}
+      >
+        {label.name || 'Item Name'}
+      </h2>
+
+      {/* Dietary badges row — BELOW item name */}
       {hasDietaryTags && (
-        <div className="flex items-center justify-center gap-2" style={{ marginBottom: '8px', marginTop: '2px' }}>
+        <div className="flex items-center justify-center gap-2" style={{ marginBottom: forPrint ? '6px' : '10px' }}>
           {label.vegan && (
             <span
               style={{
                 backgroundColor: DARK_GREEN,
                 color: '#fff',
-                fontSize: compact ? '9px' : '11px',
+                fontSize: forPrint ? '10px' : '13px',
                 fontWeight: 700,
-                padding: '3px 12px',
+                padding: forPrint ? '2px 10px' : '4px 16px',
                 borderRadius: '999px',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -98,9 +117,9 @@ function LabelCard({ label, compact }: { label: CafeLabel; compact?: boolean }) 
               style={{
                 backgroundColor: DARK_GREEN,
                 color: '#fff',
-                fontSize: compact ? '9px' : '11px',
+                fontSize: forPrint ? '10px' : '13px',
                 fontWeight: 700,
-                padding: '3px 12px',
+                padding: forPrint ? '2px 10px' : '4px 16px',
                 borderRadius: '999px',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -112,29 +131,11 @@ function LabelCard({ label, compact }: { label: CafeLabel; compact?: boolean }) 
         </div>
       )}
 
-      {/* Item name */}
-      <h2
-        style={{
-          fontFamily: "'Playfair Display', Georgia, serif",
-          fontWeight: 800,
-          fontSize: compact ? '20px' : '26px',
-          color: DARK_GREEN,
-          textTransform: 'uppercase',
-          lineHeight: 1.15,
-          margin: '6px 0 10px',
-          letterSpacing: '0.02em',
-          maxWidth: '100%',
-          wordBreak: 'break-word',
-        }}
-      >
-        {label.name || 'Item Name'}
-      </h2>
-
       {/* Ingredients */}
       {label.ingredients && (
         <p
           style={{
-            fontSize: compact ? '9px' : '11px',
+            fontSize: forPrint ? '9px' : '13px',
             color: DARK_GREEN,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
@@ -154,11 +155,11 @@ function LabelCard({ label, compact }: { label: CafeLabel; compact?: boolean }) 
           style={{
             backgroundColor: DARK_GREEN,
             color: '#fff',
-            fontSize: compact ? '14px' : '18px',
+            fontSize: forPrint ? '14px' : '22px',
             fontWeight: 800,
-            padding: '5px 20px',
+            padding: forPrint ? '4px 16px' : '6px 24px',
             borderRadius: '999px',
-            marginTop: '12px',
+            marginTop: forPrint ? '8px' : '14px',
             display: 'inline-block',
           }}
         >
@@ -222,7 +223,7 @@ export default function CafeLabelsPage() {
     <DashboardLayout>
       <FontLoader />
 
-      {/* Print-only styles */}
+      {/* Print-only styles — 8 labels per A4 page, filling the space */}
       <style jsx global>{`
         @media print {
           /* Hide everything except print sheet */
@@ -237,21 +238,28 @@ export default function CafeLabelsPage() {
             position: absolute;
             left: 0;
             top: 0;
-            width: 210mm;
-            padding: 10mm;
+            width: 190mm;
+            margin: 0;
+            padding: 0;
           }
           #print-sheet .print-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8mm;
+            grid-auto-rows: calc((297mm - 20mm) / 4);
+            gap: 3mm;
+            padding: 5mm;
           }
           #print-sheet .label-card {
             break-inside: avoid;
             page-break-inside: avoid;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
           }
           @page {
             size: A4;
-            margin: 10mm;
+            margin: 5mm;
           }
         }
       `}</style>
@@ -279,6 +287,7 @@ export default function CafeLabelsPage() {
                   placeholder="e.g. Strawberry Cheesecake"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  className="text-lg"
                 />
               </div>
 
@@ -291,21 +300,21 @@ export default function CafeLabelsPage() {
                       checked={organic}
                       onCheckedChange={(v) => setOrganic(v === true)}
                     />
-                    <span className="text-sm">Organic</span>
+                    <span className="text-sm font-medium">Organic</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <Checkbox
                       checked={vegan}
                       onCheckedChange={(v) => setVegan(v === true)}
                     />
-                    <span className="text-sm">Vegan</span>
+                    <span className="text-sm font-medium">Vegan</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <Checkbox
                       checked={glutenFree}
                       onCheckedChange={(v) => setGlutenFree(v === true)}
                     />
-                    <span className="text-sm">Gluten Free</span>
+                    <span className="text-sm font-medium">Gluten Free</span>
                   </label>
                 </div>
               </div>
@@ -319,6 +328,7 @@ export default function CafeLabelsPage() {
                   value={ingredients}
                   onChange={(e) => setIngredients(e.target.value)}
                   rows={3}
+                  className="text-base"
                 />
               </div>
 
@@ -333,6 +343,7 @@ export default function CafeLabelsPage() {
                   placeholder="e.g. 8.50"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
+                  className="text-lg"
                 />
               </div>
 
@@ -345,11 +356,11 @@ export default function CafeLabelsPage() {
                       key={c.value}
                       title={c.name}
                       onClick={() => setBgColor(c.value)}
-                      className="w-9 h-9 rounded-full border-2 transition-all"
+                      className="w-10 h-10 rounded-full border-2 transition-all"
                       style={{
                         backgroundColor: c.value,
                         borderColor: bgColor === c.value ? DARK_GREEN : '#d1d5db',
-                        boxShadow: bgColor === c.value ? `0 0 0 2px ${DARK_GREEN}40` : 'none',
+                        boxShadow: bgColor === c.value ? `0 0 0 3px ${DARK_GREEN}40` : 'none',
                       }}
                     />
                   ))}
@@ -358,13 +369,13 @@ export default function CafeLabelsPage() {
 
               {/* Actions */}
               <div className="flex gap-3 pt-2">
-                <Button onClick={addLabel} disabled={!name.trim()}>
-                  <Plus className="w-4 h-4 mr-2" />
+                <Button onClick={addLabel} disabled={!name.trim()} className="text-base px-6 py-5">
+                  <Plus className="w-5 h-5 mr-2" />
                   Add to Page
                 </Button>
                 {labels.length > 0 && (
-                  <Button variant="secondary" onClick={clearAll}>
-                    <Trash2 className="w-4 h-4 mr-2" />
+                  <Button variant="secondary" onClick={clearAll} className="text-base px-6 py-5">
+                    <Trash2 className="w-5 h-5 mr-2" />
                     Clear All
                   </Button>
                 )}
@@ -378,7 +389,7 @@ export default function CafeLabelsPage() {
               <CardTitle className="text-lg">Live Preview</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="max-w-sm mx-auto">
+              <div className="max-w-md mx-auto">
                 <LabelCard label={currentLabel} />
               </div>
             </CardContent>
@@ -393,30 +404,30 @@ export default function CafeLabelsPage() {
                 Print Sheet ({labels.length} label{labels.length !== 1 ? 's' : ''})
               </CardTitle>
               <div className="flex gap-3">
-                <Button variant="secondary" onClick={handlePrint}>
-                  <Printer className="w-4 h-4 mr-2" />
+                <Button variant="secondary" onClick={handlePrint} className="text-base">
+                  <Printer className="w-5 h-5 mr-2" />
                   Print
                 </Button>
-                <Button onClick={handlePrint}>
-                  <Download className="w-4 h-4 mr-2" />
+                <Button onClick={handlePrint} className="text-base">
+                  <Download className="w-5 h-5 mr-2" />
                   Generate PDF
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-gray-500 mb-4">
-                Tip: To save as PDF, choose &quot;Save as PDF&quot; in the print dialog destination.
+              <p className="text-sm text-gray-500 mb-4">
+                8 labels per A4 page (2 columns × 4 rows). To save as PDF, choose &quot;Save as PDF&quot; in the print dialog.
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {labels.map((label) => (
                   <div key={label.id} className="relative group">
-                    <LabelCard label={label} compact />
+                    <LabelCard label={label} />
                     <button
                       onClick={() => removeLabel(label.id)}
-                      className="absolute top-2 right-2 bg-white/80 hover:bg-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                      className="absolute top-3 right-3 bg-white/80 hover:bg-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow"
                       title="Remove label"
                     >
-                      <X className="w-4 h-4 text-gray-600" />
+                      <X className="w-5 h-5 text-gray-600" />
                     </button>
                   </div>
                 ))}
@@ -426,11 +437,11 @@ export default function CafeLabelsPage() {
         )}
       </div>
 
-      {/* Hidden print-only sheet */}
+      {/* Hidden print-only sheet — 2×4 grid filling A4 */}
       <div id="print-sheet" className="hidden print:block" ref={printRef}>
         <div className="print-grid">
           {labels.map((label) => (
-            <LabelCard key={label.id} label={label} compact />
+            <LabelCard key={label.id} label={label} forPrint />
           ))}
         </div>
       </div>
