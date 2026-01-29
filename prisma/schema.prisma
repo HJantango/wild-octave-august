@@ -621,3 +621,19 @@ model ShopDiaryEntry {
   @@index([dueDate])
   @@map("shop_diary_entries")
 }
+
+model CafeLabelTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  organic     Boolean  @default(false)
+  vegan       Boolean  @default(false)
+  glutenFree  Boolean  @default(false) @map("gluten_free")
+  ingredients String?  @db.Text
+  price       String?
+  bgColor     String   @default("#E2E3F0") @map("bg_color")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@map("cafe_label_templates")
+}

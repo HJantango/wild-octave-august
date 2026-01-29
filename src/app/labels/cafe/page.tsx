@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Printer, Plus, Trash2, Download, X } from 'lucide-react';
+import { Printer, Plus, Trash2, Download, X, Save, Search, FolderOpen } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CafeLabel {
@@ -19,6 +19,17 @@ interface CafeLabel {
   glutenFree: boolean;
   ingredients: string;
   price: string;
+  bgColor: string;
+}
+
+interface LabelTemplate {
+  id: string;
+  name: string;
+  organic: boolean;
+  vegan: boolean;
+  glutenFree: boolean;
+  ingredients: string | null;
+  price: string | null;
   bgColor: string;
 }
 
@@ -187,6 +198,29 @@ export default function CafeLabelsPage() {
   // Print sheet
   const [labels, setLabels] = useState<CafeLabel[]>([]);
 
+  // Templates
+  const [templates, setTemplates] = useState<LabelTemplate[]>([]);
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Fetch templates on mount and when search changes
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const params = templateSearch ? `?search=${encodeURIComponent(templateSearch)}` : '';
+        const res = await fetch(`/api/labels/cafe/templates${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTemplates(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch templates:', err);
+      }
+    };
+    fetchTemplates();
+  }, [templateSearch]);
+
   const currentLabel: CafeLabel = {
     id: 'preview',
     name,
@@ -218,6 +252,82 @@ export default function CafeLabelsPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Save current label as template
+  const saveAsTemplate = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/labels/cafe/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          organic,
+          vegan,
+          glutenFree,
+          ingredients,
+          price,
+          bgColor,
+        }),
+      });
+      if (res.ok) {
+        const newTemplate = await res.json();
+        setTemplates((prev) => [...prev, newTemplate].sort((a, b) => a.name.localeCompare(b.name)));
+        alert('Template saved!');
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to save template');
+      }
+    } catch (err) {
+      console.error('Failed to save template:', err);
+      alert('Failed to save template');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Load template into form
+  const loadTemplate = (template: LabelTemplate) => {
+    setName(template.name);
+    setOrganic(template.organic);
+    setVegan(template.vegan);
+    setGlutenFree(template.glutenFree);
+    setIngredients(template.ingredients || '');
+    setPrice(template.price || '');
+    setBgColor(template.bgColor);
+    setShowTemplates(false);
+  };
+
+  // Add template directly to print sheet
+  const addTemplateToSheet = (template: LabelTemplate) => {
+    setLabels((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        name: template.name,
+        organic: template.organic,
+        vegan: template.vegan,
+        glutenFree: template.glutenFree,
+        ingredients: template.ingredients || '',
+        price: template.price || '',
+        bgColor: template.bgColor,
+      },
+    ]);
+  };
+
+  // Delete template
+  const deleteTemplate = async (id: string) => {
+    if (!confirm('Delete this template?')) return;
+    try {
+      const res = await fetch(`/api/labels/cafe/templates/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTemplates((prev) => prev.filter((t) => t.id !== id));
+      }
+    } catch (err) {
+      console.error('Failed to delete template:', err);
+    }
   };
 
   return (
@@ -305,12 +415,98 @@ export default function CafeLabelsPage() {
       `}</style>
 
       <div className="space-y-6 no-print">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cafe Label Maker</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Create beautiful food labels for display. Add labels then print or generate PDF.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Cafe Label Maker</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Create beautiful food labels for display. Save templates for quick reuse.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowTemplates(!showTemplates)}
+            className="flex items-center gap-2"
+          >
+            <FolderOpen className="w-4 h-4" />
+            {showTemplates ? 'Hide' : 'Show'} Templates ({templates.length})
+          </Button>
         </div>
+
+        {/* ── Saved Templates Panel ──────────────────────────────────── */}
+        {showTemplates && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FolderOpen className="w-5 h-5" />
+                Saved Templates
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Search templates..."
+                    value={templateSearch}
+                    onChange={(e) => setTemplateSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              {templates.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No templates saved yet. Create a label and click &quot;Save as Template&quot;.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {templates.map((template) => (
+                    <div
+                      key={template.id}
+                      className="relative group border rounded-lg p-3 hover:border-green-500 cursor-pointer transition-colors"
+                      style={{ backgroundColor: template.bgColor + '40' }}
+                    >
+                      <div onClick={() => loadTemplate(template)}>
+                        <p className="font-semibold text-sm truncate" style={{ color: DARK_GREEN }}>
+                          {template.name}
+                        </p>
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {template.organic && (
+                            <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">Organic</span>
+                          )}
+                          {template.vegan && (
+                            <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">Vegan</span>
+                          )}
+                          {template.glutenFree && (
+                            <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">GF</span>
+                          )}
+                        </div>
+                        {template.price && (
+                          <p className="text-xs text-gray-600 mt-1">${parseFloat(template.price).toFixed(2)}</p>
+                        )}
+                      </div>
+                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); addTemplateToSheet(template); }}
+                          className="p-1 bg-green-500 text-white rounded hover:bg-green-600"
+                          title="Add to print sheet"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteTemplate(template.id); }}
+                          className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
+                          title="Delete template"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* ── Form ──────────────────────────────────────────────────── */}
@@ -408,10 +604,19 @@ export default function CafeLabelsPage() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-wrap gap-3 pt-2">
                 <Button onClick={addLabel} disabled={!name.trim()} className="text-base px-6 py-5">
                   <Plus className="w-5 h-5 mr-2" />
                   Add to Page
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={saveAsTemplate}
+                  disabled={!name.trim() || saving}
+                  className="text-base px-6 py-5"
+                >
+                  <Save className="w-5 h-5 mr-2" />
+                  {saving ? 'Saving...' : 'Save as Template'}
                 </Button>
                 {labels.length > 0 && (
                   <Button variant="secondary" onClick={clearAll} className="text-base px-6 py-5">
