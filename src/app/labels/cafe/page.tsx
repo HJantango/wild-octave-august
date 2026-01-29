@@ -337,23 +337,33 @@ export default function CafeLabelsPage() {
       {/* Print-only styles — 8 labels per A4 page, filling the space */}
       <style jsx global>{`
         @media print {
-          /* Hide the UI, show only print sheet */
-          .print\\:hidden,
-          .no-print {
-            display: none !important;
+          /* Hide all page content */
+          body * {
+            visibility: hidden;
+          }
+          /* Show only print sheet and its contents */
+          #print-sheet,
+          #print-sheet * {
+            visibility: visible !important;
           }
           #print-sheet {
             display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 210mm;
-            height: 297mm;
-            margin: 0;
-            padding: 0;
-            background: white;
-            z-index: 99999;
-            overflow: hidden;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            z-index: 999999 !important;
+            overflow: hidden !important;
+          }
+          /* Reset body/html margins */
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
           }
           #print-sheet .print-grid {
             display: grid;
