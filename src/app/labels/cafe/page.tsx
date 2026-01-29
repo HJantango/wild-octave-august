@@ -334,7 +334,7 @@ export default function CafeLabelsPage() {
     <DashboardLayout>
       <FontLoader />
 
-      {/* Print-only styles — 8 labels per A4 page, filling the space */}
+      {/* Print-only styles — 8 labels per A4 page with 1" margins, labels edge-to-edge */}
       <style jsx global>{`
         @media print {
           /* Hide all page content */
@@ -354,10 +354,11 @@ export default function CafeLabelsPage() {
             width: 210mm !important;
             height: 297mm !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 25.4mm !important; /* 1 inch margins */
             background: white !important;
             z-index: 999999 !important;
             overflow: hidden !important;
+            box-sizing: border-box !important;
           }
           /* Reset body/html margins */
           html, body {
@@ -371,8 +372,8 @@ export default function CafeLabelsPage() {
             grid-template-rows: repeat(4, 1fr);
             gap: 0;
             padding: 0;
-            width: 210mm;
-            height: 297mm;
+            width: 100%;
+            height: 100%;
             box-sizing: border-box;
           }
           #print-sheet .label-card {
@@ -389,34 +390,13 @@ export default function CafeLabelsPage() {
             border-radius: 0;
             width: 100% !important;
             height: 100% !important;
-            min-height: calc(297mm / 4) !important;
             box-sizing: border-box;
           }
-          /* Crop marks */
-          #print-sheet .print-grid {
-            position: relative;
-          }
+          /* Hide crop marks - labels are now edge-to-edge */
           #print-sheet .crop-mark {
-            position: absolute;
-            background: #000;
-            z-index: 10;
-          }
-          /* Vertical crop marks (center column) */
-          #print-sheet .crop-v {
-            width: 0.3mm;
-            height: 5mm;
-            left: 50%;
-            transform: translateX(-50%);
-          }
-          /* Horizontal crop marks (row dividers) */
-          #print-sheet .crop-h {
-            height: 0.3mm;
-            width: 5mm;
+            display: none !important;
           }
           #print-sheet .crop-left { left: -6mm; }
-          #print-sheet .crop-right { right: -6mm; }
-          #print-sheet .crop-top { top: -6mm; }
-          #print-sheet .crop-bottom { bottom: -6mm; }
           @page {
             size: A4;
             margin: 0;
