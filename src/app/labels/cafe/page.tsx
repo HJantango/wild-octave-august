@@ -53,11 +53,12 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
       className="label-card relative flex flex-col items-center justify-center text-center overflow-hidden"
       style={{
         backgroundColor: label.bgColor,
-        padding: forPrint ? '14px 12px' : '36px 32px',
+        padding: forPrint ? '16px 20px' : '36px 32px',
         borderRadius: forPrint ? '0' : '14px',
         minHeight: forPrint ? 'auto' : '320px',
         height: forPrint ? '100%' : 'auto',
         width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       {/* Organic script — ABOVE item name */}
@@ -233,24 +234,26 @@ export default function CafeLabelsPage() {
           }
           #print-sheet {
             display: block !important;
-            position: fixed;
+            position: absolute;
             left: 0;
             top: 0;
-            width: 100%;
-            height: 100%;
+            width: 210mm;
+            height: 297mm;
             margin: 0;
             padding: 0;
             background: white;
             z-index: 99999;
+            overflow: hidden;
           }
           #print-sheet .print-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-auto-rows: calc(297mm / 4);
+            grid-template-rows: repeat(4, 1fr);
             gap: 0;
             padding: 0;
             width: 210mm;
-            height: auto;
+            height: 297mm;
+            box-sizing: border-box;
           }
           #print-sheet .label-card {
             break-inside: avoid;
@@ -264,6 +267,10 @@ export default function CafeLabelsPage() {
             color-adjust: exact;
             border: none;
             border-radius: 0;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: calc(297mm / 4) !important;
+            box-sizing: border-box;
           }
           /* Crop marks */
           #print-sheet .print-grid {
