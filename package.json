@@ -15,7 +15,9 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "digest": "tsx scripts/daily-sales-digest.ts",
+    "digest:json": "tsx scripts/daily-sales-digest.ts --json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",
@@ -41,6 +43,7 @@
     "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
     "decimal.js": "^10.6.0",
+    "dotenv": "^17.2.3",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
     "lucide-react": "^0.540.0",
