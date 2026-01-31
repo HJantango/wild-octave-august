@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "stock": "tsx scripts/low-stock-alerts.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",
