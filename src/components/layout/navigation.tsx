@@ -24,6 +24,7 @@ const navigation: NavItem[] = [
       { name: 'Pie Calculator', href: '/orders/pie-calculator' },
       { name: 'Purchase Orders', href: '/ordering/purchase-orders' },
       { name: 'Order Calendar', href: '/ordering/calendar' },
+      { name: 'Vendor Schedules', href: '/ordering/vendor-schedules' },
       { name: 'Cafe Schedule', href: '/ordering/cafe-schedule' },
       { name: 'AI Smart Order', href: '/ordering/suggestions' },
       { name: 'Invoice Based Suggestions', href: '/ordering/historical' },

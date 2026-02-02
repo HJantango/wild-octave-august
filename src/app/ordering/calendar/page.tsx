@@ -13,7 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, Plus, RefreshCw } from 'lucide-react';
+import { Calendar, Plus, RefreshCw, Settings, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ScheduledOrder {
   id: string;
@@ -117,6 +124,51 @@ export default function OrderCalendarPage() {
     }
   };
 
+  // Clear and regenerate scheduled orders
+  const handleClearAndRegenerate = async () => {
+    if (!confirm('This will clear all auto-generated orders (that don\'t have purchase orders attached) and regenerate from current vendor schedules. Continue?')) {
+      return;
+    }
+    
+    setIsGenerating(true);
+    try {
+      // First, clear existing auto-generated orders
+      const clearResponse = await fetch('/api/scheduled-orders', {
+        method: 'DELETE',
+      });
+
+      if (!clearResponse.ok) {
+        throw new Error('Failed to clear orders');
+      }
+
+      const clearResult = await clearResponse.json();
+      
+      // Then generate new ones
+      const generateResponse = await fetch('/api/scheduled-orders/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ daysAhead: 90 }),
+      });
+
+      if (!generateResponse.ok) {
+        throw new Error('Failed to generate orders');
+      }
+
+      const generateResult = await generateResponse.json();
+      if (generateResult.success) {
+        alert(`Cleared ${clearResult.data.deleted} old orders, generated ${generateResult.data.summary.created} new orders from current schedules`);
+        fetchCalendarData();
+      } else {
+        alert(`Error: ${generateResult.error.message}`);
+      }
+    } catch (error) {
+      console.error('Error clearing and regenerating orders:', error);
+      alert('Failed to clear and regenerate scheduled orders');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Handle order click
   const handleOrderClick = (order: ScheduledOrder) => {
     if (order.purchaseOrder) {
@@ -155,23 +207,44 @@ export default function OrderCalendarPage() {
             <Calendar className="h-8 w-8 text-purple-600" />
             <h1 className="text-3xl font-bold text-gray-900">Order Calendar</h1>
           </div>
-          <Button
-            onClick={handleGenerateOrders}
-            disabled={isGenerating}
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            {isGenerating ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Generate Orders
-              </>
-            )}
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Link href="/ordering/vendor-schedules">
+              <Button variant="outline">
+                <Settings className="h-4 w-4 mr-2" />
+                Vendor Schedules
+              </Button>
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  disabled={isGenerating}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Working...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Generate Orders
+                    </>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleGenerateOrders}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Orders
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleClearAndRegenerate} className="text-orange-600">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear & Regenerate All
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Filters */}
