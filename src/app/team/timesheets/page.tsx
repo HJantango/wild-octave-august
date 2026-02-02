@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Printer, Calendar, User, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Printer, Calendar, User, ChevronLeft, ChevronRight, Loader2, Users } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 
 interface Staff {
@@ -22,6 +22,141 @@ function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
+// Single timesheet component (compact for 3-per-page)
+function TimesheetCard({ employeeName, month, year, days }: { 
+  employeeName: string; 
+  month: number; 
+  year: number;
+  days: { day: number; dayName: string; isWeekend: boolean }[];
+}) {
+  return (
+    <div style={{ 
+      backgroundColor: 'white',
+      marginBottom: '4px',
+      pageBreakInside: 'avoid'
+    }}>
+      {/* Header - compact, no border */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'baseline',
+        marginBottom: '2px'
+      }}>
+        <div>
+          <span style={{ fontSize: '11px', fontWeight: '600' }}>Wild Octave Organics</span>
+          <span style={{ fontSize: '10px', marginLeft: '8px', color: '#666' }}>Timesheet</span>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ fontWeight: '700', fontSize: '14px' }}>{employeeName}</span>
+          <span style={{ marginLeft: '12px', fontSize: '11px' }}>{MONTHS[month]} {year}</span>
+        </div>
+      </div>
+
+      {/* Timesheet Grid - compact */}
+      <table style={{ 
+        width: '100%', 
+        borderCollapse: 'collapse',
+        fontSize: '8px'
+      }}>
+        <thead>
+          <tr>
+            <th style={{ 
+              border: '1px solid black', 
+              padding: '1px 3px',
+              width: '36px',
+              fontWeight: '600',
+              backgroundColor: 'white',
+              fontSize: '8px'
+            }}>Day</th>
+            {days.map((d) => (
+              <th 
+                key={d.day}
+                style={{ 
+                  border: '1px solid black', 
+                  padding: '1px',
+                  textAlign: 'center',
+                  fontWeight: d.isWeekend ? 'bold' : 'normal',
+                  backgroundColor: 'white',
+                  fontSize: '8px'
+                }}
+              >
+                <div>{d.dayName}</div>
+                <div style={{ fontWeight: '600' }}>{d.day}</div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {/* Start Time Row */}
+          <tr>
+            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>Start</td>
+            {days.map((d) => (
+              <td key={`start-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '18px', backgroundColor: 'white' }}></td>
+            ))}
+          </tr>
+          {/* End Time Row */}
+          <tr>
+            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>End</td>
+            {days.map((d) => (
+              <td key={`end-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '18px', backgroundColor: 'white' }}></td>
+            ))}
+          </tr>
+          {/* Break Row - checkbox + mins combined */}
+          <tr>
+            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>Break</td>
+            {days.map((d) => (
+              <td key={`brk-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '16px', backgroundColor: 'white' }}>
+                <div style={{ 
+                  width: '8px', 
+                  height: '8px', 
+                  border: '1px solid black',
+                  margin: '0 auto',
+                  backgroundColor: 'white'
+                }}></div>
+              </td>
+            ))}
+          </tr>
+          {/* Hours Row */}
+          <tr>
+            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>Hours</td>
+            {days.map((d) => (
+              <td key={`hrs-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '18px', backgroundColor: 'white' }}></td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Footer - just signatures */}
+      <div style={{ 
+        marginTop: '3px',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '24px',
+        fontSize: '9px'
+      }}>
+        <div>
+          <span>Employee:</span>
+          <span style={{ 
+            display: 'inline-block', 
+            width: '100px', 
+            borderBottom: '1px solid black',
+            marginLeft: '4px'
+          }}></span>
+        </div>
+        <div>
+          <span>Manager:</span>
+          <span style={{ 
+            display: 'inline-block', 
+            width: '100px', 
+            borderBottom: '1px solid black',
+            marginLeft: '4px'
+          }}></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TimesheetsPage() {
   const today = new Date();
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -30,6 +165,7 @@ export default function TimesheetsPage() {
   const [customEmployee, setCustomEmployee] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
+  const [printMode, setPrintMode] = useState<'single' | 'all'>('single');
 
   useEffect(() => {
     async function fetchStaff() {
@@ -51,8 +187,14 @@ export default function TimesheetsPage() {
   const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
   const employeeName = selectedEmployee === 'Other' ? customEmployee : selectedEmployee;
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrintSingle = () => {
+    setPrintMode('single');
+    setTimeout(() => window.print(), 100);
+  };
+
+  const handlePrintAll = () => {
+    setPrintMode('all');
+    setTimeout(() => window.print(), 100);
   };
 
   const changeMonth = (delta: number) => {
@@ -81,6 +223,12 @@ export default function TimesheetsPage() {
     };
   });
 
+  // For "Print All" - group staff into pages of 3
+  const staffPages: Staff[][] = [];
+  for (let i = 0; i < staff.length; i += 3) {
+    staffPages.push(staff.slice(i, i + 3));
+  }
+
   return (
     <>
       {/* Global Print Styles */}
@@ -88,19 +236,19 @@ export default function TimesheetsPage() {
         @media print {
           @page {
             size: A4 landscape;
-            margin: 6mm;
+            margin: 5mm;
           }
           
           body * {
             visibility: hidden;
           }
           
-          #printable-timesheet,
-          #printable-timesheet * {
+          #printable-area,
+          #printable-area * {
             visibility: visible;
           }
           
-          #printable-timesheet {
+          #printable-area {
             position: absolute;
             left: 0;
             top: 0;
@@ -108,63 +256,34 @@ export default function TimesheetsPage() {
             background: white !important;
           }
           
-          #printable-timesheet,
-          #printable-timesheet * {
+          #printable-area,
+          #printable-area * {
             background: white !important;
             box-shadow: none !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             color: black !important;
           }
+          
+          .page-break {
+            page-break-after: always;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
         }
       `}</style>
 
       <DashboardLayout>
         {/* Screen Controls */}
-        <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 no-print">
           <h1 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
             <Calendar className="w-7 h-7 text-emerald-600" />
             Employee Timesheets
           </h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Employee Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <User className="w-4 h-4 inline mr-1" />
-                Employee Name
-              </label>
-              {loading ? (
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading staff...
-                </div>
-              ) : (
-                <>
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  >
-                    <option value="">Select employee...</option>
-                    {staff.map((emp) => (
-                      <option key={emp.id} value={emp.name}>{emp.name}</option>
-                    ))}
-                    <option value="Other">Other...</option>
-                  </select>
-                  {selectedEmployee === 'Other' && (
-                    <input
-                      type="text"
-                      value={customEmployee}
-                      onChange={(e) => setCustomEmployee(e.target.value)}
-                      placeholder="Enter employee name..."
-                      className="mt-2 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    />
-                  )}
-                </>
-              )}
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Month/Year Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -181,7 +300,7 @@ export default function TimesheetsPage() {
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 >
                   {MONTHS.map((month, idx) => (
                     <option key={month} value={idx}>{month}</option>
@@ -193,7 +312,7 @@ export default function TimesheetsPage() {
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
                   min="2020"
                   max="2030"
-                  className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
                 <button
                   onClick={() => changeMonth(1)}
@@ -204,179 +323,113 @@ export default function TimesheetsPage() {
               </div>
             </div>
 
-            {/* Print Button */}
+            {/* Print All Button */}
             <div className="flex items-end">
               <button
-                onClick={handlePrint}
+                onClick={handlePrintAll}
+                disabled={staff.length === 0}
+                className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Users className="w-5 h-5" />
+                Print All Staff ({staff.length})
+              </button>
+            </div>
+
+            {/* Employee Selection for single print */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <User className="w-4 h-4 inline mr-1" />
+                Or Print Individual
+              </label>
+              {loading ? (
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading...
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  >
+                    <option value="">Select employee...</option>
+                    {staff.map((emp) => (
+                      <option key={emp.id} value={emp.name}>{emp.name}</option>
+                    ))}
+                    <option value="Other">Other...</option>
+                  </select>
+                  {selectedEmployee === 'Other' && (
+                    <input
+                      type="text"
+                      value={customEmployee}
+                      onChange={(e) => setCustomEmployee(e.target.value)}
+                      placeholder="Enter name..."
+                      className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Print Single Button */}
+            <div className="flex items-end">
+              <button
+                onClick={handlePrintSingle}
                 disabled={!employeeName}
-                className="w-full px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+                className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
               >
                 <Printer className="w-5 h-5" />
-                Print Timesheet
+                Print Single
               </button>
             </div>
           </div>
         </div>
 
-        {/* Printable Timesheet */}
-        <div 
-          id="printable-timesheet"
-          style={{ 
-            backgroundColor: 'white',
-            padding: '16px',
-            borderRadius: '12px',
-            border: '1px solid #e5e7eb'
-          }}
-        >
-          {/* Header */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: '12px',
-            borderBottom: '2px solid black',
-            paddingBottom: '8px'
-          }}>
-            <div>
-              <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Wild Octave Organics</span>
-              <span style={{ fontSize: '16px', marginLeft: '16px' }}>Employee Timesheet</span>
+        {/* Printable Area */}
+        <div id="printable-area" style={{ backgroundColor: 'white' }}>
+          {printMode === 'single' ? (
+            // Single employee timesheet (still compact, 3 would fit per page)
+            <div style={{ padding: '8px' }}>
+              <TimesheetCard 
+                employeeName={employeeName || '_______________'} 
+                month={selectedMonth} 
+                year={selectedYear}
+                days={days}
+              />
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontWeight: '600', fontSize: '16px' }}>{employeeName || '_______________'}</span>
-              <span style={{ marginLeft: '16px', fontSize: '16px' }}>{MONTHS[selectedMonth]} {selectedYear}</span>
-            </div>
-          </div>
+          ) : (
+            // All staff - 3 per page
+            staffPages.map((pageStaff, pageIndex) => (
+              <div 
+                key={pageIndex} 
+                className={pageIndex < staffPages.length - 1 ? 'page-break' : ''}
+                style={{ padding: '0 8px' }}
+              >
+                {pageStaff.map((staffMember) => (
+                  <TimesheetCard 
+                    key={staffMember.id}
+                    employeeName={staffMember.name} 
+                    month={selectedMonth} 
+                    year={selectedYear}
+                    days={days}
+                  />
+                ))}
+              </div>
+            ))
+          )}
+        </div>
 
-          {/* Timesheet Grid - Larger cells */}
-          <table style={{ 
-            width: '100%', 
-            borderCollapse: 'collapse',
-            fontSize: '11px'
-          }}>
-            <thead>
-              <tr>
-                <th style={{ 
-                  border: '1px solid black', 
-                  padding: '4px 6px',
-                  width: '50px',
-                  fontWeight: '600',
-                  backgroundColor: 'white',
-                  fontSize: '10px'
-                }}>Day</th>
-                {days.map((d) => (
-                  <th 
-                    key={d.day}
-                    style={{ 
-                      border: '1px solid black', 
-                      padding: '3px 2px',
-                      textAlign: 'center',
-                      fontWeight: d.isWeekend ? 'bold' : 'normal',
-                      backgroundColor: 'white',
-                      fontSize: '10px'
-                    }}
-                  >
-                    <div>{d.dayName}</div>
-                    <div style={{ fontWeight: '600' }}>{d.day}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {/* Start Time Row - TALL */}
-              <tr>
-                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Start</td>
-                {days.map((d) => (
-                  <td key={`start-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '32px', backgroundColor: 'white' }}></td>
-                ))}
-              </tr>
-              {/* End Time Row - TALL */}
-              <tr>
-                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>End</td>
-                {days.map((d) => (
-                  <td key={`end-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '32px', backgroundColor: 'white' }}></td>
-                ))}
-              </tr>
-              {/* Break Checkbox Row */}
-              <tr>
-                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Break?</td>
-                {days.map((d) => (
-                  <td key={`brk-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '20px', textAlign: 'center', backgroundColor: 'white' }}>
-                    <div style={{ 
-                      width: '12px', 
-                      height: '12px', 
-                      border: '1.5px solid black',
-                      margin: '0 auto',
-                      backgroundColor: 'white'
-                    }}></div>
-                  </td>
-                ))}
-              </tr>
-              {/* Break Duration Row */}
-              <tr>
-                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Brk Min</td>
-                {days.map((d) => (
-                  <td key={`brkm-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '24px', backgroundColor: 'white' }}></td>
-                ))}
-              </tr>
-              {/* Hours Row - TALL */}
-              <tr>
-                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Hours</td>
-                {days.map((d) => (
-                  <td key={`hrs-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '32px', backgroundColor: 'white' }}></td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Footer */}
-          <div style={{ 
-            marginTop: '20px',
-            paddingTop: '12px',
-            borderTop: '2px solid black',
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: '13px'
-          }}>
-            <div style={{ display: 'flex', gap: '40px' }}>
-              <div>
-                <span style={{ fontWeight: '600' }}>Total Hours:</span>
-                <span style={{ 
-                  display: 'inline-block', 
-                  width: '80px', 
-                  borderBottom: '1px solid black',
-                  marginLeft: '8px'
-                }}></span>
-              </div>
-              <div>
-                <span style={{ fontWeight: '600' }}>Total Breaks:</span>
-                <span style={{ 
-                  display: 'inline-block', 
-                  width: '80px', 
-                  borderBottom: '1px solid black',
-                  marginLeft: '8px'
-                }}></span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '40px' }}>
-              <div>
-                <span>Employee Signature:</span>
-                <span style={{ 
-                  display: 'inline-block', 
-                  width: '150px', 
-                  borderBottom: '1px solid black',
-                  marginLeft: '8px'
-                }}></span>
-              </div>
-              <div>
-                <span>Manager Signature:</span>
-                <span style={{ 
-                  display: 'inline-block', 
-                  width: '150px', 
-                  borderBottom: '1px solid black',
-                  marginLeft: '8px'
-                }}></span>
-              </div>
-            </div>
+        {/* Preview on screen */}
+        <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4 no-print">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Preview (single timesheet)</h3>
+          <div className="border rounded-lg p-3 bg-gray-50">
+            <TimesheetCard 
+              employeeName={employeeName || 'Employee Name'} 
+              month={selectedMonth} 
+              year={selectedYear}
+              days={days}
+            />
           </div>
         </div>
       </DashboardLayout>
