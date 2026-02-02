@@ -5,24 +5,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CalendarDatePicker } from '@/components/ui/calendar-date-picker';
-import { DashboardCharts, EmptyDashboardCharts } from '@/components/charts/dashboard-charts';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
+import { AnalyticsCharts, EmptyAnalyticsCharts } from '@/components/charts/analytics-charts';
 import { useDashboardData } from '@/hooks/useDashboard';
 import { useQuery } from '@tanstack/react-query';
 import { formatCurrency } from '@/lib/format';
@@ -35,11 +18,6 @@ interface DateRange {
   startDate: Date | null;
   endDate: Date | null;
 }
-
-const COLORS = [
-  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-  '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6B7280',
-];
 
 const getLastWeekRange = (): DateRange => {
   const now = new Date();
@@ -787,329 +765,26 @@ export default function Dashboard() {
               ))}
             </div>
           ) : hasData && data ? (
-            <DashboardCharts
-              revenueData={data.timeSeries || []}
-              categoryData={data.topCategories || []}
-              topItems={data.topItems || []}
-              dateRange={data.overview.dateRange}
-              totalRevenue={data.overview.totalRevenue}
-              totalQuantity={data.overview.totalQuantity}
+            <AnalyticsCharts
+              data={{
+                timeSeries: data.timeSeries || [],
+                categories: data.topCategories || [],
+                topItems: data.topItems || [],
+                dateRange: data.overview.dateRange,
+                totals: {
+                  revenue: data.overview.totalRevenue,
+                  quantity: data.overview.totalQuantity,
+                  avgDaily: data.timeSeries?.length > 0 
+                    ? data.overview.totalRevenue / data.timeSeries.length 
+                    : 0,
+                  daysWithSales: data.timeSeries?.length || 0,
+                },
+              }}
             />
           ) : (
-            <EmptyDashboardCharts />
+            <EmptyAnalyticsCharts />
           )}
         </div>
-
-        {/* Advanced Analytics */}
-        {hasData && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Advanced Analytics</h2>
-              <p className="text-sm text-gray-600">Detailed CSV data insights</p>
-            </div>
-            
-            {/* Advanced Charts Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Revenue Trend with Moving Average */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <CardTitle className="flex items-center space-x-2">
-                    <span>📈</span>
-                    <span>Revenue Trend Analysis</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Daily revenue with 7-day moving average
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="h-80">
-                    {data.timeSeries && data.timeSeries.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={data.timeSeries}>
-                          <defs>
-                            <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.05}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 11 }}
-                            tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 11 }}
-                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
-                          />
-                          <Tooltip
-                            content={({ active, payload, label }) => {
-                              if (!active || !payload || payload.length === 0) return null;
-                              return (
-                                <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                                  <p className="font-medium text-gray-900">{new Date(label).toLocaleDateString()}</p>
-                                  <div className="space-y-1 mt-2">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm text-gray-600">Revenue:</span>
-                                      <span className="font-medium text-blue-600">
-                                        {formatCurrency(payload[0].value as number)}
-                                      </span>
-                                    </div>
-                                    {payload[1] && (
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600">Previous Period:</span>
-                                        <span className="font-medium text-gray-600">
-                                          {formatCurrency(payload[1].value as number)}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="revenue"
-                            stroke="#3B82F6"
-                            strokeWidth={3}
-                            fill="url(#revenueGradient)"
-                          />
-                          {data.timeSeries[0]?.previousPeriodRevenue && (
-                            <Line
-                              type="monotone"
-                              dataKey="previousPeriodRevenue"
-                              stroke="#9CA3AF"
-                              strokeWidth={2}
-                              strokeDasharray="4 4"
-                              dot={false}
-                            />
-                          )}
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center">
-                        <p className="text-gray-500">No trend data available</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Sales Volume Analysis */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
-                  <CardTitle className="flex items-center space-x-2">
-                    <span>📊</span>
-                    <span>Sales Volume Analysis</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Daily quantity sold with trend indicators
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="h-80">
-                    {data.timeSeries && data.timeSeries.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={data.timeSeries}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 11 }}
-                            tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                          />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip
-                            content={({ active, payload, label }) => {
-                              if (!active || !payload || payload.length === 0) return null;
-                              return (
-                                <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                                  <p className="font-medium text-gray-900">{new Date(label).toLocaleDateString()}</p>
-                                  <div className="space-y-1 mt-2">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm text-gray-600">Quantity:</span>
-                                      <span className="font-medium text-green-600">
-                                        {payload[0].value?.toLocaleString()}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Bar dataKey="quantity" fill="#10B981" radius={[2, 2, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center">
-                        <p className="text-gray-500">No volume data available</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Performance Metrics */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
-                  <CardTitle className="flex items-center space-x-2">
-                    <span>🎯</span>
-                    <span>Performance Metrics</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Key performance indicators and trends
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-6">
-                    {/* Average Order Value Trend */}
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-gray-700">Average Daily Revenue</span>
-                        <span className="text-lg font-bold text-purple-600">
-                          {data.timeSeries && data.timeSeries.length > 0 ?
-                            formatCurrency(data.timeSeries.reduce((sum, day) => sum + (Number(day.revenue) || 0), 0) / data.timeSeries.length) :
-                            '$0.00'
-                          }
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-purple-600 h-2 rounded-full"
-                          style={{
-                            width: data.overview?.totalRevenue && data.timeSeries?.length && data.timeSeries.length > 0 ?
-                              `${Math.min(100, Math.max(0, (Number(data.overview.totalRevenue) || 0) / data.timeSeries.length / 1000 * 10))}%` :
-                              '0%'
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Items Per Day */}
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-gray-700">Average Daily Items</span>
-                        <span className="text-lg font-bold text-green-600">
-                          {data.timeSeries && data.timeSeries.length > 0 ?
-                            Math.round(data.timeSeries.reduce((sum, day) => sum + (Number(day.quantity) || 0), 0) / data.timeSeries.length) :
-                            0
-                          }
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-green-600 h-2 rounded-full"
-                          style={{
-                            width: data.overview?.totalQuantity && data.timeSeries?.length && data.timeSeries.length > 0 ?
-                              `${Math.min(100, Math.max(0, ((Number(data.overview.totalQuantity) || 0) / data.timeSeries.length / 50) * 100))}%` :
-                              '0%'
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Revenue Growth */}
-                    {data.overview?.previousPeriod && (
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-700">Period Growth</span>
-                          <span className={`text-lg font-bold ${
-                            (Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {(Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? '+' : ''}{(Number(data.overview.previousPeriod.revenueChange) || 0).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              (Number(data.overview.previousPeriod.revenueChange) || 0) >= 0 ? 'bg-green-600' : 'bg-red-600'
-                            }`}
-                            style={{
-                              width: `${Math.min(100, Math.max(0, Math.abs(Number(data.overview.previousPeriod.revenueChange) || 0) * 2))}%`
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Top Categories Donut Chart */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-orange-50 to-yellow-50">
-                  <CardTitle className="flex items-center space-x-2">
-                    <span>🎨</span>
-                    <span>Category Distribution</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Revenue breakdown by product categories
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="h-80">
-                    {data.topCategories && data.topCategories.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={data.topCategories.slice(0, 6)}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
-                            paddingAngle={5}
-                            dataKey="revenue"
-                          >
-                            {data.topCategories.slice(0, 6).map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (!active || !payload || payload.length === 0) return null;
-                              const data = payload[0].payload;
-                              return (
-                                <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                                  <p className="font-medium text-gray-900">{data.category}</p>
-                                  <div className="space-y-1 mt-2">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm text-gray-600">Revenue:</span>
-                                      <span className="font-medium text-orange-600">
-                                        {formatCurrency(data.revenue)}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm text-gray-600">Share:</span>
-                                      <span className="font-medium text-gray-900">
-                                        {data.percentage.toFixed(1)}%
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Legend 
-                            verticalAlign="bottom" 
-                            height={36}
-                            formatter={(value, entry) => (
-                              <span className="text-xs">{value}</span>
-                            )}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center">
-                        <p className="text-gray-500">No category data available</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
 
         {/* Real Data Sidebar */}
         {hasData && (
