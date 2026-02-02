@@ -48,6 +48,7 @@ const navigation: NavItem[] = [
       { name: 'Diary', href: '/shop-diary' },
       { name: 'Roster', href: '/roster' },
       { name: 'Staff Leave', href: '/leave' },
+      { name: 'Timesheets', href: '/team/timesheets' },
       { name: 'Xmas Schedule', href: '/ordering/christmas-closures' },
       { name: 'Cafe Schedule', href: '/ordering/cafe-schedule' },
       { name: 'Cafe Labels', href: '/labels/cafe' },

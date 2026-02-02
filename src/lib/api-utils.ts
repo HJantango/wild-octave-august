@@ -7,19 +7,25 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-const createPrismaClient = () => new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
+const createPrismaClient = () => {
+  // Skip during build when DATABASE_URL isn't available
+  if (!process.env.DATABASE_URL) {
+    return null as unknown as PrismaClient;
+  }
+  return new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
     },
-  },
-  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-});
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  });
+};
 
-// Initialize Prisma client with proper connection pooling
+// Initialize Prisma client with proper connection pooling (lazy for build)
 export const prisma = globalThis.__prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development' && prisma) {
   globalThis.__prisma = prisma;
 }
 
