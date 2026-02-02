@@ -40,16 +40,11 @@ export async function GET(request: NextRequest) {
           where: {
             ...where,
             category: { not: null },
-            ...(category && { category }),
           },
           _sum: {
             netSalesCents: true,
             quantitySold: true,
           },
-          orderBy: {
-            _sum: { netSalesCents: 'desc' },
-          },
-          take: 10,
         }),
 
         // Item totals
@@ -58,16 +53,11 @@ export async function GET(request: NextRequest) {
           where: {
             ...where,
             itemName: { not: null },
-            ...(itemName && { itemName: { contains: itemName, mode: 'insensitive' } }),
           },
           _sum: {
             netSalesCents: true,
             quantitySold: true,
           },
-          orderBy: {
-            _sum: { netSalesCents: 'desc' },
-          },
-          take: 25,
         }),
 
         // Totals
@@ -87,20 +77,23 @@ export async function GET(request: NextRequest) {
       const totalRevenueCents = totals._sum.netSalesCents || 0;
       const totalRevenueValue = totalRevenueCents / 100; // Convert cents to dollars
 
-      // Format category results
-      const topCategories = categoryAggregates.map(agg => ({
-        category: agg.category,
-        revenue: (agg._sum.netSalesCents || 0) / 100,
-        quantity: Number(agg._sum.quantitySold) || 0,
-        percentage: totalRevenueCents > 0 
-          ? ((agg._sum.netSalesCents || 0) / totalRevenueCents) * 100 
-          : 0,
-      }));
+      // Format and sort category results
+      const topCategories = categoryAggregates
+        .map(agg => ({
+          category: agg.category,
+          revenue: (agg._sum.netSalesCents || 0) / 100,
+          quantity: Number(agg._sum.quantitySold) || 0,
+          percentage: totalRevenueCents > 0 
+            ? ((agg._sum.netSalesCents || 0) / totalRevenueCents) * 100 
+            : 0,
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
 
-      // Format item results (filter generic items)
+      // Format item results (filter generic items, sort by revenue)
       const genericItems = ['Pies', 'Pie', 'Cake', 'Coffee', 'Smoothie', 'Salad'];
       const topItems = itemAggregates
-        .filter(agg => !genericItems.includes(agg.itemName) && agg.itemName.length > 3)
+        .filter(agg => !genericItems.includes(agg.itemName) && agg.itemName && agg.itemName.length > 3)
         .map(agg => ({
           itemName: agg.itemName,
           revenue: (agg._sum.netSalesCents || 0) / 100,
@@ -108,7 +101,9 @@ export async function GET(request: NextRequest) {
           percentage: totalRevenueCents > 0 
             ? ((agg._sum.netSalesCents || 0) / totalRevenueCents) * 100 
             : 0,
-        }));
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 25);
 
       return createSuccessResponse({
         overview: {
