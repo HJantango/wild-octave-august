@@ -14,9 +14,7 @@ export async function GET(request: NextRequest) {
     const { category, itemName, startDate, endDate } = validation.data;
 
     // Build where clause
-    const where: any = {
-      category: { not: null }, // Focus on category aggregates for time series
-    };
+    const where: any = {};
 
     if (startDate || endDate) {
       where.date = {};
@@ -28,25 +26,52 @@ export async function GET(request: NextRequest) {
       where.category = category;
     }
 
-    // Get daily sales data
-    const dailyData = await prisma.salesAggregate.groupBy({
-      by: ['date'],
-      where,
-      _sum: {
-        revenue: true,
-        quantity: true,
-      },
-      orderBy: {
-        date: 'asc',
-      },
-    });
+    // Check if Square data exists
+    const squareDataCount = await prisma.squareDailySales.count({ where });
+    const useSquareData = squareDataCount > 0;
 
-    // Format for charts
-    const timeSeries = dailyData.map(day => ({
-      date: day.date.toISOString().split('T')[0],
-      revenue: day._sum.revenue || 0,
-      quantity: day._sum.quantity || 0,
-    }));
+    let timeSeries: Array<{ date: string; revenue: number; quantity: number }> = [];
+
+    if (useSquareData) {
+      // Use Square API data
+      const dailyData = await prisma.squareDailySales.groupBy({
+        by: ['date'],
+        where,
+        _sum: {
+          netSalesCents: true,
+          quantitySold: true,
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      timeSeries = dailyData.map(day => ({
+        date: day.date.toISOString().split('T')[0],
+        revenue: (day._sum.netSalesCents || 0) / 100, // Convert cents to dollars
+        quantity: Number(day._sum.quantitySold) || 0,
+      }));
+    } else {
+      // Fallback to CSV data
+      const whereWithCategory = { ...where, category: { not: null } };
+      const dailyData = await prisma.salesAggregate.groupBy({
+        by: ['date'],
+        where: whereWithCategory,
+        _sum: {
+          revenue: true,
+          quantity: true,
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      timeSeries = dailyData.map(day => ({
+        date: day.date.toISOString().split('T')[0],
+        revenue: Number(day._sum.revenue) || 0,
+        quantity: Number(day._sum.quantity) || 0,
+      }));
+    }
 
     // If filtering by category, also get category breakdown by day
     let categoryBreakdown: any[] = [];

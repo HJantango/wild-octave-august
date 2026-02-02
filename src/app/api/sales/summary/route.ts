@@ -21,7 +21,112 @@ export async function GET(request: NextRequest) {
       if (endDate) where.date.lte = endDate;
     }
 
-    // Get overall summary
+    // Use SquareDailySales (from Square API sync) as primary data source
+    // Falls back to SalesAggregate if no Square data exists
+    const squareDataCount = await prisma.squareDailySales.count({ where });
+    const useSquareData = squareDataCount > 0;
+
+    if (useSquareData) {
+      // Use Square API synced data
+      const [
+        categoryAggregates,
+        itemAggregates,
+        totals,
+        dateRange
+      ] = await Promise.all([
+        // Category totals
+        prisma.squareDailySales.groupBy({
+          by: ['category'],
+          where: {
+            ...where,
+            category: { not: null },
+            ...(category && { category }),
+          },
+          _sum: {
+            netSalesCents: true,
+            quantitySold: true,
+          },
+          orderBy: {
+            _sum: { netSalesCents: 'desc' },
+          },
+          take: 10,
+        }),
+
+        // Item totals
+        prisma.squareDailySales.groupBy({
+          by: ['itemName'],
+          where: {
+            ...where,
+            itemName: { not: null },
+            ...(itemName && { itemName: { contains: itemName, mode: 'insensitive' } }),
+          },
+          _sum: {
+            netSalesCents: true,
+            quantitySold: true,
+          },
+          orderBy: {
+            _sum: { netSalesCents: 'desc' },
+          },
+          take: 25,
+        }),
+
+        // Totals
+        prisma.squareDailySales.aggregate({
+          where,
+          _sum: { netSalesCents: true, quantitySold: true },
+        }),
+
+        // Date range
+        prisma.squareDailySales.aggregate({
+          where,
+          _min: { date: true },
+          _max: { date: true },
+        }),
+      ]);
+
+      const totalRevenueCents = totals._sum.netSalesCents || 0;
+      const totalRevenueValue = totalRevenueCents / 100; // Convert cents to dollars
+
+      // Format category results
+      const topCategories = categoryAggregates.map(agg => ({
+        category: agg.category,
+        revenue: (agg._sum.netSalesCents || 0) / 100,
+        quantity: Number(agg._sum.quantitySold) || 0,
+        percentage: totalRevenueCents > 0 
+          ? ((agg._sum.netSalesCents || 0) / totalRevenueCents) * 100 
+          : 0,
+      }));
+
+      // Format item results (filter generic items)
+      const genericItems = ['Pies', 'Pie', 'Cake', 'Coffee', 'Smoothie', 'Salad'];
+      const topItems = itemAggregates
+        .filter(agg => !genericItems.includes(agg.itemName) && agg.itemName.length > 3)
+        .map(agg => ({
+          itemName: agg.itemName,
+          revenue: (agg._sum.netSalesCents || 0) / 100,
+          quantity: Number(agg._sum.quantitySold) || 0,
+          percentage: totalRevenueCents > 0 
+            ? ((agg._sum.netSalesCents || 0) / totalRevenueCents) * 100 
+            : 0,
+        }));
+
+      return createSuccessResponse({
+        overview: {
+          totalRevenue: totalRevenueValue,
+          totalQuantity: Number(totals._sum.quantitySold) || 0,
+          reportCount: squareDataCount,
+          dateRange: {
+            start: dateRange._min.date,
+            end: dateRange._max.date,
+          },
+        },
+        topCategories,
+        topItems,
+        dataSource: 'square_api',
+      });
+    }
+
+    // Fallback to CSV-uploaded SalesAggregate data
     const [
       categoryAggregates,
       itemAggregates,
@@ -160,6 +265,7 @@ export async function GET(request: NextRequest) {
       },
       topCategories,
       topItems,
+      dataSource: 'csv_upload',
     };
 
     return createSuccessResponse(summary);

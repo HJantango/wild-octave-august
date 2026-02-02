@@ -100,36 +100,59 @@ export async function GET(request: NextRequest) {
         take: 10,
       }),
 
-      // Sales summary (last 7 days)
-      prisma.salesAggregate.aggregate({
-        where: {
-          date: { gte: weekAgo },
-        },
-        _sum: {
-          revenue: true,
-          quantity: true,
-          margin: true,
-        },
-        _count: true,
-      }),
+      // Sales summary (last 7 days) - try Square data first
+      (async () => {
+        const squareCount = await prisma.squareDailySales.count({ where: { date: { gte: weekAgo } } });
+        if (squareCount > 0) {
+          const result = await prisma.squareDailySales.aggregate({
+            where: { date: { gte: weekAgo } },
+            _sum: { netSalesCents: true, quantitySold: true },
+            _count: true,
+          });
+          return {
+            _sum: {
+              revenue: (result._sum.netSalesCents || 0) / 100,
+              quantity: result._sum.quantitySold,
+              margin: 0, // Square doesn't have margin data
+            },
+            _count: result._count,
+          };
+        }
+        return prisma.salesAggregate.aggregate({
+          where: { date: { gte: weekAgo } },
+          _sum: { revenue: true, quantity: true, margin: true },
+          _count: true,
+        });
+      })(),
 
-      // Top selling items (last 7 days)
-      prisma.salesAggregate.groupBy({
-        by: ['itemName', 'category'],
-        where: {
-          date: { gte: weekAgo },
-        },
-        _sum: {
-          revenue: true,
-          quantity: true,
-        },
-        orderBy: {
-          _sum: {
-            revenue: 'desc',
-          },
-        },
-        take: 10,
-      }),
+      // Top selling items (last 7 days) - try Square data first
+      (async () => {
+        const squareCount = await prisma.squareDailySales.count({ where: { date: { gte: weekAgo } } });
+        if (squareCount > 0) {
+          const items = await prisma.squareDailySales.groupBy({
+            by: ['itemName', 'category'],
+            where: { date: { gte: weekAgo } },
+            _sum: { netSalesCents: true, quantitySold: true },
+            orderBy: { _sum: { netSalesCents: 'desc' } },
+            take: 10,
+          });
+          return items.map(item => ({
+            itemName: item.itemName,
+            category: item.category,
+            _sum: {
+              revenue: (item._sum.netSalesCents || 0) / 100,
+              quantity: item._sum.quantitySold,
+            },
+          }));
+        }
+        return prisma.salesAggregate.groupBy({
+          by: ['itemName', 'category'],
+          where: { date: { gte: weekAgo } },
+          _sum: { revenue: true, quantity: true },
+          orderBy: { _sum: { revenue: 'desc' } },
+          take: 10,
+        });
+      })(),
 
       // Invoices pending rectification
       prisma.invoice.count({
