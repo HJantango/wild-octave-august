@@ -69,6 +69,28 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Get vendor schedules for assignee info
+    const vendorSchedules = await prisma.vendorOrderSchedule.findMany({
+      select: {
+        vendorId: true,
+        orderDay: true,
+        assignees: true,
+      },
+    });
+
+    // Create a map of vendorId -> assignees (merge from all schedules for that vendor)
+    const vendorAssignees: Record<string, string[]> = {};
+    for (const schedule of vendorSchedules) {
+      if (!vendorAssignees[schedule.vendorId]) {
+        vendorAssignees[schedule.vendorId] = [];
+      }
+      for (const assignee of schedule.assignees) {
+        if (!vendorAssignees[schedule.vendorId].includes(assignee)) {
+          vendorAssignees[schedule.vendorId].push(assignee);
+        }
+      }
+    }
+
     // Group orders by date for easy calendar rendering
     const ordersByDate: Record<string, any[]> = {};
     for (const order of orders) {
@@ -84,6 +106,7 @@ export async function GET(request: NextRequest) {
         deliveryDate: order.deliveryDate,
         orderDeadline: order.orderDeadline,
         orderedBy: order.orderedBy,
+        assignees: vendorAssignees[order.vendorId] || [],
         notes: order.notes,
         isRecurring: order.isRecurring,
         recurringPattern: order.recurringPattern,
