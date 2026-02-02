@@ -51,7 +51,30 @@ export default function Dashboard() {
     const defaultRange = getLastWeekRange();
     return defaultRange || { startDate: new Date(), endDate: new Date() };
   });
-  // Using CSV sales data exclusively
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  
+  // Sync sales from Square API
+  const handleSquareSync = async () => {
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const response = await fetch('/api/square/sync-sales?days=30', { method: 'POST' });
+      const result = await response.json();
+      if (response.ok) {
+        setSyncMessage(`✅ Synced ${result.data?.ordersProcessed || 0} orders`);
+        refetch(); // Refresh dashboard data
+      } else {
+        setSyncMessage(`❌ ${result.error?.message || 'Sync failed'}`);
+      }
+    } catch (err) {
+      setSyncMessage('❌ Failed to connect to Square');
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncMessage(null), 5000);
+    }
+  };
+  
   const { data, isLoading, error, refetch, stats } = useDashboardData(dateRange);
 
   // Fetch operational data (diary, wastage, invoices, low stock)
@@ -100,6 +123,14 @@ export default function Dashboard() {
                   </Button>
                 </Link>
                 <Button
+                  onClick={handleSquareSync}
+                  variant="secondary"
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? '🔄 Syncing...' : '🔗 Sync Square'}
+                </Button>
+                <Button
                   onClick={refetch}
                   variant="secondary"
                   className="bg-white/20 hover:bg-white/30 text-white border-white/20"
@@ -108,6 +139,9 @@ export default function Dashboard() {
                   {isLoading ? '🔄' : '↻'} Refresh
                 </Button>
               </div>
+              {syncMessage && (
+                <div className="mt-2 text-sm text-white/90">{syncMessage}</div>
+              )}
             </div>
           </div>
         </div>
