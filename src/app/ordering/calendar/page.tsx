@@ -13,14 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, Plus, RefreshCw, Settings, Trash2 } from 'lucide-react';
+import { Calendar, Plus, RefreshCw, Settings, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface ScheduledOrder {
   id: string;
@@ -214,36 +208,32 @@ export default function OrderCalendarPage() {
                 Vendor Schedules
               </Button>
             </Link>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  disabled={isGenerating}
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  {isGenerating ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Working...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Generate Orders
-                    </>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleGenerateOrders}>
+            <Button
+              variant="outline"
+              onClick={handleClearAndRegenerate}
+              disabled={isGenerating}
+              className="text-orange-600 border-orange-300 hover:bg-orange-50"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Rebuild
+            </Button>
+            <Button
+              onClick={handleGenerateOrders}
+              disabled={isGenerating}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Working...
+                </>
+              ) : (
+                <>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add New Orders
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleClearAndRegenerate} className="text-orange-600">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear & Regenerate All
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  Generate
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
