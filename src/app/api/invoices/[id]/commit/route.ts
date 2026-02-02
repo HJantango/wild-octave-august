@@ -62,19 +62,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         if (existingItem) {
-          // Check if cost has changed
           const oldCost = existingItem.currentCostExGst.toNumber();
           const newCost = lineItem.effectiveUnitCostExGst;
-
-          if (Math.abs(oldCost - newCost) > 0.01) { // Allow for small rounding differences
-            // Create price history entry
+          
+          // Only update costs if item doesn't have an existing cost
+          // This preserves accurate per-unit costs from Square, avoids overwriting with box/carton prices from invoices
+          const shouldUpdateCost = !oldCost || oldCost <= 0;
+          
+          if (shouldUpdateCost && newCost > 0) {
+            // Record price history for new cost
             await tx.itemPriceHistory.create({
               data: {
                 itemId: existingItem.id,
-                costExGst: oldCost,
-                markup: existingItem.currentMarkup,
-                sellExGst: existingItem.currentSellExGst,
-                sellIncGst: existingItem.currentSellIncGst,
+                costExGst: newCost,
+                markup: lineItem.markup,
+                sellExGst: lineItem.sellExGst,
+                sellIncGst: lineItem.sellIncGst,
                 sourceInvoiceId: invoice.id,
               },
             });
@@ -84,20 +87,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
               oldPrice: oldCost,
               newPrice: newCost,
             });
+            
+            // Update item with new pricing
+            await tx.item.update({
+              where: { id: existingItem.id },
+              data: {
+                vendorId: invoice.vendorId,
+                category: lineItem.category,
+                currentCostExGst: lineItem.effectiveUnitCostExGst,
+                currentMarkup: lineItem.markup,
+                currentSellExGst: lineItem.sellExGst,
+                currentSellIncGst: lineItem.sellIncGst,
+              },
+            });
+          } else {
+            // Still update vendor association and category, just not the cost
+            await tx.item.update({
+              where: { id: existingItem.id },
+              data: {
+                vendorId: invoice.vendorId,
+                category: lineItem.category,
+              },
+            });
           }
-
-          // Update item with new pricing
-          await tx.item.update({
-            where: { id: existingItem.id },
-            data: {
-              vendorId: invoice.vendorId, // Update vendor association
-              category: lineItem.category,
-              currentCostExGst: lineItem.effectiveUnitCostExGst,
-              currentMarkup: lineItem.markup,
-              currentSellExGst: lineItem.sellExGst,
-              currentSellIncGst: lineItem.sellIncGst,
-            },
-          });
 
           // Link line item to existing item
           await tx.invoiceLineItem.update({

@@ -96,17 +96,21 @@ export async function POST(
 
       if (matchedItem) {
         matchedCount++;
-        // Update the catalog item's cost if matched
-        await prisma.item.update({
-          where: { id: matchedItem.id },
-          data: {
-            currentCostExGst: item.unitCostExGst,
-            currentSellExGst: sellExGst,
-            currentSellIncGst: sellIncGst,
-            currentMarkup: markup,
-            updatedAt: new Date(),
-          },
-        });
+        // Only update catalog item's cost if it doesn't already have a cost
+        // (preserves accurate per-unit costs from Square, avoids overwriting with box/carton prices from invoices)
+        const existingCost = Number(matchedItem.currentCostExGst);
+        if (!existingCost || existingCost <= 0) {
+          await prisma.item.update({
+            where: { id: matchedItem.id },
+            data: {
+              currentCostExGst: item.unitCostExGst,
+              currentSellExGst: sellExGst,
+              currentSellIncGst: sellIncGst,
+              currentMarkup: markup,
+              updatedAt: new Date(),
+            },
+          });
+        }
       }
     }
 
