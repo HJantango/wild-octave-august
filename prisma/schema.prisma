@@ -482,11 +482,15 @@ model VendorOrderSchedule {
   vendorId         String   @map("vendor_id")
   orderDay         String   @map("order_day") // "Monday", "Tuesday", etc.
   deliveryDay      String?  @map("delivery_day") // Expected delivery day
-  frequency        String   @default("weekly") // "weekly", "fortnightly", "monthly", "bi-monthly"
+  frequency        String   @default("weekly") // "weekly", "fortnightly", "monthly", "bi-monthly", "when-needed"
   weekOffset       Int      @default(0) @map("week_offset") // For fortnightly/monthly (0 or 1)
   leadTimeDays     Int      @default(1) @map("lead_time_days") // Days between order and delivery
   isActive         Boolean  @default(true) @map("is_active")
   orderDeadline    String?  @map("order_deadline") // Time deadline (e.g., "11:00 AM")
+  assignees        String[] @default([]) // Staff names who handle this order (e.g., ["Heath", "Jackie"])
+  orderType        String   @default("regular") @map("order_type") // "regular" or "when-needed" (incidental)
+  contactMethod    String?  @map("contact_method") // How to contact vendor (e.g., "Call", "Email", "Text")
+  trigger          String?  // For when-needed orders: what triggers the order (e.g., "When down to 2")
   notes            String?
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")

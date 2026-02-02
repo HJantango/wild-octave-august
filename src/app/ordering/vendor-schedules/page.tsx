@@ -44,6 +44,10 @@ interface VendorSchedule {
   leadTimeDays: number;
   isActive: boolean;
   orderDeadline: string | null;
+  assignees: string[];
+  orderType: string;
+  contactMethod: string | null;
+  trigger: string | null;
   notes: string | null;
 }
 
@@ -56,8 +60,21 @@ interface ScheduleFormData {
   leadTimeDays: number;
   isActive: boolean;
   orderDeadline: string;
+  assignees: string[];
+  orderType: string;
+  contactMethod: string;
+  trigger: string;
   notes: string;
 }
+
+// Staff members who can be assigned to orders
+const STAFF_MEMBERS = [
+  'Heath',
+  'Jackie',
+  'Charlotte',
+  'Tosh',
+  'Nathan',
+];
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_INDEX_MAP: Record<string, number> = {
@@ -72,6 +89,21 @@ const FREQUENCIES = [
   { value: 'monthly', label: 'Monthly' },
   { value: 'six-weekly', label: 'Every 6 Weeks' },
   { value: 'bi-monthly', label: 'Bi-monthly' },
+  { value: 'when-needed', label: 'When Needed' },
+];
+
+const ORDER_TYPES = [
+  { value: 'regular', label: 'Regular Schedule' },
+  { value: 'when-needed', label: 'When Needed (Incidental)' },
+];
+
+const CONTACT_METHODS = [
+  { value: '', label: 'Not specified' },
+  { value: 'Call', label: 'Phone Call' },
+  { value: 'Text', label: 'Text/SMS' },
+  { value: 'Email', label: 'Email' },
+  { value: 'Online', label: 'Online Order' },
+  { value: 'They call us', label: 'They call us' },
 ];
 
 const DEADLINE_TIMES = [
@@ -274,6 +306,10 @@ export default function VendorSchedulesPage() {
       leadTimeDays: 1,
       isActive: true,
       orderDeadline: '',
+      assignees: [],
+      orderType: 'regular',
+      contactMethod: '',
+      trigger: '',
       notes: '',
     });
   };
@@ -290,6 +326,10 @@ export default function VendorSchedulesPage() {
         leadTimeDays: schedule.leadTimeDays,
         isActive: schedule.isActive,
         orderDeadline: schedule.orderDeadline || '',
+        assignees: schedule.assignees || [],
+        orderType: schedule.orderType || 'regular',
+        contactMethod: schedule.contactMethod || '',
+        trigger: schedule.trigger || '',
         notes: schedule.notes || '',
       });
     } else {
@@ -464,6 +504,30 @@ export default function VendorSchedulesPage() {
                         <span className="text-gray-600">Lead Time:</span>
                         <span className="font-medium">{schedule.leadTimeDays} {schedule.leadTimeDays === 1 ? 'day' : 'days'}</span>
                       </div>
+                      {schedule.assignees && schedule.assignees.length > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">👤 Orders By:</span>
+                          <div className="flex gap-1 flex-wrap justify-end">
+                            {schedule.assignees.map((name: string) => (
+                              <Badge key={name} variant="secondary" className="text-xs bg-purple-100 text-purple-700">
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {schedule.contactMethod && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Contact:</span>
+                          <span className="font-medium text-gray-700">{schedule.contactMethod}</span>
+                        </div>
+                      )}
+                      {schedule.trigger && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Trigger:</span>
+                          <span className="font-medium text-orange-600 text-xs">{schedule.trigger}</span>
+                        </div>
+                      )}
                       {nextDate && (
                         <div className="flex justify-between pt-1 border-t border-gray-200">
                           <span className="text-gray-600">Next Order:</span>
@@ -644,6 +708,65 @@ export default function VendorSchedulesPage() {
                     required
                   />
                 </div>
+
+                {/* Assignees - who handles this order */}
+                <div className="col-span-2">
+                  <Label>Assignees (who places this order)</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {STAFF_MEMBERS.map((staff) => (
+                      <button
+                        key={staff}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.assignees || [];
+                          const updated = current.includes(staff)
+                            ? current.filter(s => s !== staff)
+                            : [...current, staff];
+                          setFormData({ ...formData, assignees: updated });
+                        }}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                          (formData.assignees || []).includes(staff)
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {staff}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="contactMethod">Contact Method</Label>
+                  <Select
+                    value={formData.contactMethod || 'none'}
+                    onValueChange={(value) => setFormData({ ...formData, contactMethod: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not specified" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONTACT_METHODS.map((method) => (
+                        <SelectItem key={method.value || 'none'} value={method.value || 'none'}>
+                          {method.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Trigger field for when-needed orders */}
+                {(formData.frequency === 'when-needed' || formData.orderType === 'when-needed') && (
+                  <div>
+                    <Label htmlFor="trigger">Order Trigger</Label>
+                    <Input
+                      id="trigger"
+                      value={formData.trigger}
+                      onChange={(e) => setFormData({ ...formData, trigger: e.target.value })}
+                      placeholder="e.g., When down to 2, When needed"
+                    />
+                  </div>
+                )}
 
                 <div className="col-span-2">
                   <Label htmlFor="notes">Notes (Optional)</Label>

@@ -57,6 +57,10 @@ export async function POST(request: NextRequest) {
       leadTimeDays,
       isActive,
       orderDeadline,
+      assignees,
+      orderType,
+      contactMethod,
+      trigger,
       notes,
     } = body;
 
@@ -94,6 +98,10 @@ export async function POST(request: NextRequest) {
         leadTimeDays: leadTimeDays !== undefined ? leadTimeDays : 1,
         isActive: isActive !== undefined ? isActive : true,
         orderDeadline: orderDeadline || null,
+        assignees: assignees || [],
+        orderType: orderType || 'regular',
+        contactMethod: contactMethod || null,
+        trigger: trigger || null,
         notes,
       },
       include: {

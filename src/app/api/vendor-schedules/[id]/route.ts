@@ -55,6 +55,10 @@ export async function PUT(
         leadTimeDays: body.leadTimeDays,
         isActive: body.isActive,
         orderDeadline: body.orderDeadline !== undefined ? (body.orderDeadline || null) : undefined,
+        assignees: body.assignees !== undefined ? body.assignees : undefined,
+        orderType: body.orderType,
+        contactMethod: body.contactMethod !== undefined ? (body.contactMethod || null) : undefined,
+        trigger: body.trigger !== undefined ? (body.trigger || null) : undefined,
         notes: body.notes,
       },
       include: {
