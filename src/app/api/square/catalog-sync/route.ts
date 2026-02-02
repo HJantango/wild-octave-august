@@ -31,30 +31,65 @@ export async function POST(request: NextRequest) {
         });
 
         if (existingItem) {
-          // Item already exists - update pricing if needed
+          // Item already exists - update pricing/cost if available
           const defaultVariation = catalogItem.variations[0];
           const priceAmount = defaultVariation?.priceMoney?.amount || 0;
           const priceInDollars = priceAmount / 100;
+          const costAmount = defaultVariation?.costMoney?.amount || 0;
+          const costInDollars = costAmount / 100;
 
+          const updateData: any = {};
+          let updateActions: string[] = [];
+
+          // Update sell price if we have one and existing is 0
           if (priceInDollars > 0 && Number(existingItem.currentSellIncGst) === 0) {
+            updateData.currentSellIncGst = priceInDollars;
+            updateData.currentSellExGst = priceInDollars / 1.1;
+            updateActions.push('sell_price');
+          }
+
+          // Update cost if we have one from Square (this is the key fix!)
+          if (costInDollars > 0) {
+            updateData.currentCostExGst = costInDollars;
+            updateActions.push('cost');
+            // Recalculate markup if we have both
+            if (priceInDollars > 0) {
+              const sellExGst = priceInDollars / 1.1;
+              updateData.currentMarkup = sellExGst / costInDollars;
+            }
+          }
+
+          // Update SKU if available
+          if (defaultVariation?.sku && !existingItem.sku) {
+            updateData.sku = defaultVariation.sku;
+            updateActions.push('sku');
+          }
+
+          if (Object.keys(updateData).length > 0) {
             await prisma.item.update({
               where: { id: existingItem.id },
-              data: {
-                currentSellIncGst: priceInDollars,
-                currentSellExGst: priceInDollars / 1.1,
-              },
+              data: updateData,
             });
             updated++;
-            updatedItems.push({ name: catalogItem.name, action: 'updated_pricing' });
+            updatedItems.push({ 
+              name: catalogItem.name, 
+              action: updateActions.join('+'),
+              cost: costInDollars > 0 ? costInDollars : undefined,
+              price: priceInDollars > 0 ? priceInDollars : undefined,
+            });
           } else {
             skipped++;
             skippedItems.push({ name: catalogItem.name, reason: 'already_exists' });
           }
         } else {
-          // Get the first variation's price as default
+          // Get the first variation's price and cost as default
           const defaultVariation = catalogItem.variations[0];
           const priceAmount = defaultVariation?.priceMoney?.amount || 0;
           const priceInDollars = priceAmount / 100;
+          const costAmount = defaultVariation?.costMoney?.amount || 0;
+          const costInDollars = costAmount / 100;
+          const sellExGst = priceInDollars / 1.1;
+          const markup = costInDollars > 0 ? sellExGst / costInDollars : 0;
 
           // Create new item
           await prisma.item.create({
@@ -62,15 +97,17 @@ export async function POST(request: NextRequest) {
               name: catalogItem.name,
               category: catalogItem.category?.name || 'Uncategorized',
               currentSellIncGst: priceInDollars,
-              currentSellExGst: priceInDollars / 1.1, // Remove GST
-              currentCostExGst: 0, // Unknown from Square
-              currentMarkup: 0,
+              currentSellExGst: sellExGst,
+              currentCostExGst: costInDollars, // Now includes cost from Square if available
+              currentMarkup: markup,
+              sku: defaultVariation?.sku || undefined,
             },
           });
           created++;
           createdItems.push({
             name: catalogItem.name,
             price: priceInDollars,
+            cost: costInDollars > 0 ? costInDollars : undefined,
             category: catalogItem.category?.name,
           });
         }

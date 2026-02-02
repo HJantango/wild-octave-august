@@ -10,7 +10,12 @@ export interface SquareItem {
   variations: Array<{
     id: string;
     name: string;
+    sku?: string;
     priceMoney: {
+      amount: number;
+      currency: string;
+    };
+    costMoney?: {
       amount: number;
       currency: string;
     };
@@ -182,14 +187,27 @@ class RealSquareService {
             id: itemData.categoryId,
             name: 'Unknown Category' // Would need separate call to get category name
           } : undefined,
-          variations: itemData?.variations?.map(variation => ({
-            id: variation.id!,
-            name: variation.itemVariationData?.name || 'Default',
-            priceMoney: {
-              amount: Number(variation.itemVariationData?.priceMoney?.amount || 0),
-              currency: variation.itemVariationData?.priceMoney?.currency || 'AUD'
-            }
-          })) || [],
+          variations: itemData?.variations?.map(variation => {
+            const varData = variation.itemVariationData;
+            // Try to get cost from vendor info if available
+            const vendorInfo = varData?.itemVariationVendorInfos?.[0];
+            const costMoney = vendorInfo?.priceMoney;
+            
+            return {
+              id: variation.id!,
+              name: varData?.name || 'Default',
+              sku: varData?.sku || undefined,
+              priceMoney: {
+                amount: Number(varData?.priceMoney?.amount || 0),
+                currency: varData?.priceMoney?.currency || 'AUD'
+              },
+              // Include cost if available from vendor info
+              costMoney: costMoney ? {
+                amount: Number(costMoney.amount || 0),
+                currency: costMoney.currency || 'AUD'
+              } : undefined,
+            };
+          }) || [],
           updatedAt: obj.updatedAt!,
           createdAt: obj.createdAt!,
         };
