@@ -22,7 +22,7 @@ function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// Single timesheet component (compact for 3-per-page)
+// Single timesheet component - fills 1/3 of A4 landscape page
 function TimesheetCard({ employeeName, month, year, days }: { 
   employeeName: string; 
   month: number; 
@@ -32,41 +32,47 @@ function TimesheetCard({ employeeName, month, year, days }: {
   return (
     <div style={{ 
       backgroundColor: 'white',
-      marginBottom: '4px',
-      pageBreakInside: 'avoid'
+      height: '63mm', // 1/3 of printable A4 landscape height (~190mm / 3)
+      display: 'flex',
+      flexDirection: 'column',
+      pageBreakInside: 'avoid',
+      boxSizing: 'border-box'
     }}>
-      {/* Header - compact, no border */}
+      {/* Header */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'baseline',
-        marginBottom: '2px'
+        marginBottom: '2mm',
+        flexShrink: 0
       }}>
         <div>
-          <span style={{ fontSize: '11px', fontWeight: '600' }}>Wild Octave Organics</span>
-          <span style={{ fontSize: '10px', marginLeft: '8px', color: '#666' }}>Timesheet</span>
+          <span style={{ fontSize: '12px', fontWeight: '600' }}>Wild Octave Organics</span>
+          <span style={{ fontSize: '11px', marginLeft: '10px', color: '#555' }}>Timesheet</span>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <span style={{ fontWeight: '700', fontSize: '14px' }}>{employeeName}</span>
-          <span style={{ marginLeft: '12px', fontSize: '11px' }}>{MONTHS[month]} {year}</span>
+          <span style={{ fontWeight: '700', fontSize: '16px' }}>{employeeName}</span>
+          <span style={{ marginLeft: '14px', fontSize: '12px' }}>{MONTHS[month]} {year}</span>
         </div>
       </div>
 
-      {/* Timesheet Grid - compact */}
+      {/* Timesheet Grid - fills remaining space */}
       <table style={{ 
         width: '100%', 
         borderCollapse: 'collapse',
-        fontSize: '8px'
+        fontSize: '9px',
+        flex: 1,
+        tableLayout: 'fixed'
       }}>
         <thead>
           <tr>
             <th style={{ 
               border: '1px solid black', 
-              padding: '1px 3px',
-              width: '36px',
+              padding: '2px 4px',
+              width: '38px',
               fontWeight: '600',
               backgroundColor: 'white',
-              fontSize: '8px'
+              fontSize: '9px'
             }}>Day</th>
             {days.map((d) => (
               <th 
@@ -77,7 +83,8 @@ function TimesheetCard({ employeeName, month, year, days }: {
                   textAlign: 'center',
                   fontWeight: d.isWeekend ? 'bold' : 'normal',
                   backgroundColor: 'white',
-                  fontSize: '8px'
+                  fontSize: '9px',
+                  lineHeight: '1.1'
                 }}
               >
                 <div>{d.dayName}</div>
@@ -88,28 +95,28 @@ function TimesheetCard({ employeeName, month, year, days }: {
         </thead>
         <tbody>
           {/* Start Time Row */}
-          <tr>
-            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>Start</td>
+          <tr style={{ height: '25%' }}>
+            <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white', fontSize: '9px' }}>Start</td>
             {days.map((d) => (
-              <td key={`start-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '18px', backgroundColor: 'white' }}></td>
+              <td key={`start-${d.day}`} style={{ border: '1px solid black', backgroundColor: 'white' }}></td>
             ))}
           </tr>
           {/* End Time Row */}
-          <tr>
-            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>End</td>
+          <tr style={{ height: '25%' }}>
+            <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white', fontSize: '9px' }}>End</td>
             {days.map((d) => (
-              <td key={`end-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '18px', backgroundColor: 'white' }}></td>
+              <td key={`end-${d.day}`} style={{ border: '1px solid black', backgroundColor: 'white' }}></td>
             ))}
           </tr>
-          {/* Break Row - checkbox + mins combined */}
-          <tr>
-            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>Break</td>
+          {/* Break Row */}
+          <tr style={{ height: '25%' }}>
+            <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white', fontSize: '9px' }}>Break</td>
             {days.map((d) => (
-              <td key={`brk-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '16px', backgroundColor: 'white' }}>
+              <td key={`brk-${d.day}`} style={{ border: '1px solid black', backgroundColor: 'white', textAlign: 'center', verticalAlign: 'middle' }}>
                 <div style={{ 
-                  width: '8px', 
-                  height: '8px', 
-                  border: '1px solid black',
+                  width: '10px', 
+                  height: '10px', 
+                  border: '1.5px solid black',
                   margin: '0 auto',
                   backgroundColor: 'white'
                 }}></div>
@@ -117,28 +124,29 @@ function TimesheetCard({ employeeName, month, year, days }: {
             ))}
           </tr>
           {/* Hours Row */}
-          <tr>
-            <td style={{ border: '1px solid black', padding: '1px 3px', fontWeight: '600', backgroundColor: 'white', fontSize: '8px' }}>Hours</td>
+          <tr style={{ height: '25%' }}>
+            <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white', fontSize: '9px' }}>Hours</td>
             {days.map((d) => (
-              <td key={`hrs-${d.day}`} style={{ border: '1px solid black', padding: '1px', height: '18px', backgroundColor: 'white' }}></td>
+              <td key={`hrs-${d.day}`} style={{ border: '1px solid black', backgroundColor: 'white' }}></td>
             ))}
           </tr>
         </tbody>
       </table>
 
-      {/* Footer - just signatures */}
+      {/* Footer - signatures */}
       <div style={{ 
-        marginTop: '3px',
+        marginTop: '2mm',
         display: 'flex',
         justifyContent: 'flex-end',
-        gap: '24px',
-        fontSize: '9px'
+        gap: '28px',
+        fontSize: '10px',
+        flexShrink: 0
       }}>
         <div>
           <span>Employee:</span>
           <span style={{ 
             display: 'inline-block', 
-            width: '100px', 
+            width: '90px', 
             borderBottom: '1px solid black',
             marginLeft: '4px'
           }}></span>
@@ -147,7 +155,7 @@ function TimesheetCard({ employeeName, month, year, days }: {
           <span>Manager:</span>
           <span style={{ 
             display: 'inline-block', 
-            width: '100px', 
+            width: '90px', 
             borderBottom: '1px solid black',
             marginLeft: '4px'
           }}></span>
@@ -213,7 +221,6 @@ export default function TimesheetsPage() {
     setSelectedYear(newYear);
   };
 
-  // Generate array of days for the month
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(selectedYear, selectedMonth, i + 1);
     return {
@@ -223,7 +230,7 @@ export default function TimesheetsPage() {
     };
   });
 
-  // For "Print All" - group staff into pages of 3
+  // Group staff into pages of 3
   const staffPages: Staff[][] = [];
   for (let i = 0; i < staff.length; i += 3) {
     staffPages.push(staff.slice(i, i + 3));
@@ -231,7 +238,7 @@ export default function TimesheetsPage() {
 
   return (
     <>
-      {/* Global Print Styles */}
+      {/* Print Styles */}
       <style jsx global>{`
         @media print {
           @page {
@@ -265,8 +272,17 @@ export default function TimesheetsPage() {
             color: black !important;
           }
           
-          .page-break {
+          .print-page {
+            height: 190mm;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             page-break-after: always;
+          }
+          
+          .print-page:last-child {
+            page-break-after: auto;
           }
           
           .no-print {
@@ -335,7 +351,7 @@ export default function TimesheetsPage() {
               </button>
             </div>
 
-            {/* Employee Selection for single print */}
+            {/* Employee Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <User className="w-4 h-4 inline mr-1" />
@@ -389,24 +405,24 @@ export default function TimesheetsPage() {
         {/* Printable Area */}
         <div id="printable-area" style={{ backgroundColor: 'white' }}>
           {printMode === 'single' ? (
-            // Single employee timesheet (still compact, 3 would fit per page)
-            <div style={{ padding: '8px' }}>
+            <div className="print-page" style={{ padding: '0 4mm' }}>
               <TimesheetCard 
                 employeeName={employeeName || '_______________'} 
                 month={selectedMonth} 
                 year={selectedYear}
                 days={days}
               />
+              <div style={{ flex: 1 }}></div>
+              <div style={{ flex: 1 }}></div>
             </div>
           ) : (
-            // All staff - 3 per page
             staffPages.map((pageStaff, pageIndex) => (
               <div 
                 key={pageIndex} 
-                className={pageIndex < staffPages.length - 1 ? 'page-break' : ''}
-                style={{ padding: '0 8px' }}
+                className="print-page"
+                style={{ padding: '0 4mm' }}
               >
-                {pageStaff.map((staffMember) => (
+                {pageStaff.map((staffMember, idx) => (
                   <TimesheetCard 
                     key={staffMember.id}
                     employeeName={staffMember.name} 
@@ -415,15 +431,19 @@ export default function TimesheetsPage() {
                     days={days}
                   />
                 ))}
+                {/* Fill remaining slots if less than 3 */}
+                {pageStaff.length < 3 && Array.from({ length: 3 - pageStaff.length }).map((_, idx) => (
+                  <div key={`empty-${idx}`} style={{ height: '63mm' }}></div>
+                ))}
               </div>
             ))
           )}
         </div>
 
-        {/* Preview on screen */}
+        {/* Preview */}
         <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4 no-print">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Preview (single timesheet)</h3>
-          <div className="border rounded-lg p-3 bg-gray-50">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Preview</h3>
+          <div className="border rounded-lg p-3 bg-gray-50 overflow-auto">
             <TimesheetCard 
               employeeName={employeeName || 'Employee Name'} 
               month={selectedMonth} 
