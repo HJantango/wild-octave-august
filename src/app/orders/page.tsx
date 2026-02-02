@@ -385,6 +385,11 @@ export default function OrdersPage() {
         // Sync order frequency to the shared state used by the rest of the page
         setOrderFrequency(squareOrderFrequency);
         setActualWeeks(squareWeeks);
+        
+        // Sync the selected vendor so Create Purchase Order button works
+        if (squareVendor) {
+          setSelectedVendor(squareVendor);
+        }
 
         // Extract unique vendor names from the data
         const uniqueVendors = Array.from(new Set(analyzedItems.map((item: OrderItem) => item.vendorName))).filter(Boolean) as string[];
@@ -954,7 +959,10 @@ export default function OrdersPage() {
                     <select
                       id="square-vendor-select"
                       value={squareVendor}
-                      onChange={(e) => setSquareVendor(e.target.value)}
+                      onChange={(e) => {
+                        setSquareVendor(e.target.value);
+                        setSelectedVendor(e.target.value); // Sync so Create PO button works
+                      }}
                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white text-gray-900 border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                     >
                       <option value="">All Vendors</option>
