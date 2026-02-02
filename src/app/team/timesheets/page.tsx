@@ -83,7 +83,7 @@ export default function TimesheetsPage() {
 
   return (
     <>
-      {/* Global Print Styles - These override everything when printing */}
+      {/* Global Print Styles */}
       <style jsx global>{`
         @media print {
           @page {
@@ -91,18 +91,15 @@ export default function TimesheetsPage() {
             margin: 6mm;
           }
           
-          /* Hide everything by default */
           body * {
             visibility: hidden;
           }
           
-          /* Show only the printable area */
           #printable-timesheet,
           #printable-timesheet * {
             visibility: visible;
           }
           
-          /* Position the printable area at top-left */
           #printable-timesheet {
             position: absolute;
             left: 0;
@@ -111,25 +108,19 @@ export default function TimesheetsPage() {
             background: white !important;
           }
           
-          /* Remove all backgrounds and shadows */
           #printable-timesheet,
           #printable-timesheet * {
             background: white !important;
             box-shadow: none !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-          }
-          
-          /* Ensure black text */
-          #printable-timesheet,
-          #printable-timesheet * {
             color: black !important;
           }
         }
       `}</style>
 
       <DashboardLayout>
-        {/* Screen Controls - Hidden when printing via visibility:hidden */}
+        {/* Screen Controls */}
         <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
             <Calendar className="w-7 h-7 text-emerald-600" />
@@ -227,7 +218,7 @@ export default function TimesheetsPage() {
           </div>
         </div>
 
-        {/* Printable Timesheet - This is the only thing that prints */}
+        {/* Printable Timesheet */}
         <div 
           id="printable-timesheet"
           style={{ 
@@ -242,44 +233,46 @@ export default function TimesheetsPage() {
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
-            marginBottom: '8px',
+            marginBottom: '12px',
             borderBottom: '2px solid black',
-            paddingBottom: '6px'
+            paddingBottom: '8px'
           }}>
             <div>
-              <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Wild Octave Organics</span>
-              <span style={{ fontSize: '14px', marginLeft: '16px' }}>Employee Timesheet</span>
+              <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Wild Octave Organics</span>
+              <span style={{ fontSize: '16px', marginLeft: '16px' }}>Employee Timesheet</span>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontWeight: '600' }}>{employeeName || '_______________'}</span>
-              <span style={{ marginLeft: '16px' }}>{MONTHS[selectedMonth]} {selectedYear}</span>
+              <span style={{ fontWeight: '600', fontSize: '16px' }}>{employeeName || '_______________'}</span>
+              <span style={{ marginLeft: '16px', fontSize: '16px' }}>{MONTHS[selectedMonth]} {selectedYear}</span>
             </div>
           </div>
 
-          {/* Compact Timesheet Grid */}
+          {/* Timesheet Grid - Larger cells */}
           <table style={{ 
             width: '100%', 
             borderCollapse: 'collapse',
-            fontSize: '9px'
+            fontSize: '11px'
           }}>
             <thead>
               <tr>
                 <th style={{ 
                   border: '1px solid black', 
-                  padding: '2px 4px',
-                  width: '40px',
+                  padding: '4px 6px',
+                  width: '50px',
                   fontWeight: '600',
-                  backgroundColor: 'white'
+                  backgroundColor: 'white',
+                  fontSize: '10px'
                 }}>Day</th>
                 {days.map((d) => (
                   <th 
                     key={d.day}
                     style={{ 
                       border: '1px solid black', 
-                      padding: '2px',
+                      padding: '3px 2px',
                       textAlign: 'center',
                       fontWeight: d.isWeekend ? 'bold' : 'normal',
-                      backgroundColor: 'white'
+                      backgroundColor: 'white',
+                      fontSize: '10px'
                     }}
                   >
                     <div>{d.dayName}</div>
@@ -289,29 +282,29 @@ export default function TimesheetsPage() {
               </tr>
             </thead>
             <tbody>
-              {/* Start Time Row */}
+              {/* Start Time Row - TALL */}
               <tr>
-                <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white' }}>Start</td>
+                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Start</td>
                 {days.map((d) => (
-                  <td key={`start-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '18px', backgroundColor: 'white' }}></td>
+                  <td key={`start-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '32px', backgroundColor: 'white' }}></td>
                 ))}
               </tr>
-              {/* End Time Row */}
+              {/* End Time Row - TALL */}
               <tr>
-                <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white' }}>End</td>
+                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>End</td>
                 {days.map((d) => (
-                  <td key={`end-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '18px', backgroundColor: 'white' }}></td>
+                  <td key={`end-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '32px', backgroundColor: 'white' }}></td>
                 ))}
               </tr>
               {/* Break Checkbox Row */}
               <tr>
-                <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white' }}>Break?</td>
+                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Break?</td>
                 {days.map((d) => (
-                  <td key={`brk-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '14px', textAlign: 'center', backgroundColor: 'white' }}>
+                  <td key={`brk-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '20px', textAlign: 'center', backgroundColor: 'white' }}>
                     <div style={{ 
-                      width: '8px', 
-                      height: '8px', 
-                      border: '1px solid black',
+                      width: '12px', 
+                      height: '12px', 
+                      border: '1.5px solid black',
                       margin: '0 auto',
                       backgroundColor: 'white'
                     }}></div>
@@ -320,16 +313,16 @@ export default function TimesheetsPage() {
               </tr>
               {/* Break Duration Row */}
               <tr>
-                <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white' }}>Brk Min</td>
+                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Brk Min</td>
                 {days.map((d) => (
-                  <td key={`brkm-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '14px', backgroundColor: 'white' }}></td>
+                  <td key={`brkm-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '24px', backgroundColor: 'white' }}></td>
                 ))}
               </tr>
-              {/* Hours Row */}
+              {/* Hours Row - TALL */}
               <tr>
-                <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: '600', backgroundColor: 'white' }}>Hours</td>
+                <td style={{ border: '1px solid black', padding: '4px 6px', fontWeight: '600', backgroundColor: 'white', fontSize: '10px' }}>Hours</td>
                 {days.map((d) => (
-                  <td key={`hrs-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '18px', backgroundColor: 'white' }}></td>
+                  <td key={`hrs-${d.day}`} style={{ border: '1px solid black', padding: '2px', height: '32px', backgroundColor: 'white' }}></td>
                 ))}
               </tr>
             </tbody>
@@ -337,50 +330,50 @@ export default function TimesheetsPage() {
 
           {/* Footer */}
           <div style={{ 
-            marginTop: '12px',
-            paddingTop: '8px',
-            borderTop: '1px solid black',
+            marginTop: '20px',
+            paddingTop: '12px',
+            borderTop: '2px solid black',
             display: 'flex',
             justifyContent: 'space-between',
-            fontSize: '11px'
+            fontSize: '13px'
           }}>
-            <div style={{ display: 'flex', gap: '32px' }}>
+            <div style={{ display: 'flex', gap: '40px' }}>
               <div>
                 <span style={{ fontWeight: '600' }}>Total Hours:</span>
                 <span style={{ 
                   display: 'inline-block', 
-                  width: '60px', 
+                  width: '80px', 
                   borderBottom: '1px solid black',
-                  marginLeft: '4px'
+                  marginLeft: '8px'
                 }}></span>
               </div>
               <div>
                 <span style={{ fontWeight: '600' }}>Total Breaks:</span>
                 <span style={{ 
                   display: 'inline-block', 
-                  width: '60px', 
+                  width: '80px', 
                   borderBottom: '1px solid black',
-                  marginLeft: '4px'
+                  marginLeft: '8px'
                 }}></span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '32px' }}>
+            <div style={{ display: 'flex', gap: '40px' }}>
               <div>
-                <span>Employee Sig:</span>
+                <span>Employee Signature:</span>
                 <span style={{ 
                   display: 'inline-block', 
-                  width: '120px', 
+                  width: '150px', 
                   borderBottom: '1px solid black',
-                  marginLeft: '4px'
+                  marginLeft: '8px'
                 }}></span>
               </div>
               <div>
-                <span>Manager Sig:</span>
+                <span>Manager Signature:</span>
                 <span style={{ 
                   display: 'inline-block', 
-                  width: '120px', 
+                  width: '150px', 
                   borderBottom: '1px solid black',
-                  marginLeft: '4px'
+                  marginLeft: '8px'
                 }}></span>
               </div>
             </div>
