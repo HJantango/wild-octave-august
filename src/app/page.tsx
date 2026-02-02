@@ -879,24 +879,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Help Section for CSV Data */}
-        {!hasData && !isLoading && (
-          <Card className="border-2 border-dashed border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-            <CardContent className="p-12 text-center">
-              <div className="text-6xl mb-4">📊</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Import Sales Data</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Upload your sales CSV files to see comprehensive analytics, revenue trends, and detailed insights about your business performance.
-              </p>
-              <Link href="/sales">
-                <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                  <span className="mr-2">📈</span>
-                  Manage Sales Data
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </DashboardLayout>
   );
