@@ -1,45 +1,54 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { Printer, Calendar, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Printer, Calendar, User, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 
-const EMPLOYEES = [
-  'Heath',
-  'Bec',
-  'Katie',
-  'Sarah',
-  'Josh',
-  'Emma',
-  'Other'
-];
+interface Staff {
+  id: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+}
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_ABBREV = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-function getFirstDayOfMonth(year: number, month: number): number {
-  return new Date(year, month, 1).getDay();
-}
-
 export default function TimesheetsPage() {
   const today = new Date();
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [customEmployee, setCustomEmployee] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
-  const printRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function fetchStaff() {
+      try {
+        const res = await fetch('/api/roster/staff');
+        const data = await res.json();
+        if (data.success) {
+          setStaff(data.data.filter((s: Staff) => s.isActive));
+        }
+      } catch (err) {
+        console.error('Failed to fetch staff:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStaff();
+  }, []);
 
   const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
-  const firstDay = getFirstDayOfMonth(selectedYear, selectedMonth);
-
   const employeeName = selectedEmployee === 'Other' ? customEmployee : selectedEmployee;
 
   const handlePrint = () => {
@@ -67,13 +76,10 @@ export default function TimesheetsPage() {
     const date = new Date(selectedYear, selectedMonth, i + 1);
     return {
       day: i + 1,
-      dayName: DAY_NAMES[date.getDay()],
+      dayName: DAY_ABBREV[date.getDay()],
       isWeekend: date.getDay() === 0 || date.getDay() === 6
     };
   });
-
-  // Split days into weeks for better layout (7 days per row)
-  const weeksCount = Math.ceil(daysInMonth / 7);
 
   return (
     <DashboardLayout>
@@ -91,24 +97,34 @@ export default function TimesheetsPage() {
               <User className="w-4 h-4 inline mr-1" />
               Employee Name
             </label>
-            <select
-              value={selectedEmployee}
-              onChange={(e) => setSelectedEmployee(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-            >
-              <option value="">Select employee...</option>
-              {EMPLOYEES.map((emp) => (
-                <option key={emp} value={emp}>{emp}</option>
-              ))}
-            </select>
-            {selectedEmployee === 'Other' && (
-              <input
-                type="text"
-                value={customEmployee}
-                onChange={(e) => setCustomEmployee(e.target.value)}
-                placeholder="Enter employee name..."
-                className="mt-2 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              />
+            {loading ? (
+              <div className="flex items-center gap-2 text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading staff...
+              </div>
+            ) : (
+              <>
+                <select
+                  value={selectedEmployee}
+                  onChange={(e) => setSelectedEmployee(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                >
+                  <option value="">Select employee...</option>
+                  {staff.map((emp) => (
+                    <option key={emp.id} value={emp.name}>{emp.name}</option>
+                  ))}
+                  <option value="Other">Other...</option>
+                </select>
+                {selectedEmployee === 'Other' && (
+                  <input
+                    type="text"
+                    value={customEmployee}
+                    onChange={(e) => setCustomEmployee(e.target.value)}
+                    placeholder="Enter employee name..."
+                    className="mt-2 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                )}
+              </>
             )}
           </div>
 
@@ -165,17 +181,14 @@ export default function TimesheetsPage() {
         </div>
       </div>
 
-      {/* Printable Timesheet */}
-      <div 
-        ref={printRef}
-        className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 print:shadow-none print:border-none print:rounded-none print:p-0"
-      >
+      {/* Printable Timesheet - Compact A4 Landscape */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 print:shadow-none print:border-none print:rounded-none print:p-0">
         {/* Print Styles */}
         <style jsx global>{`
           @media print {
             @page {
               size: A4 landscape;
-              margin: 10mm;
+              margin: 8mm;
             }
             body {
               -webkit-print-color-adjust: exact;
@@ -188,131 +201,94 @@ export default function TimesheetsPage() {
         `}</style>
 
         {/* Header */}
-        <div className="flex justify-between items-start mb-4 border-b-2 border-emerald-600 pb-3">
+        <div className="flex justify-between items-center mb-2 border-b border-black pb-1">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Wild Octave Organics</h1>
-            <p className="text-gray-600 text-sm">Employee Timesheet</p>
+            <span className="text-base font-bold">Wild Octave Organics</span>
+            <span className="text-sm ml-4">Employee Timesheet</span>
           </div>
           <div className="text-right">
-            <p className="text-lg font-semibold text-gray-900">
-              {employeeName || 'Employee Name'}
-            </p>
-            <p className="text-emerald-600 font-medium">
-              {MONTHS[selectedMonth]} {selectedYear}
-            </p>
+            <span className="font-semibold">{employeeName || '_______________'}</span>
+            <span className="ml-4">{MONTHS[selectedMonth]} {selectedYear}</span>
           </div>
         </div>
 
-        {/* Timesheet Table - Split into rows of 7 days */}
-        <div className="space-y-3">
-          {Array.from({ length: weeksCount }, (_, weekIndex) => {
-            const weekDays = days.slice(weekIndex * 7, (weekIndex + 1) * 7);
-            
-            return (
-              <div key={weekIndex} className="border border-gray-300 rounded overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      {weekDays.map((d) => (
-                        <th 
-                          key={d.day} 
-                          className={`px-1 py-1 text-center border-r border-gray-300 last:border-r-0 ${d.isWeekend ? 'bg-gray-200' : ''}`}
-                          style={{ width: `${100 / 7}%` }}
-                        >
-                          <div className="font-bold text-gray-900">{d.dayName}</div>
-                          <div className="text-gray-600">{d.day}</div>
-                        </th>
-                      ))}
-                      {/* Fill empty cells for incomplete weeks */}
-                      {weekDays.length < 7 && Array.from({ length: 7 - weekDays.length }, (_, i) => (
-                        <th key={`empty-${i}`} className="px-1 py-1 bg-gray-50 border-r border-gray-300 last:border-r-0" style={{ width: `${100 / 7}%` }}></th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Start Time Row */}
-                    <tr>
-                      {weekDays.map((d) => (
-                        <td key={`start-${d.day}`} className={`px-1 py-1 border-r border-gray-300 last:border-r-0 ${d.isWeekend ? 'bg-gray-50' : ''}`}>
-                          <div className="text-[10px] text-gray-500 mb-0.5">Start</div>
-                          <div className="h-5 border-b border-gray-300"></div>
-                        </td>
-                      ))}
-                      {weekDays.length < 7 && Array.from({ length: 7 - weekDays.length }, (_, i) => (
-                        <td key={`empty-start-${i}`} className="px-1 py-1 bg-gray-50 border-r border-gray-300 last:border-r-0"></td>
-                      ))}
-                    </tr>
-                    {/* End Time Row */}
-                    <tr>
-                      {weekDays.map((d) => (
-                        <td key={`end-${d.day}`} className={`px-1 py-1 border-r border-gray-300 last:border-r-0 ${d.isWeekend ? 'bg-gray-50' : ''}`}>
-                          <div className="text-[10px] text-gray-500 mb-0.5">End</div>
-                          <div className="h-5 border-b border-gray-300"></div>
-                        </td>
-                      ))}
-                      {weekDays.length < 7 && Array.from({ length: 7 - weekDays.length }, (_, i) => (
-                        <td key={`empty-end-${i}`} className="px-1 py-1 bg-gray-50 border-r border-gray-300 last:border-r-0"></td>
-                      ))}
-                    </tr>
-                    {/* Break Row */}
-                    <tr className="bg-amber-50/50">
-                      {weekDays.map((d) => (
-                        <td key={`break-${d.day}`} className={`px-1 py-1 border-r border-gray-300 last:border-r-0 ${d.isWeekend ? 'bg-gray-50' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 border border-gray-400 rounded-sm flex-shrink-0"></div>
-                            <span className="text-[9px] text-gray-500">Break</span>
-                          </div>
-                          <div className="h-4 border-b border-gray-300 mt-0.5"></div>
-                        </td>
-                      ))}
-                      {weekDays.length < 7 && Array.from({ length: 7 - weekDays.length }, (_, i) => (
-                        <td key={`empty-break-${i}`} className="px-1 py-1 bg-gray-50 border-r border-gray-300 last:border-r-0"></td>
-                      ))}
-                    </tr>
-                    {/* Hours Row */}
-                    <tr>
-                      {weekDays.map((d) => (
-                        <td key={`hours-${d.day}`} className={`px-1 py-1 border-r border-gray-300 last:border-r-0 ${d.isWeekend ? 'bg-gray-50' : ''}`}>
-                          <div className="text-[10px] text-gray-500 mb-0.5">Hours</div>
-                          <div className="h-5 border-b border-gray-300"></div>
-                        </td>
-                      ))}
-                      {weekDays.length < 7 && Array.from({ length: 7 - weekDays.length }, (_, i) => (
-                        <td key={`empty-hours-${i}`} className="px-1 py-1 bg-gray-50 border-r border-gray-300 last:border-r-0"></td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-        </div>
+        {/* Compact Timesheet Grid - All days in one table */}
+        <table className="w-full border-collapse text-[10px] print:text-[9px]">
+          <thead>
+            <tr>
+              <th className="border border-black p-0.5 w-12 font-semibold">Day</th>
+              {days.map((d) => (
+                <th 
+                  key={d.day} 
+                  className={`border border-black p-0.5 text-center font-normal ${d.isWeekend ? 'font-bold' : ''}`}
+                >
+                  <div>{d.dayName}</div>
+                  <div className="font-semibold">{d.day}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Start Time Row */}
+            <tr>
+              <td className="border border-black p-0.5 font-semibold">Start</td>
+              {days.map((d) => (
+                <td key={`start-${d.day}`} className="border border-black p-0.5 h-5"></td>
+              ))}
+            </tr>
+            {/* End Time Row */}
+            <tr>
+              <td className="border border-black p-0.5 font-semibold">End</td>
+              {days.map((d) => (
+                <td key={`end-${d.day}`} className="border border-black p-0.5 h-5"></td>
+              ))}
+            </tr>
+            {/* Break Checkbox Row */}
+            <tr>
+              <td className="border border-black p-0.5 font-semibold">Break?</td>
+              {days.map((d) => (
+                <td key={`brk-${d.day}`} className="border border-black p-0.5 h-4 text-center">
+                  <div className="w-2.5 h-2.5 border border-black mx-auto"></div>
+                </td>
+              ))}
+            </tr>
+            {/* Break Duration Row */}
+            <tr>
+              <td className="border border-black p-0.5 font-semibold">Brk Mins</td>
+              {days.map((d) => (
+                <td key={`brkm-${d.day}`} className="border border-black p-0.5 h-4"></td>
+              ))}
+            </tr>
+            {/* Hours Row */}
+            <tr>
+              <td className="border border-black p-0.5 font-semibold">Hours</td>
+              {days.map((d) => (
+                <td key={`hrs-${d.day}`} className="border border-black p-0.5 h-5"></td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
 
-        {/* Footer - Summary & Signature */}
-        <div className="mt-4 pt-3 border-t border-gray-300">
-          <div className="grid grid-cols-3 gap-6">
+        {/* Footer - Compact */}
+        <div className="mt-3 pt-2 border-t border-black flex justify-between text-[11px]">
+          <div className="flex gap-8">
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Monthly Totals</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex justify-between border-b border-gray-300 pb-1">
-                  <span className="text-gray-600">Total Hours:</span>
-                  <span className="w-16 border-b border-gray-400"></span>
-                </div>
-                <div className="flex justify-between border-b border-gray-300 pb-1">
-                  <span className="text-gray-600">Total Breaks:</span>
-                  <span className="w-16 border-b border-gray-400"></span>
-                </div>
-              </div>
+              <span className="font-semibold">Total Hours:</span>
+              <span className="inline-block w-16 border-b border-black ml-1"></span>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Employee Signature</p>
-              <div className="h-8 border-b border-gray-400"></div>
-              <p className="text-xs text-gray-500 mt-1">Date: _______________</p>
+              <span className="font-semibold">Total Breaks:</span>
+              <span className="inline-block w-16 border-b border-black ml-1"></span>
+            </div>
+          </div>
+          <div className="flex gap-8">
+            <div>
+              <span>Employee Sig:</span>
+              <span className="inline-block w-32 border-b border-black ml-1"></span>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Manager Signature</p>
-              <div className="h-8 border-b border-gray-400"></div>
-              <p className="text-xs text-gray-500 mt-1">Date: _______________</p>
+              <span>Manager Sig:</span>
+              <span className="inline-block w-32 border-b border-black ml-1"></span>
             </div>
           </div>
         </div>
