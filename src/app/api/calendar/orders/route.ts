@@ -126,9 +126,10 @@ export async function GET(request: NextRequest) {
       delivered: orders.filter(o => o.status === 'delivered').length,
     };
 
-    // Transform orders to include parsed customDays
+    // Transform orders to include parsed customDays and vendorName
     const transformedOrders = orders.map(order => ({
       ...order,
+      vendorName: order.vendor?.name || 'Unknown Vendor',
       customDays: order.customDays ? JSON.parse(order.customDays) : null,
     }));
 
