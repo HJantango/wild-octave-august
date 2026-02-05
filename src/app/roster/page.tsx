@@ -19,6 +19,8 @@ interface Staff {
   saturdayHourlyRate?: number;
   sundayHourlyRate?: number;
   publicHolidayHourlyRate?: number;
+  taxRate: number;
+  superRate?: number | null;
   isActive: boolean;
 }
 
@@ -81,10 +83,7 @@ const getRoleIcon = (role: string, isBackupBarista: boolean = false) => {
   }
 };
 
-// Note: Penalty rates are now configured per employee in their individual settings
-
-const TAX_RATE = 0.25;
-const SUPER_RATE = 0.115; // 11.5% super
+// Note: Penalty rates, tax rates, and super rates are now configured per employee in their individual settings
 
 export default function RosterPage() {
   const toast = useToast();
@@ -777,8 +776,51 @@ export default function RosterPage() {
   };
 
   const weeklyCost = calculateWeeklyCost();
-  const taxAmount = weeklyCost * TAX_RATE;
-  const superAmount = weeklyCost * SUPER_RATE;
+  
+  // Calculate tax and super per staff member based on their individual rates
+  const calculateStaffTaxAndSuper = () => {
+    if (!roster) return { totalTax: 0, totalSuper: 0 };
+    
+    let totalTax = 0;
+    let totalSuper = 0;
+    
+    // Group shifts by staff and calculate their costs
+    const staffCosts = new Map<string, { gross: number; staffMember: Staff | undefined }>();
+    
+    roster.shifts.forEach(shift => {
+      const shiftDate = new Date(currentWeek);
+      const dayIndex = shift.dayOfWeek === 0 ? 6 : shift.dayOfWeek - 1;
+      shiftDate.setDate(shiftDate.getDate() + dayIndex);
+      const cost = calculateShiftCost(shift, shiftDate);
+      
+      const existing = staffCosts.get(shift.staffId);
+      const staffMember = staff.find(s => s.id === shift.staffId);
+      if (existing) {
+        existing.gross += cost;
+      } else {
+        staffCosts.set(shift.staffId, { gross: cost, staffMember });
+      }
+    });
+    
+    // Calculate tax and super for each staff member based on their rates
+    staffCosts.forEach(({ gross, staffMember }) => {
+      if (staffMember) {
+        // Tax calculation: use individual taxRate (defaults to 30% if undefined)
+        const taxRate = (staffMember.taxRate ?? 30) / 100;
+        totalTax += gross * taxRate;
+        
+        // Super calculation: use individual superRate (null = no super, e.g., juniors)
+        if (staffMember.superRate !== null && staffMember.superRate !== undefined) {
+          const superRate = staffMember.superRate / 100;
+          totalSuper += gross * superRate;
+        }
+      }
+    });
+    
+    return { totalTax, totalSuper };
+  };
+  
+  const { totalTax: taxAmount, totalSuper: superAmount } = calculateStaffTaxAndSuper();
   const totalCost = weeklyCost + taxAmount + superAmount;
   const targetWageCost = weeklySalesTarget * (targetWagePercentage / 100);
   const wageDifference = totalCost - targetWageCost;
@@ -1088,7 +1130,7 @@ export default function RosterPage() {
               <div className="flex items-center space-x-2">
                 <ClockIcon className="w-6 h-6" />
                 <div>
-                  <p className="text-sm opacity-90">Tax (25%)</p>
+                  <p className="text-sm opacity-90">Tax (per person)</p>
                   <p className="text-xl font-bold">{formatCurrency(taxAmount)}</p>
                 </div>
               </div>
@@ -1100,7 +1142,7 @@ export default function RosterPage() {
               <div className="flex items-center space-x-2">
                 <UserIcon className="w-6 h-6" />
                 <div>
-                  <p className="text-sm opacity-90">Super (11.5%)</p>
+                  <p className="text-sm opacity-90">Super (per person)</p>
                   <p className="text-xl font-bold">{formatCurrency(superAmount)}</p>
                 </div>
               </div>

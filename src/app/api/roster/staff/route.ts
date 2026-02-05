@@ -16,6 +16,8 @@ export async function GET() {
         saturdayHourlyRate: true,
         sundayHourlyRate: true,
         publicHolidayHourlyRate: true,
+        taxRate: true,
+        superRate: true,
         email: true,
         phone: true,
         isActive: true,
@@ -29,6 +31,8 @@ export async function GET() {
       saturdayHourlyRate: person.saturdayHourlyRate ? Number(person.saturdayHourlyRate) : null,
       sundayHourlyRate: person.sundayHourlyRate ? Number(person.sundayHourlyRate) : null,
       publicHolidayHourlyRate: person.publicHolidayHourlyRate ? Number(person.publicHolidayHourlyRate) : null,
+      taxRate: Number(person.taxRate),
+      superRate: person.superRate ? Number(person.superRate) : null,
     }));
 
     return NextResponse.json({
@@ -51,7 +55,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, role, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, email, phone, isActive = true } = body;
+    const { name, role, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive = true } = body;
 
     if (!name || !role || baseHourlyRate === undefined) {
       return NextResponse.json(
@@ -63,6 +67,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Default tax rate to 30% if not provided
+    const effectiveTaxRate = taxRate !== undefined ? taxRate : 30;
+    // Default super rate: null for juniors, 11.5% for others
+    const isJunior = role.toLowerCase().includes('junior');
+    const effectiveSuperRate = superRate !== undefined ? superRate : (isJunior ? null : 11.5);
+
     const newStaff = await prisma.rosterStaff.create({
       data: {
         name,
@@ -71,6 +81,8 @@ export async function POST(request: NextRequest) {
         saturdayHourlyRate,
         sundayHourlyRate,
         publicHolidayHourlyRate,
+        taxRate: effectiveTaxRate,
+        superRate: effectiveSuperRate,
         email,
         phone,
         isActive
@@ -85,6 +97,8 @@ export async function POST(request: NextRequest) {
         saturdayHourlyRate: newStaff.saturdayHourlyRate ? Number(newStaff.saturdayHourlyRate) : null,
         sundayHourlyRate: newStaff.sundayHourlyRate ? Number(newStaff.sundayHourlyRate) : null,
         publicHolidayHourlyRate: newStaff.publicHolidayHourlyRate ? Number(newStaff.publicHolidayHourlyRate) : null,
+        taxRate: Number(newStaff.taxRate),
+        superRate: newStaff.superRate ? Number(newStaff.superRate) : null,
       }
     });
 
@@ -114,7 +128,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, role, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, email, phone, isActive } = body;
+    const { id, name, role, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -135,6 +149,8 @@ export async function PUT(request: NextRequest) {
         ...(saturdayHourlyRate !== undefined && { saturdayHourlyRate }),
         ...(sundayHourlyRate !== undefined && { sundayHourlyRate }),
         ...(publicHolidayHourlyRate !== undefined && { publicHolidayHourlyRate }),
+        ...(taxRate !== undefined && { taxRate }),
+        ...(superRate !== undefined && { superRate }),
         ...(email !== undefined && { email }),
         ...(phone !== undefined && { phone }),
         ...(isActive !== undefined && { isActive }),
@@ -149,6 +165,8 @@ export async function PUT(request: NextRequest) {
         saturdayHourlyRate: updatedStaff.saturdayHourlyRate ? Number(updatedStaff.saturdayHourlyRate) : null,
         sundayHourlyRate: updatedStaff.sundayHourlyRate ? Number(updatedStaff.sundayHourlyRate) : null,
         publicHolidayHourlyRate: updatedStaff.publicHolidayHourlyRate ? Number(updatedStaff.publicHolidayHourlyRate) : null,
+        taxRate: Number(updatedStaff.taxRate),
+        superRate: updatedStaff.superRate ? Number(updatedStaff.superRate) : null,
       }
     });
 

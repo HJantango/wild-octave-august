@@ -20,6 +20,8 @@ interface Staff {
   saturdayHourlyRate?: number;
   sundayHourlyRate?: number;
   publicHolidayHourlyRate?: number;
+  taxRate: number;
+  superRate?: number | null;
   email?: string;
   phone?: string;
   isActive: boolean;
@@ -192,11 +194,14 @@ export default function AdminPage() {
       return;
     }
 
+    const isJunior = newStaffRole.toLowerCase().includes('junior');
     const newStaff: Staff = {
       id: `temp-${Date.now()}`,
       name: newStaffName,
       role: newStaffRole,
       baseHourlyRate: parseFloat(newStaffRate),
+      taxRate: 30, // Default 30%
+      superRate: isJunior ? null : 11.5, // No super for juniors by default
       email: newStaffEmail || undefined,
       phone: newStaffPhone || undefined,
       isActive: true
@@ -577,6 +582,35 @@ export default function AdminPage() {
                         placeholder={`Default: ${person.baseHourlyRate}`}
                         onChange={(e) => updateStaff(person.id, 'publicHolidayHourlyRate', parseFloat(e.target.value) || null)}
                       />
+                    </div>
+                  </div>
+                  
+                  {/* Tax & Super Rates */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                    <div>
+                      <Label>Tax Rate (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        value={person.taxRate}
+                        placeholder="30"
+                        onChange={(e) => updateStaff(person.id, 'taxRate', parseFloat(e.target.value) || 30)}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Withholding tax percentage (e.g., 30 = 30%)</p>
+                    </div>
+                    <div>
+                      <Label>Super Rate (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        value={person.superRate ?? ''}
+                        placeholder={person.role.toLowerCase().includes('junior') ? 'No super (junior)' : '11.5'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateStaff(person.id, 'superRate', val === '' ? null : parseFloat(val));
+                        }}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Leave empty for no super (juniors under 18)</p>
                     </div>
                   </div>
                 </div>

@@ -229,6 +229,8 @@ model RosterStaff {
   saturdayHourlyRate  Decimal? @map("saturday_hourly_rate") @db.Decimal(8, 2)
   sundayHourlyRate    Decimal? @map("sunday_hourly_rate") @db.Decimal(8, 2)
   publicHolidayHourlyRate Decimal? @map("public_holiday_hourly_rate") @db.Decimal(8, 2)
+  taxRate             Decimal  @default(30) @map("tax_rate") @db.Decimal(5, 2) // Individual tax rate percentage (e.g., 30 = 30%)
+  superRate           Decimal? @map("super_rate") @db.Decimal(5, 2) // Super rate percentage (null = no super, e.g., juniors)
   email               String?  // Optional email for roster notifications
   phone               String?  // Optional phone number
   isActive            Boolean  @default(true) @map("is_active")
