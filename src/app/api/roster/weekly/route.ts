@@ -41,6 +41,11 @@ export async function GET(request: NextRequest) {
                 name: true,
                 role: true,
                 baseHourlyRate: true,
+                saturdayHourlyRate: true,
+                sundayHourlyRate: true,
+                publicHolidayHourlyRate: true,
+                taxRate: true,
+                superRate: true,
                 isActive: true
               }
             }
@@ -65,6 +70,11 @@ export async function GET(request: NextRequest) {
                   name: true,
                   role: true,
                   baseHourlyRate: true,
+                  saturdayHourlyRate: true,
+                  sundayHourlyRate: true,
+                  publicHolidayHourlyRate: true,
+                  taxRate: true,
+                  superRate: true,
                   isActive: true
                 }
               }
@@ -82,7 +92,12 @@ export async function GET(request: NextRequest) {
         ...shift,
         staff: {
           ...shift.staff,
-          baseHourlyRate: Number(shift.staff.baseHourlyRate)
+          baseHourlyRate: Number(shift.staff.baseHourlyRate),
+          saturdayHourlyRate: shift.staff.saturdayHourlyRate ? Number(shift.staff.saturdayHourlyRate) : null,
+          sundayHourlyRate: shift.staff.sundayHourlyRate ? Number(shift.staff.sundayHourlyRate) : null,
+          publicHolidayHourlyRate: shift.staff.publicHolidayHourlyRate ? Number(shift.staff.publicHolidayHourlyRate) : null,
+          taxRate: shift.staff.taxRate ?? 30,
+          superRate: shift.staff.superRate
         }
       }))
     };
@@ -157,6 +172,11 @@ export async function POST(request: NextRequest) {
                 name: true,
                 role: true,
                 baseHourlyRate: true,
+                saturdayHourlyRate: true,
+                sundayHourlyRate: true,
+                publicHolidayHourlyRate: true,
+                taxRate: true,
+                superRate: true,
                 isActive: true
               }
             }
@@ -172,7 +192,12 @@ export async function POST(request: NextRequest) {
         ...shift,
         staff: {
           ...shift.staff,
-          baseHourlyRate: Number(shift.staff.baseHourlyRate)
+          baseHourlyRate: Number(shift.staff.baseHourlyRate),
+          saturdayHourlyRate: shift.staff.saturdayHourlyRate ? Number(shift.staff.saturdayHourlyRate) : null,
+          sundayHourlyRate: shift.staff.sundayHourlyRate ? Number(shift.staff.sundayHourlyRate) : null,
+          publicHolidayHourlyRate: shift.staff.publicHolidayHourlyRate ? Number(shift.staff.publicHolidayHourlyRate) : null,
+          taxRate: shift.staff.taxRate ?? 30,
+          superRate: shift.staff.superRate
         }
       }))
     };
@@ -274,6 +299,11 @@ export async function PUT(request: NextRequest) {
                 name: true,
                 role: true,
                 baseHourlyRate: true,
+                saturdayHourlyRate: true,
+                sundayHourlyRate: true,
+                publicHolidayHourlyRate: true,
+                taxRate: true,
+                superRate: true,
                 isActive: true
               }
             }
@@ -289,7 +319,12 @@ export async function PUT(request: NextRequest) {
         ...shift,
         staff: {
           ...shift.staff,
-          baseHourlyRate: Number(shift.staff.baseHourlyRate)
+          baseHourlyRate: Number(shift.staff.baseHourlyRate),
+          saturdayHourlyRate: shift.staff.saturdayHourlyRate ? Number(shift.staff.saturdayHourlyRate) : null,
+          sundayHourlyRate: shift.staff.sundayHourlyRate ? Number(shift.staff.sundayHourlyRate) : null,
+          publicHolidayHourlyRate: shift.staff.publicHolidayHourlyRate ? Number(shift.staff.publicHolidayHourlyRate) : null,
+          taxRate: shift.staff.taxRate ?? 30,
+          superRate: shift.staff.superRate
         }
       }))
     };
