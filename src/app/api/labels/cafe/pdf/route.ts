@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PDFDocument, rgb } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 interface CafeLabel {
   id: string;
@@ -34,29 +33,6 @@ function mmToPt(mm: number): number {
 const DARK_GREEN = '#054921';
 const darkGreenRgb = hexToRgb(DARK_GREEN);
 
-// Fetch font from Google Fonts
-async function fetchGoogleFont(fontFamily: string, weight: number = 400): Promise<ArrayBuffer> {
-  // Get CSS from Google Fonts API
-  const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@${weight}&display=swap`;
-  const cssResponse = await fetch(cssUrl, {
-    headers: {
-      // Use a user agent that gets woff2 format
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    },
-  });
-  const css = await cssResponse.text();
-  
-  // Extract font URL from CSS
-  const urlMatch = css.match(/src:\s*url\(([^)]+)\)/);
-  if (!urlMatch) {
-    throw new Error(`Could not find font URL for ${fontFamily}`);
-  }
-  
-  const fontUrl = urlMatch[1];
-  const fontResponse = await fetch(fontUrl);
-  return fontResponse.arrayBuffer();
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -71,29 +47,10 @@ export async function POST(request: NextRequest) {
 
     // Create PDF document
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.registerFontkit(fontkit);
 
-    // Fetch and embed custom fonts
-    let dancingScript;
-    let playfairDisplay;
-    
-    try {
-      const [dancingBytes, playfairBytes] = await Promise.all([
-        fetchGoogleFont('Dancing Script', 600),
-        fetchGoogleFont('Playfair Display', 800),
-      ]);
-      dancingScript = await pdfDoc.embedFont(dancingBytes);
-      playfairDisplay = await pdfDoc.embedFont(playfairBytes);
-    } catch (fontError) {
-      console.error('Failed to load custom fonts, using fallback:', fontError);
-      // Fallback to standard fonts
-      const { StandardFonts } = await import('pdf-lib');
-      dancingScript = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
-      playfairDisplay = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
-    }
-
-    // For badges - use Helvetica Bold
-    const { StandardFonts } = await import('pdf-lib');
+    // Use standard fonts (custom fonts can be added later)
+    const timesItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+    const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
@@ -128,48 +85,44 @@ export async function POST(request: NextRequest) {
       const labelCenterY = y + labelHeight / 2;
       
       // Calculate content heights for vertical centering
-      let totalContentHeight = 0;
       const organicHeight = label.organic ? mmToPt(10) : 0;
-      const nameHeight = mmToPt(12);
-      const badgesHeight = (label.vegan || label.glutenFree) ? mmToPt(8) : 0;
-      const ingredientsHeight = label.ingredients ? mmToPt(6) : 0;
-      const priceHeight = label.price ? mmToPt(10) : 0;
+      const nameHeight = mmToPt(14);
+      const badgesHeight = (label.vegan || label.glutenFree) ? mmToPt(10) : 0;
+      const ingredientsHeight = label.ingredients ? mmToPt(8) : 0;
+      const priceHeight = label.price ? mmToPt(12) : 0;
       
-      totalContentHeight = organicHeight + nameHeight + badgesHeight + ingredientsHeight + priceHeight;
+      const totalContentHeight = organicHeight + nameHeight + badgesHeight + ingredientsHeight + priceHeight;
       
       // Start from top of centered content
       let currentY = labelCenterY + totalContentHeight / 2;
 
-      // "Organic" text (Dancing Script style)
+      // "Organic" text (italic style)
       if (label.organic) {
-        currentY -= mmToPt(2);
         const organicText = 'Organic';
-        const organicSize = mmToPt(7);
-        const organicWidth = dancingScript.widthOfTextAtSize(organicText, organicSize);
+        const organicSize = mmToPt(8);
+        const organicWidth = timesItalic.widthOfTextAtSize(organicText, organicSize);
         page.drawText(organicText, {
           x: centerX - organicWidth / 2,
           y: currentY - organicSize,
           size: organicSize,
-          font: dancingScript,
+          font: timesItalic,
           color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
         });
         currentY -= mmToPt(10);
       }
 
-      // Item name (Playfair Display - uppercase)
+      // Item name (bold, uppercase)
       const itemName = (label.name || 'Item Name').toUpperCase();
-      const nameSize = mmToPt(8);
+      const nameSize = mmToPt(9);
       const maxNameWidth = labelWidth - mmToPt(10);
       
-      // Calculate width and truncate if needed
       let displayName = itemName;
-      let nameWidth = playfairDisplay.widthOfTextAtSize(displayName, nameSize);
+      let nameWidth = timesBold.widthOfTextAtSize(displayName, nameSize);
       
       if (nameWidth > maxNameWidth) {
-        // Truncate
         while (nameWidth > maxNameWidth && displayName.length > 3) {
           displayName = displayName.slice(0, -4) + '...';
-          nameWidth = playfairDisplay.widthOfTextAtSize(displayName, nameSize);
+          nameWidth = timesBold.widthOfTextAtSize(displayName, nameSize);
         }
       }
       
@@ -177,10 +130,10 @@ export async function POST(request: NextRequest) {
         x: centerX - nameWidth / 2,
         y: currentY - nameSize,
         size: nameSize,
-        font: playfairDisplay,
+        font: timesBold,
         color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
       });
-      currentY -= mmToPt(12);
+      currentY -= mmToPt(14);
 
       // Dietary badges
       const badges: string[] = [];
@@ -188,11 +141,10 @@ export async function POST(request: NextRequest) {
       if (label.glutenFree) badges.push('GF');
       
       if (badges.length > 0) {
-        const badgeSize = mmToPt(3);
-        const pillHeight = mmToPt(5);
-        const pillPadding = mmToPt(3);
-        const pillGap = mmToPt(3);
-        const pillRadius = mmToPt(2.5);
+        const badgeSize = mmToPt(3.5);
+        const pillHeight = mmToPt(6);
+        const pillPadding = mmToPt(4);
+        const pillGap = mmToPt(4);
         
         // Calculate total width
         let totalWidth = 0;
@@ -207,16 +159,16 @@ export async function POST(request: NextRequest) {
           const textWidth = helveticaBold.widthOfTextAtSize(badge, badgeSize);
           const pillWidth = textWidth + pillPadding * 2;
           
-          // Draw rounded rectangle (simplified as regular rectangle)
+          // Draw pill background
           page.drawRectangle({
             x: badgeX,
             y: currentY - pillHeight,
             width: pillWidth,
             height: pillHeight,
             color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
-            borderRadius: pillRadius,
           });
           
+          // Draw badge text
           page.drawText(badge, {
             x: badgeX + pillPadding,
             y: currentY - pillHeight + (pillHeight - badgeSize) / 2,
@@ -228,13 +180,13 @@ export async function POST(request: NextRequest) {
           badgeX += pillWidth + pillGap;
         });
         
-        currentY -= mmToPt(8);
+        currentY -= mmToPt(10);
       }
 
       // Ingredients (smaller, uppercase)
       if (label.ingredients) {
         const ingredientsText = label.ingredients.toUpperCase();
-        const ingredientsSize = mmToPt(2.5);
+        const ingredientsSize = mmToPt(2.8);
         const maxIngWidth = labelWidth - mmToPt(10);
         
         let displayIng = ingredientsText;
@@ -252,18 +204,18 @@ export async function POST(request: NextRequest) {
           y: currentY - ingredientsSize,
           size: ingredientsSize,
           font: helvetica,
-          color: rgb(darkGreenRgb.r * 0.85, darkGreenRgb.g * 0.85, darkGreenRgb.b * 0.85),
+          color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
         });
-        currentY -= mmToPt(6);
+        currentY -= mmToPt(8);
       }
 
       // Price badge
       if (label.price) {
         const priceText = `$${parseFloat(label.price).toFixed(2)}`;
-        const priceSize = mmToPt(5);
+        const priceSize = mmToPt(6);
         const priceWidth = helveticaBold.widthOfTextAtSize(priceText, priceSize);
-        const pricePillWidth = priceWidth + mmToPt(10);
-        const pricePillHeight = mmToPt(7);
+        const pricePillWidth = priceWidth + mmToPt(12);
+        const pricePillHeight = mmToPt(8);
         
         page.drawRectangle({
           x: centerX - pricePillWidth / 2,
