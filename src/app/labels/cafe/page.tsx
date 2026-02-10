@@ -340,26 +340,24 @@ export default function CafeLabelsPage() {
       <style jsx global>{`
         /* Hide print sheet on screen */
         #print-sheet {
-          display: none !important;
+          display: none;
         }
         
         @media print {
-          /* Hide everything except print sheet */
-          body > *:not(#print-sheet),
-          .no-print,
-          nav,
-          header,
-          footer,
-          aside {
-            display: none !important;
-            visibility: hidden !important;
+          /* Hide everything by default */
+          * {
+            visibility: hidden;
           }
           
-          /* Show print sheet */
+          /* Show print sheet and all its contents */
+          #print-sheet,
+          #print-sheet * {
+            visibility: visible !important;
+          }
+          
           #print-sheet {
             display: block !important;
-            visibility: visible !important;
-            position: absolute !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
             width: 210mm !important;
@@ -372,18 +370,11 @@ export default function CafeLabelsPage() {
             box-sizing: border-box !important;
           }
           
-          #print-sheet * {
-            visibility: visible !important;
-          }
-          
           /* Reset body/html */
           html, body {
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
-            width: 210mm !important;
-            height: 297mm !important;
-            overflow: visible !important;
           }
           
           /* Grid: 2 columns x 4 rows, filling the page */
