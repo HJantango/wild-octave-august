@@ -60,6 +60,7 @@ const navigation: NavItem[] = [
     name: 'Efficiencies',
     icon: '📈',
     submenu: [
+      { name: '🎯 Markup Checker', href: '/markup-checker' },
       { name: 'Profit Margins', href: '/reports/margins' },
       { name: 'Vendor Performance', href: '/reports/vendor-performance' },
       { name: 'Wastage & Discounts', href: '/reports/wastage-discounts' },
