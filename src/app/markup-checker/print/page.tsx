@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { formatCurrency } from '@/lib/format';
 
@@ -28,7 +28,7 @@ interface MarkupData {
   items: MarkupItem[];
 }
 
-export default function MarkupCheckerPrintPage() {
+function PrintContent() {
   const searchParams = useSearchParams();
   const [data, setData] = useState<MarkupData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,7 +61,6 @@ export default function MarkupCheckerPrintPage() {
   // Auto-print when loaded
   useEffect(() => {
     if (!loading && data) {
-      // Small delay to ensure render is complete
       setTimeout(() => {
         window.print();
       }, 500);
@@ -84,7 +83,6 @@ export default function MarkupCheckerPrintPage() {
     );
   }
 
-  // Only show under-target items
   const itemsToFix = data.items.filter((i) => i.status === 'under');
 
   const filterLabel = shelfLabel !== 'all' 
@@ -193,5 +191,13 @@ export default function MarkupCheckerPrintPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function MarkupCheckerPrintPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+      <PrintContent />
+    </Suspense>
   );
 }

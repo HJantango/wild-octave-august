@@ -253,6 +253,18 @@ export default function MarkupCheckerPage() {
           </div>
         )}
 
+        {/* Print Button */}
+        {data && data.summary.under > 0 && (
+          <div className="flex justify-end">
+            <Button 
+              onClick={handlePrintFixes}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              🖨️ Print {data.summary.under} Items to Fix
+            </Button>
+          </div>
+        )}
+
         {/* Results Table */}
         <Card>
           <CardHeader>
