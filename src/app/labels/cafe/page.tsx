@@ -338,100 +338,143 @@ export default function CafeLabelsPage() {
 
       {/* Print-only styles — 8 labels per A4 page, edge-to-edge with crop marks */}
       <style jsx global>{`
+        /* Hide print sheet on screen */
+        #print-sheet {
+          display: none !important;
+        }
+        
         @media print {
-          /* Hide all page content */
-          body * {
-            visibility: hidden;
+          /* Hide everything except print sheet */
+          body > *:not(#print-sheet),
+          .no-print,
+          nav,
+          header,
+          footer,
+          aside {
+            display: none !important;
+            visibility: hidden !important;
           }
-          /* Show only print sheet and its contents */
-          #print-sheet,
-          #print-sheet * {
-            visibility: visible !important;
-          }
+          
+          /* Show print sheet */
           #print-sheet {
             display: block !important;
-            position: fixed !important;
+            visibility: visible !important;
+            position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 210mm !important;
             height: 297mm !important;
             margin: 0 !important;
-            padding: 8mm !important; /* Small margin for crop marks */
+            padding: 5mm !important;
             background: white !important;
             z-index: 999999 !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             box-sizing: border-box !important;
           }
-          /* Reset body/html margins */
+          
+          #print-sheet * {
+            visibility: visible !important;
+          }
+          
+          /* Reset body/html */
           html, body {
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            overflow: visible !important;
           }
+          
+          /* Grid: 2 columns x 4 rows, filling the page */
           #print-sheet .print-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: repeat(4, 1fr);
-            gap: 0;
-            padding: 0;
-            width: 100%; /* 194mm available */
-            height: 100%; /* 281mm available */
-            box-sizing: border-box;
-            position: relative;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            grid-template-rows: repeat(4, 1fr) !important;
+            gap: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 200mm !important;
+            height: 287mm !important;
+            box-sizing: border-box !important;
           }
+          
+          /* Each label fills its grid cell */
           #print-sheet .label-card {
-            break-inside: avoid;
-            page-break-inside: avoid;
             display: flex !important;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            color-adjust: exact;
-            border: none;
-            border-radius: 0;
-            width: 100% !important;
-            height: 100% !important;
-            box-sizing: border-box;
-            padding: 12px 16px !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100mm !important;
+            height: 71.75mm !important;
+            padding: 6mm 5mm !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            border: none !important;
+            border-radius: 0 !important;
           }
-          /* Crop marks */
+          
+          /* Label typography for print */
+          #print-sheet .label-card h2 {
+            font-size: 9mm !important;
+            line-height: 1.1 !important;
+            margin: 1mm 0 2mm !important;
+          }
+          #print-sheet .label-card p {
+            font-size: 3mm !important;
+            line-height: 1.3 !important;
+          }
+          #print-sheet .label-card span {
+            font-size: 5mm !important;
+          }
+          
+          /* Crop marks between labels */
           #print-sheet .crop-marks {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
+            display: block !important;
+            position: absolute !important;
+            top: 5mm !important;
+            left: 5mm !important;
+            width: 200mm !important;
+            height: 287mm !important;
+            pointer-events: none !important;
           }
+          
           #print-sheet .crop-mark {
-            position: absolute;
-            background: black;
+            position: absolute !important;
+            background: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          /* Vertical crop mark (center column) */
+          
+          /* Vertical marks (center column) */
           #print-sheet .crop-v {
-            width: 0.25mm;
-            height: 5mm;
-            left: 50%;
-            transform: translateX(-50%);
+            width: 0.3mm !important;
+            height: 4mm !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
           }
-          #print-sheet .crop-v.top { top: -7mm; }
-          #print-sheet .crop-v.bottom { bottom: -7mm; }
-          /* Row crop marks */
-          #print-sheet .crop-v.row1 { top: 25%; transform: translate(-50%, -50%); }
-          #print-sheet .crop-v.row2 { top: 50%; transform: translate(-50%, -50%); }
-          #print-sheet .crop-v.row3 { top: 75%; transform: translate(-50%, -50%); }
-          /* Horizontal crop marks */
+          #print-sheet .crop-v.top { top: -4.5mm !important; }
+          #print-sheet .crop-v.bottom { bottom: -4.5mm !important; }
+          #print-sheet .crop-v.row1 { top: calc(25% - 2mm) !important; }
+          #print-sheet .crop-v.row2 { top: calc(50% - 2mm) !important; }
+          #print-sheet .crop-v.row3 { top: calc(75% - 2mm) !important; }
+          
+          /* Horizontal marks (row dividers) */
           #print-sheet .crop-h {
-            width: 5mm;
-            height: 0.25mm;
+            width: 4mm !important;
+            height: 0.3mm !important;
           }
-          #print-sheet .crop-h.left { left: -7mm; }
-          #print-sheet .crop-h.right { right: -7mm; }
-          #print-sheet .crop-h.row1 { top: 25%; transform: translateY(-50%); }
-          #print-sheet .crop-h.row2 { top: 50%; transform: translateY(-50%); }
-          #print-sheet .crop-h.row3 { top: 75%; transform: translateY(-50%); }
+          #print-sheet .crop-h.left { left: -4.5mm !important; }
+          #print-sheet .crop-h.right { right: -4.5mm !important; }
+          #print-sheet .crop-h.row1 { top: 25% !important; transform: translateY(-50%) !important; }
+          #print-sheet .crop-h.row2 { top: 50% !important; transform: translateY(-50%) !important; }
+          #print-sheet .crop-h.row3 { top: 75% !important; transform: translateY(-50%) !important; }
+          
           @page {
             size: A4 portrait;
             margin: 0;
@@ -707,8 +750,8 @@ export default function CafeLabelsPage() {
         )}
       </div>
 
-      {/* Hidden print-only sheet — 2×4 grid filling A4 with crop marks */}
-      <div id="print-sheet" style={{ display: 'none' }} ref={printRef}>
+      {/* Print-only sheet — 2×4 grid filling A4 with crop marks */}
+      <div id="print-sheet" ref={printRef}>
         <div className="print-grid">
           {labels.map((label) => (
             <LabelCard key={label.id} label={label} forPrint />
