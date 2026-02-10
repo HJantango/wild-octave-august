@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
-
-const DARK_GREEN = '#054921';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 interface CafeLabel {
   id: string;
@@ -14,154 +12,26 @@ interface CafeLabel {
   bgColor: string;
 }
 
-// Generate HTML for the label sheet
-function generateLabelHTML(labels: CafeLabel[]): string {
-  // Take first 8 labels
-  const pageLabels = labels.slice(0, 8);
-  
-  const labelHTML = pageLabels.map((label, index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    const left = 5 + col * 100; // 5mm margin + column offset
-    const top = 5 + row * 71.75; // 5mm margin + row offset
-    
-    const hasDietaryTags = label.vegan || label.glutenFree;
-    
-    return `
-      <div style="
-        position: absolute;
-        left: ${left}mm;
-        top: ${top}mm;
-        width: 100mm;
-        height: 71.75mm;
-        background-color: ${label.bgColor};
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 5mm;
-        box-sizing: border-box;
-      ">
-        ${label.organic ? `
-          <p style="
-            font-family: 'Dancing Script', cursive;
-            font-size: 7mm;
-            color: ${DARK_GREEN};
-            margin: 0 0 1mm 0;
-            line-height: 1.1;
-          ">Organic</p>
-        ` : ''}
-        
-        <h2 style="
-          font-family: 'Playfair Display', Georgia, serif;
-          font-weight: 800;
-          font-size: 8mm;
-          color: ${DARK_GREEN};
-          text-transform: uppercase;
-          line-height: 1.1;
-          margin: 1mm 0 2mm 0;
-          letter-spacing: 0.02em;
-          max-width: 90mm;
-          word-break: break-word;
-        ">${label.name || 'Item Name'}</h2>
-        
-        ${hasDietaryTags ? `
-          <div style="display: flex; gap: 2mm; margin-bottom: 2mm;">
-            ${label.vegan ? `
-              <span style="
-                background-color: ${DARK_GREEN};
-                color: #fff;
-                font-size: 3mm;
-                font-weight: 700;
-                padding: 1mm 3mm;
-                border-radius: 999px;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-              ">Vegan</span>
-            ` : ''}
-            ${label.glutenFree ? `
-              <span style="
-                background-color: ${DARK_GREEN};
-                color: #fff;
-                font-size: 3mm;
-                font-weight: 700;
-                padding: 1mm 3mm;
-                border-radius: 999px;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-              ">GF</span>
-            ` : ''}
-          </div>
-        ` : ''}
-        
-        ${label.ingredients ? `
-          <p style="
-            font-size: 2.5mm;
-            color: ${DARK_GREEN};
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            line-height: 1.3;
-            max-width: 90mm;
-            margin: 0;
-            opacity: 0.85;
-          ">${label.ingredients}</p>
-        ` : ''}
-        
-        ${label.price ? `
-          <span style="
-            background-color: ${DARK_GREEN};
-            color: #fff;
-            font-size: 5mm;
-            font-weight: 800;
-            padding: 1.5mm 5mm;
-            border-radius: 999px;
-            margin-top: 3mm;
-          ">$${parseFloat(label.price).toFixed(2)}</span>
-        ` : ''}
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
-      <style>
-        @page {
-          size: A4 portrait;
-          margin: 0;
-        }
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-        html, body {
-          width: 210mm;
-          height: 297mm;
-          margin: 0;
-          padding: 0;
-          background: white;
-        }
-        .page {
-          width: 210mm;
-          height: 297mm;
-          position: relative;
-          background: white;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="page">
-        ${labelHTML}
-      </div>
-    </body>
-    </html>
-  `;
+// Convert hex color to RGB (0-1 range)
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (result) {
+    return {
+      r: parseInt(result[1], 16) / 255,
+      g: parseInt(result[2], 16) / 255,
+      b: parseInt(result[3], 16) / 255,
+    };
+  }
+  return { r: 1, g: 1, b: 1 }; // White default
 }
+
+// Convert mm to points (1mm = 2.834645669 points)
+function mmToPt(mm: number): number {
+  return mm * 2.834645669;
+}
+
+const DARK_GREEN = '#054921';
+const darkGreenRgb = hexToRgb(DARK_GREEN);
 
 export async function POST(request: NextRequest) {
   try {
@@ -175,32 +45,195 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate HTML
-    const html = generateLabelHTML(labels);
+    // Create PDF document - A4 size
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([mmToPt(210), mmToPt(297)]); // A4 in points
 
-    // Launch Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    // Embed fonts
+    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    // Page dimensions
+    const pageWidth = mmToPt(210);
+    const pageHeight = mmToPt(297);
+    const margin = mmToPt(5);
+    
+    // Label dimensions: 100mm × 71.75mm
+    const labelWidth = mmToPt(100);
+    const labelHeight = mmToPt(71.75);
+
+    // Draw labels (max 8 per page)
+    const pageLabels = labels.slice(0, 8);
+    
+    pageLabels.forEach((label, index) => {
+      const col = index % 2;
+      const row = Math.floor(index / 2);
+      
+      // Calculate position (PDF origin is bottom-left)
+      const x = margin + col * labelWidth;
+      const y = pageHeight - margin - (row + 1) * labelHeight;
+      
+      // Draw background
+      const bgColor = hexToRgb(label.bgColor);
+      page.drawRectangle({
+        x,
+        y,
+        width: labelWidth,
+        height: labelHeight,
+        color: rgb(bgColor.r, bgColor.g, bgColor.b),
+      });
+
+      // Center point for text
+      const centerX = x + labelWidth / 2;
+      let currentY = y + labelHeight - mmToPt(12); // Start from top with padding
+
+      // "Organic" text
+      if (label.organic) {
+        const organicText = 'Organic';
+        const organicSize = mmToPt(6);
+        const organicWidth = helvetica.widthOfTextAtSize(organicText, organicSize);
+        page.drawText(organicText, {
+          x: centerX - organicWidth / 2,
+          y: currentY,
+          size: organicSize,
+          font: helvetica,
+          color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
+        });
+        currentY -= mmToPt(8);
+      }
+
+      // Item name (uppercase)
+      const itemName = (label.name || 'Item Name').toUpperCase();
+      const nameSize = mmToPt(7);
+      const nameWidth = helveticaBold.widthOfTextAtSize(itemName, nameSize);
+      
+      // Wrap text if too long
+      const maxWidth = labelWidth - mmToPt(10);
+      if (nameWidth > maxWidth) {
+        // Simple truncation for now
+        const truncated = itemName.slice(0, Math.floor(itemName.length * (maxWidth / nameWidth))) + '...';
+        const truncWidth = helveticaBold.widthOfTextAtSize(truncated, nameSize);
+        page.drawText(truncated, {
+          x: centerX - truncWidth / 2,
+          y: currentY,
+          size: nameSize,
+          font: helveticaBold,
+          color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
+        });
+      } else {
+        page.drawText(itemName, {
+          x: centerX - nameWidth / 2,
+          y: currentY,
+          size: nameSize,
+          font: helveticaBold,
+          color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
+        });
+      }
+      currentY -= mmToPt(10);
+
+      // Dietary badges
+      const badges: string[] = [];
+      if (label.vegan) badges.push('VEGAN');
+      if (label.glutenFree) badges.push('GF');
+      
+      if (badges.length > 0) {
+        const badgeSize = mmToPt(3);
+        const badgeHeight = mmToPt(5);
+        const badgePadding = mmToPt(3);
+        const badgeGap = mmToPt(2);
+        
+        // Calculate total width of badges
+        let totalBadgeWidth = 0;
+        badges.forEach((badge, i) => {
+          totalBadgeWidth += helveticaBold.widthOfTextAtSize(badge, badgeSize) + badgePadding * 2;
+          if (i < badges.length - 1) totalBadgeWidth += badgeGap;
+        });
+        
+        let badgeX = centerX - totalBadgeWidth / 2;
+        
+        badges.forEach((badge) => {
+          const textWidth = helveticaBold.widthOfTextAtSize(badge, badgeSize);
+          const pillWidth = textWidth + badgePadding * 2;
+          
+          // Draw pill background
+          page.drawRectangle({
+            x: badgeX,
+            y: currentY - badgeHeight / 2,
+            width: pillWidth,
+            height: badgeHeight,
+            color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
+          });
+          
+          // Draw badge text
+          page.drawText(badge, {
+            x: badgeX + badgePadding,
+            y: currentY - badgeSize / 2,
+            size: badgeSize,
+            font: helveticaBold,
+            color: rgb(1, 1, 1),
+          });
+          
+          badgeX += pillWidth + badgeGap;
+        });
+        
+        currentY -= mmToPt(8);
+      }
+
+      // Ingredients
+      if (label.ingredients) {
+        const ingredientsText = label.ingredients.toUpperCase();
+        const ingredientsSize = mmToPt(2.5);
+        const ingredientsWidth = helvetica.widthOfTextAtSize(ingredientsText, ingredientsSize);
+        const maxIngWidth = labelWidth - mmToPt(10);
+        
+        const displayText = ingredientsWidth > maxIngWidth 
+          ? ingredientsText.slice(0, Math.floor(ingredientsText.length * (maxIngWidth / ingredientsWidth))) + '...'
+          : ingredientsText;
+        const displayWidth = helvetica.widthOfTextAtSize(displayText, ingredientsSize);
+        
+        page.drawText(displayText, {
+          x: centerX - displayWidth / 2,
+          y: currentY,
+          size: ingredientsSize,
+          font: helvetica,
+          color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
+        });
+        currentY -= mmToPt(6);
+      }
+
+      // Price badge
+      if (label.price) {
+        const priceText = `$${parseFloat(label.price).toFixed(2)}`;
+        const priceSize = mmToPt(5);
+        const priceWidth = helveticaBold.widthOfTextAtSize(priceText, priceSize);
+        const pricePillWidth = priceWidth + mmToPt(8);
+        const pricePillHeight = mmToPt(7);
+        
+        // Draw pill background
+        page.drawRectangle({
+          x: centerX - pricePillWidth / 2,
+          y: currentY - pricePillHeight / 2,
+          width: pricePillWidth,
+          height: pricePillHeight,
+          color: rgb(darkGreenRgb.r, darkGreenRgb.g, darkGreenRgb.b),
+        });
+        
+        // Draw price text
+        page.drawText(priceText, {
+          x: centerX - priceWidth / 2,
+          y: currentY - priceSize / 3,
+          size: priceSize,
+          font: helveticaBold,
+          color: rgb(1, 1, 1),
+        });
+      }
     });
 
-    const page = await browser.newPage();
-    
-    // Set content and wait for fonts to load
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    
-    // Generate PDF with exact A4 dimensions
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
-    });
-
-    await browser.close();
+    // Generate PDF bytes
+    const pdfBytes = await pdfDoc.save();
 
     // Return PDF
-    return new NextResponse(pdf, {
+    return new NextResponse(pdfBytes, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
