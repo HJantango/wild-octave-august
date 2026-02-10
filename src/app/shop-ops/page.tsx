@@ -18,6 +18,12 @@ import {
   UserIcon,
   PrinterIcon,
   PencilIcon,
+  SettingsIcon,
+  PlusIcon,
+  TrashIcon,
+  RefreshCwIcon,
+  UsersIcon,
+  ListIcon,
 } from 'lucide-react';
 
 interface ShopOpsTask {
@@ -30,6 +36,15 @@ interface ShopOpsTask {
   frequencyValue: number;
   estimatedMinutes: number | null;
   assignedTo: string[];
+  isActive?: boolean;
+}
+
+interface ShopOpsStaff {
+  id: string;
+  name: string;
+  email: string | null;
+  role: string;
+  isActive: boolean;
 }
 
 interface ShopOpsSchedule {
@@ -78,6 +93,39 @@ export default function ShopOpsPage() {
   const [editAssignedTo, setEditAssignedTo] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editNotes, setEditNotes] = useState('');
+
+  // Management state
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'tasks' | 'staff' | 'generate'>('tasks');
+  const [tasks, setTasks] = useState<ShopOpsTask[]>([]);
+  const [staff, setStaff] = useState<ShopOpsStaff[]>([]);
+  const [loadingSettings, setLoadingSettings] = useState(false);
+
+  // Task form
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [editingTask, setEditingTask] = useState<ShopOpsTask | null>(null);
+  const [taskForm, setTaskForm] = useState({
+    name: '',
+    category: 'fridge',
+    frequencyType: 'monthly',
+    frequencyValue: 1,
+    estimatedMinutes: 30,
+    assignedTo: '',
+  });
+
+  // Staff form
+  const [showStaffForm, setShowStaffForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<ShopOpsStaff | null>(null);
+  const [staffForm, setStaffForm] = useState({
+    name: '',
+    email: '',
+    role: 'staff',
+  });
+
+  // Generate schedule form
+  const [generateMonth, setGenerateMonth] = useState(new Date().getMonth());
+  const [generateYear, setGenerateYear] = useState(new Date().getFullYear());
+  const [generating, setGenerating] = useState(false);
 
   const loadSchedules = useCallback(async () => {
     try {
@@ -191,6 +239,221 @@ export default function ShopOpsPage() {
     setEditDueDate(schedule.dueDate.split('T')[0]);
     setEditNotes(schedule.notes || '');
     setShowEditModal(true);
+  };
+
+  // Load tasks and staff for management
+  const loadManagementData = useCallback(async () => {
+    setLoadingSettings(true);
+    try {
+      const [tasksRes, staffRes] = await Promise.all([
+        fetch('/api/shop-ops?view=tasks'),
+        fetch('/api/shop-ops/staff'),
+      ]);
+      const tasksData = await tasksRes.json();
+      const staffData = await staffRes.json();
+
+      if (tasksData.success) setTasks(tasksData.data);
+      if (staffData.success) setStaff(staffData.data);
+    } catch (error) {
+      console.error('Error loading management data:', error);
+    } finally {
+      setLoadingSettings(false);
+    }
+  }, []);
+
+  // Open settings panel
+  const openSettings = () => {
+    setShowSettings(true);
+    loadManagementData();
+  };
+
+  // Task CRUD
+  const handleSaveTask = async () => {
+    try {
+      const url = editingTask 
+        ? `/api/shop-ops/tasks/${editingTask.id}`
+        : '/api/shop-ops';
+      
+      const method = editingTask ? 'PATCH' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...taskForm,
+          assignedTo: taskForm.assignedTo ? [taskForm.assignedTo] : [],
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(editingTask ? 'Task Updated! ✅' : 'Task Created! ✅', result.message);
+        setShowTaskForm(false);
+        setEditingTask(null);
+        resetTaskForm();
+        loadManagementData();
+        loadSchedules();
+      } else {
+        toast.error('Error', result.error?.message || 'Failed to save task');
+      }
+    } catch (error) {
+      console.error('Error saving task:', error);
+      toast.error('Error', 'Failed to save task');
+    }
+  };
+
+  const handleDeleteTask = async (task: ShopOpsTask) => {
+    if (!confirm(`Delete "${task.name}"? This will cancel all pending schedules for this task.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/shop-ops/tasks/${task.id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Task Deleted', task.name);
+        loadManagementData();
+        loadSchedules();
+      } else {
+        toast.error('Error', result.error?.message || 'Failed to delete');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Error', 'Failed to delete task');
+    }
+  };
+
+  const openEditTask = (task: ShopOpsTask) => {
+    setEditingTask(task);
+    setTaskForm({
+      name: task.name,
+      category: task.category,
+      frequencyType: task.frequencyType,
+      frequencyValue: task.frequencyValue,
+      estimatedMinutes: task.estimatedMinutes || 30,
+      assignedTo: task.assignedTo?.[0] || '',
+    });
+    setShowTaskForm(true);
+  };
+
+  const resetTaskForm = () => {
+    setTaskForm({
+      name: '',
+      category: 'fridge',
+      frequencyType: 'monthly',
+      frequencyValue: 1,
+      estimatedMinutes: 30,
+      assignedTo: '',
+    });
+  };
+
+  // Staff CRUD
+  const handleSaveStaff = async () => {
+    try {
+      const url = editingStaff 
+        ? `/api/shop-ops/staff/${editingStaff.id}`
+        : '/api/shop-ops/staff';
+      
+      const method = editingStaff ? 'PATCH' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffForm),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(editingStaff ? 'Staff Updated! ✅' : 'Staff Added! ✅', result.message);
+        setShowStaffForm(false);
+        setEditingStaff(null);
+        resetStaffForm();
+        loadManagementData();
+      } else {
+        toast.error('Error', result.error?.message || 'Failed to save');
+      }
+    } catch (error) {
+      console.error('Error saving staff:', error);
+      toast.error('Error', 'Failed to save staff');
+    }
+  };
+
+  const handleDeleteStaff = async (member: ShopOpsStaff) => {
+    if (!confirm(`Remove "${member.name}" from staff?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/shop-ops/staff/${member.id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Staff Removed', member.name);
+        loadManagementData();
+      } else {
+        toast.error('Error', result.error?.message || 'Failed to remove');
+      }
+    } catch (error) {
+      console.error('Error deleting staff:', error);
+      toast.error('Error', 'Failed to remove staff');
+    }
+  };
+
+  const openEditStaff = (member: ShopOpsStaff) => {
+    setEditingStaff(member);
+    setStaffForm({
+      name: member.name,
+      email: member.email || '',
+      role: member.role,
+    });
+    setShowStaffForm(true);
+  };
+
+  const resetStaffForm = () => {
+    setStaffForm({
+      name: '',
+      email: '',
+      role: 'staff',
+    });
+  };
+
+  // Generate schedules
+  const handleGenerateSchedules = async () => {
+    setGenerating(true);
+    try {
+      const response = await fetch('/api/shop-ops/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          month: generateMonth,
+          year: generateYear,
+          overwrite: false,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Schedules Generated! 📅', result.message);
+        loadSchedules();
+      } else {
+        toast.error('Error', result.error?.message || 'Failed to generate');
+      }
+    } catch (error) {
+      console.error('Error generating schedules:', error);
+      toast.error('Error', 'Failed to generate schedules');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleEdit = async () => {
@@ -312,6 +575,13 @@ export default function ShopOpsPage() {
                 >
                   <PrinterIcon className="w-4 h-4 mr-2" />
                   Print
+                </Button>
+                <Button
+                  onClick={openSettings}
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                >
+                  <SettingsIcon className="w-4 h-4 mr-2" />
+                  Settings
                 </Button>
               </div>
             </div>
@@ -765,6 +1035,393 @@ export default function ShopOpsPage() {
                 >
                   <PencilIcon className="w-4 h-4 mr-2" />
                   Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowSettings(false)}></div>
+            <div className="relative bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="p-6 border-b">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <SettingsIcon className="w-6 h-6" />
+                  Shop Ops Settings
+                </h3>
+                <p className="text-gray-500 mt-1">Manage fridges, freezers, staff, and schedules</p>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex border-b px-6">
+                <button
+                  onClick={() => setSettingsTab('tasks')}
+                  className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+                    settingsTab === 'tasks'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <ListIcon className="w-4 h-4 inline mr-2" />
+                  Fridges & Freezers
+                </button>
+                <button
+                  onClick={() => setSettingsTab('staff')}
+                  className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+                    settingsTab === 'staff'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <UsersIcon className="w-4 h-4 inline mr-2" />
+                  Staff
+                </button>
+                <button
+                  onClick={() => setSettingsTab('generate')}
+                  className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+                    settingsTab === 'generate'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <RefreshCwIcon className="w-4 h-4 inline mr-2" />
+                  Generate Schedule
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {loadingSettings ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Tasks Tab */}
+                    {settingsTab === 'tasks' && (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold text-lg">Fridges & Freezers</h4>
+                          <Button
+                            onClick={() => {
+                              resetTaskForm();
+                              setEditingTask(null);
+                              setShowTaskForm(true);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <PlusIcon className="w-4 h-4 mr-2" />
+                            Add New
+                          </Button>
+                        </div>
+
+                        {showTaskForm && (
+                          <Card className="border-2 border-blue-300 bg-blue-50">
+                            <CardContent className="p-4">
+                              <h5 className="font-medium mb-4">
+                                {editingTask ? 'Edit Task' : 'Add New Task'}
+                              </h5>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                  <label className="block text-sm font-medium mb-1">Name *</label>
+                                  <input
+                                    type="text"
+                                    value={taskForm.name}
+                                    onChange={(e) => setTaskForm({ ...taskForm, name: e.target.value })}
+                                    placeholder="e.g., Dairy Fridge"
+                                    className="w-full border rounded-md px-3 py-2"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Type</label>
+                                  <select
+                                    value={taskForm.category}
+                                    onChange={(e) => setTaskForm({ ...taskForm, category: e.target.value })}
+                                    className="w-full border rounded-md px-3 py-2"
+                                  >
+                                    <option value="fridge">Fridge</option>
+                                    <option value="freezer">Freezer</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Frequency</label>
+                                  <select
+                                    value={taskForm.frequencyType}
+                                    onChange={(e) => setTaskForm({ ...taskForm, frequencyType: e.target.value })}
+                                    className="w-full border rounded-md px-3 py-2"
+                                  >
+                                    <option value="weekly">Weekly</option>
+                                    <option value="biweekly">Bi-weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="bimonthly">Bi-monthly</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Est. Minutes</label>
+                                  <input
+                                    type="number"
+                                    value={taskForm.estimatedMinutes}
+                                    onChange={(e) => setTaskForm({ ...taskForm, estimatedMinutes: parseInt(e.target.value) || 30 })}
+                                    className="w-full border rounded-md px-3 py-2"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Default Assignee</label>
+                                  <select
+                                    value={taskForm.assignedTo}
+                                    onChange={(e) => setTaskForm({ ...taskForm, assignedTo: e.target.value })}
+                                    className="w-full border rounded-md px-3 py-2"
+                                  >
+                                    <option value="">Unassigned</option>
+                                    {staff.map((s) => (
+                                      <option key={s.id} value={s.name}>{s.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-2 mt-4">
+                                <Button variant="outline" onClick={() => setShowTaskForm(false)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleSaveTask} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                  {editingTask ? 'Update' : 'Add'} Task
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        <div className="space-y-2">
+                          {tasks.length === 0 ? (
+                            <p className="text-gray-500 text-center py-8">No tasks yet. Add your first fridge or freezer!</p>
+                          ) : (
+                            tasks.map((task) => {
+                              const CategoryIcon = CATEGORY_ICONS[task.category] || BoxIcon;
+                              return (
+                                <div
+                                  key={task.id}
+                                  className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-sm"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${CATEGORY_COLORS[task.category] || 'bg-gray-100'}`}>
+                                      <CategoryIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                      <p className="font-medium">{task.name}</p>
+                                      <p className="text-sm text-gray-500">
+                                        {task.frequencyType} • {task.estimatedMinutes || '?'}min
+                                        {task.assignedTo?.[0] && ` • ${task.assignedTo[0]}`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" onClick={() => openEditTask(task)}>
+                                      <PencilIcon className="w-4 h-4" />
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => handleDeleteTask(task)} className="text-red-600 hover:bg-red-50">
+                                      <TrashIcon className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Staff Tab */}
+                    {settingsTab === 'staff' && (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold text-lg">Staff Members</h4>
+                          <Button
+                            onClick={() => {
+                              resetStaffForm();
+                              setEditingStaff(null);
+                              setShowStaffForm(true);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <PlusIcon className="w-4 h-4 mr-2" />
+                            Add Staff
+                          </Button>
+                        </div>
+
+                        {showStaffForm && (
+                          <Card className="border-2 border-blue-300 bg-blue-50">
+                            <CardContent className="p-4">
+                              <h5 className="font-medium mb-4">
+                                {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
+                              </h5>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Name *</label>
+                                  <input
+                                    type="text"
+                                    value={staffForm.name}
+                                    onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
+                                    placeholder="e.g., Jasper"
+                                    className="w-full border rounded-md px-3 py-2"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Role</label>
+                                  <select
+                                    value={staffForm.role}
+                                    onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                                    className="w-full border rounded-md px-3 py-2"
+                                  >
+                                    <option value="staff">Staff</option>
+                                    <option value="admin">Admin</option>
+                                  </select>
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="block text-sm font-medium mb-1">Email (optional)</label>
+                                  <input
+                                    type="email"
+                                    value={staffForm.email}
+                                    onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                                    placeholder="email@example.com"
+                                    className="w-full border rounded-md px-3 py-2"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-2 mt-4">
+                                <Button variant="outline" onClick={() => setShowStaffForm(false)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleSaveStaff} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                  {editingStaff ? 'Update' : 'Add'} Staff
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        <div className="space-y-2">
+                          {staff.length === 0 ? (
+                            <p className="text-gray-500 text-center py-8">No staff members yet.</p>
+                          ) : (
+                            staff.map((member) => (
+                              <div
+                                key={member.id}
+                                className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-sm"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 rounded-full bg-gray-100">
+                                    <UserIcon className="w-5 h-5 text-gray-600" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium">{member.name}</p>
+                                    <p className="text-sm text-gray-500">
+                                      {member.role}
+                                      {member.email && ` • ${member.email}`}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button size="sm" variant="outline" onClick={() => openEditStaff(member)}>
+                                    <PencilIcon className="w-4 h-4" />
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => handleDeleteStaff(member)} className="text-red-600 hover:bg-red-50">
+                                    <TrashIcon className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Generate Tab */}
+                    {settingsTab === 'generate' && (
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="font-semibold text-lg mb-2">Generate Monthly Schedules</h4>
+                          <p className="text-gray-500 text-sm">
+                            Automatically create cleaning schedules for a month. Fridges will be spread across the month (~2 per week), 
+                            and freezers on a bi-monthly schedule.
+                          </p>
+                        </div>
+
+                        <Card className="bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200">
+                          <CardContent className="p-6">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium mb-1">Month</label>
+                                <select
+                                  value={generateMonth}
+                                  onChange={(e) => setGenerateMonth(parseInt(e.target.value))}
+                                  className="w-full border rounded-md px-3 py-2"
+                                >
+                                  {Array.from({ length: 12 }, (_, i) => (
+                                    <option key={i} value={i}>
+                                      {new Date(2024, i).toLocaleDateString('en-AU', { month: 'long' })}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium mb-1">Year</label>
+                                <select
+                                  value={generateYear}
+                                  onChange={(e) => setGenerateYear(parseInt(e.target.value))}
+                                  className="w-full border rounded-md px-3 py-2"
+                                >
+                                  {Array.from({ length: 3 }, (_, i) => (
+                                    <option key={i} value={new Date().getFullYear() + i}>
+                                      {new Date().getFullYear() + i}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="mt-6">
+                              <Button
+                                onClick={handleGenerateSchedules}
+                                disabled={generating}
+                                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white py-3"
+                              >
+                                {generating ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                    Generating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCwIcon className="w-5 h-5 mr-2" />
+                                    Generate Schedule for {new Date(generateYear, generateMonth).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <p className="text-sm text-yellow-800">
+                            <strong>💡 Tip:</strong> After generating, you can use the Edit button (✏️) on any task in the calendar 
+                            to change the date or reassign to a different staff member.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t bg-gray-50">
+                <Button variant="outline" onClick={() => setShowSettings(false)} className="w-full">
+                  Close Settings
                 </Button>
               </div>
             </div>
