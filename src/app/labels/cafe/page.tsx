@@ -257,9 +257,44 @@ export default function CafeLabelsPage() {
   };
 
   const clearAll = () => setLabels([]);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Generate PDF server-side with Puppeteer
+  const generatePDF = async () => {
+    if (labels.length === 0) return;
+    
+    setGeneratingPdf(true);
+    try {
+      const response = await fetch('/api/labels/cafe/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labels }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      // Download the PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cafe-labels.pdf';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Failed to generate PDF:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   // Save current label as template
@@ -695,15 +730,15 @@ export default function CafeLabelsPage() {
                   <Printer className="w-5 h-5 mr-2" />
                   Print
                 </Button>
-                <Button onClick={handlePrint} className="text-base">
+                <Button onClick={generatePDF} disabled={generatingPdf} className="text-base">
                   <Download className="w-5 h-5 mr-2" />
-                  Generate PDF
+                  {generatingPdf ? 'Generating...' : 'Download PDF'}
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-500 mb-4">
-                8 labels per A4 page (2 columns × 4 rows). To save as PDF, choose &quot;Save as PDF&quot; in the print dialog.
+                8 labels per A4 page (2 columns × 4 rows). Click Download PDF for exact sizing.
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {labels.map((label) => (
