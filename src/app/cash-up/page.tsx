@@ -63,6 +63,9 @@ export default function CashUpPage() {
     squareCashSales: 0,
   });
 
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
   const currentData = activeRegister === 'cafe' ? cafeData : doorData;
   const setCurrentData = activeRegister === 'cafe' ? setCafeData : setDoorData;
 
@@ -168,6 +171,52 @@ export default function CashUpPage() {
       style: 'currency',
       currency: 'AUD',
     }).format(amount);
+  };
+
+  // Save cash-up to database
+  const saveCashUp = async () => {
+    setSaving(true);
+    setSaved(false);
+    
+    try {
+      // Save both registers
+      const saveRegister = async (register: 'cafe' | 'door', data: RegisterData) => {
+        const response = await fetch('/api/cash-up', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date,
+            register,
+            notes100: data.counts.notes[100] || 0,
+            notes50: data.counts.notes[50] || 0,
+            notes20: data.counts.notes[20] || 0,
+            notes10: data.counts.notes[10] || 0,
+            notes5: data.counts.notes[5] || 0,
+            coins200: data.counts.coins[2] || 0,
+            coins100: data.counts.coins[1] || 0,
+            coins50: data.counts.coins[0.5] || 0,
+            coins20: data.counts.coins[0.2] || 0,
+            coins10: data.counts.coins[0.1] || 0,
+            coins5: data.counts.coins[0.05] || 0,
+            squareCashSales: data.squareCashSales || null,
+          }),
+        });
+        return response.json();
+      };
+
+      await Promise.all([
+        saveRegister('cafe', cafeData),
+        saveRegister('door', doorData),
+      ]);
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error('Error saving cash-up:', error);
+      alert('Failed to save cash-up. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -459,10 +508,20 @@ export default function CashUpPage() {
         </Card>
 
         {/* Save Button */}
-        <div className="flex justify-end">
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg">
+        <div className="flex justify-end items-center gap-4">
+          {saved && (
+            <span className="text-green-600 font-medium flex items-center gap-2">
+              <CheckCircle2Icon className="w-5 h-5" />
+              Saved!
+            </span>
+          )}
+          <Button 
+            onClick={saveCashUp}
+            disabled={saving}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg"
+          >
             <SaveIcon className="w-5 h-5 mr-2" />
-            Save Cash Up
+            {saving ? 'Saving...' : 'Save Cash Up'}
           </Button>
         </div>
       </div>

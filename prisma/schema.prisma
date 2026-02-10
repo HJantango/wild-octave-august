@@ -721,3 +721,47 @@ model ShopOpsStaff {
 
   @@map("shop_ops_staff")
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CASH UP - Daily register reconciliation
+// ═══════════════════════════════════════════════════════════════════════════
+
+model CashUp {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  register        String   // "cafe" or "door"
+  
+  // Note counts
+  notes100        Int      @default(0) @map("notes_100")
+  notes50         Int      @default(0) @map("notes_50")
+  notes20         Int      @default(0) @map("notes_20")
+  notes10         Int      @default(0) @map("notes_10")
+  notes5          Int      @default(0) @map("notes_5")
+  
+  // Coin counts
+  coins200        Int      @default(0) @map("coins_200")  // $2 coins
+  coins100        Int      @default(0) @map("coins_100")  // $1 coins
+  coins50         Int      @default(0) @map("coins_50")   // 50c
+  coins20         Int      @default(0) @map("coins_20")   // 20c
+  coins10         Int      @default(0) @map("coins_10")   // 10c
+  coins5          Int      @default(0) @map("coins_5")    // 5c
+  
+  // Calculated totals (stored for audit)
+  totalCash       Decimal  @map("total_cash") @db.Decimal(10, 2)
+  floatAmount     Decimal  @default(200) @map("float_amount") @db.Decimal(10, 2)
+  cashSales       Decimal  @map("cash_sales") @db.Decimal(10, 2)
+  
+  // Square comparison
+  squareCashSales Decimal? @map("square_cash_sales") @db.Decimal(10, 2)
+  variance        Decimal? @db.Decimal(10, 2)
+  
+  // Metadata
+  completedBy     String?  @map("completed_by")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([date, register])
+  @@index([date])
+  @@map("cash_ups")
+}
