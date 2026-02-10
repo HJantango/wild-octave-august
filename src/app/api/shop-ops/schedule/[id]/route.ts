@@ -9,9 +9,13 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { status, completedBy, assignedTo, notes } = body;
+    const { status, completedBy, assignedTo, notes, dueDate } = body;
 
     const updateData: Record<string, unknown> = {};
+
+    if (dueDate) {
+      updateData.dueDate = new Date(dueDate);
+    }
 
     if (status) {
       updateData.status = status;

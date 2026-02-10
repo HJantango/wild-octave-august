@@ -17,6 +17,7 @@ import {
   ChevronRightIcon,
   UserIcon,
   PrinterIcon,
+  PencilIcon,
 } from 'lucide-react';
 
 interface ShopOpsTask {
@@ -71,8 +72,12 @@ export default function ShopOpsPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedSchedule, setSelectedSchedule] = useState<ShopOpsSchedule | null>(null);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [completedBy, setCompletedBy] = useState('');
   const [completionNotes, setCompletionNotes] = useState('');
+  const [editAssignedTo, setEditAssignedTo] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   const loadSchedules = useCallback(async () => {
     try {
@@ -178,6 +183,44 @@ export default function ShopOpsPage() {
     setSelectedSchedule(schedule);
     setCompletedBy(schedule.assignedTo || '');
     setShowCompleteModal(true);
+  };
+
+  const openEditModal = (schedule: ShopOpsSchedule) => {
+    setSelectedSchedule(schedule);
+    setEditAssignedTo(schedule.assignedTo || '');
+    setEditDueDate(schedule.dueDate.split('T')[0]);
+    setEditNotes(schedule.notes || '');
+    setShowEditModal(true);
+  };
+
+  const handleEdit = async () => {
+    if (!selectedSchedule) return;
+
+    try {
+      const response = await fetch(`/api/shop-ops/schedule/${selectedSchedule.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignedTo: editAssignedTo,
+          dueDate: editDueDate,
+          notes: editNotes,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Updated! ✅', 'Schedule updated successfully');
+        setShowEditModal(false);
+        setSelectedSchedule(null);
+        loadSchedules();
+      } else {
+        toast.error('Error', result.error?.message || 'Failed to update');
+      }
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      toast.error('Error', 'Failed to update schedule');
+    }
   };
 
   const navigateMonth = (direction: number) => {
@@ -311,13 +354,22 @@ export default function ShopOpsPage() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        onClick={() => openCompleteModal(schedule)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6"
-                      >
-                        <CheckCircle2Icon className="w-5 h-5 mr-2" />
-                        Mark Done
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => openEditModal(schedule)}
+                          className="px-3"
+                        >
+                          <PencilIcon className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          onClick={() => openCompleteModal(schedule)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-6"
+                        >
+                          <CheckCircle2Icon className="w-5 h-5 mr-2" />
+                          Mark Done
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -361,13 +413,23 @@ export default function ShopOpsPage() {
                             {isToday ? '📍 Today' : scheduleDate.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
                           </p>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => openCompleteModal(schedule)}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          Done
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEditModal(schedule)}
+                            className="px-2"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => openCompleteModal(schedule)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Done
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -630,6 +692,79 @@ export default function ShopOpsPage() {
                 >
                   <CheckCircle2Icon className="w-4 h-4 mr-2" />
                   Confirm Complete
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedSchedule && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowEditModal(false)}></div>
+            <div className="relative bg-white rounded-lg max-w-md w-full p-6">
+              <h3 className="text-lg font-bold mb-4">
+                ✏️ Edit Task
+              </h3>
+              <p className="text-gray-600 mb-4">
+                {selectedSchedule.task.name}
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Assigned To
+                  </label>
+                  <select
+                    value={editAssignedTo}
+                    onChange={(e) => setEditAssignedTo(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="">Unassigned</option>
+                    <option value="Jasper">Jasper</option>
+                    <option value="Heath">Heath</option>
+                    <option value="Jackie">Jackie</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editDueDate}
+                    onChange={(e) => setEditDueDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Any notes about this task..."
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <Button variant="outline" onClick={() => setShowEditModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleEdit}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <PencilIcon className="w-4 h-4 mr-2" />
+                  Save Changes
                 </Button>
               </div>
             </div>
