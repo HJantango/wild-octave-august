@@ -55,7 +55,7 @@ function FontLoader() {
   );
 }
 
-// ── Single label card (used in preview + print sheet) ──────────────────────
+// ── Screen preview label ──────────────────────────────────────────────────
 function LabelCard({ label }: { label: CafeLabel }) {
   const hasDietaryTags = label.vegan || label.glutenFree;
 
@@ -64,30 +64,127 @@ function LabelCard({ label }: { label: CafeLabel }) {
       className="label-card"
       style={{ backgroundColor: label.bgColor }}
     >
-      {/* Organic script — ABOVE item name */}
-      {label.organic && (
-        <p className="label-organic">Organic</p>
-      )}
-
-      {/* Item name */}
+      {label.organic && <p className="label-organic">Organic</p>}
       <h2 className="label-title">{label.name || 'Item Name'}</h2>
-
-      {/* Dietary badges row — BELOW item name */}
       {hasDietaryTags && (
         <div className="label-badges">
           {label.vegan && <span className="label-badge">Vegan</span>}
           {label.glutenFree && <span className="label-badge">GF</span>}
         </div>
       )}
+      {label.ingredients && <p className="label-ingredients">{label.ingredients}</p>}
+      {label.price && <span className="label-price">${parseFloat(label.price).toFixed(2)}</span>}
+    </div>
+  );
+}
 
-      {/* Ingredients */}
-      {label.ingredients && (
-        <p className="label-ingredients">{label.ingredients}</p>
+// ── Print label with INLINE mm styles (bypasses all CSS specificity issues) ──
+function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
+  const hasDietaryTags = label.vegan || label.glutenFree;
+  
+  // Calculate position: 2 columns × 4 rows
+  // Each label: 100mm wide × 71.75mm tall
+  // Page: 210mm × 297mm with 5mm margins = 200mm × 287mm usable
+  const col = index % 2;
+  const row = Math.floor(index / 2);
+  const left = col * 100; // 0 or 100mm
+  const top = row * 71.75; // 0, 71.75, 143.5, 215.25mm
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: `${left}mm`,
+        top: `${top}mm`,
+        width: '100mm',
+        height: '71.75mm',
+        backgroundColor: label.bgColor,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        padding: '5mm',
+        boxSizing: 'border-box',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+      } as React.CSSProperties}
+    >
+      {label.organic && (
+        <p style={{
+          fontFamily: "'Dancing Script', cursive",
+          fontSize: '7mm',
+          color: DARK_GREEN,
+          margin: '0 0 1mm 0',
+          lineHeight: 1.1,
+        }}>Organic</p>
       )}
-
-      {/* Price badge */}
+      
+      <h2 style={{
+        fontFamily: "'Playfair Display', Georgia, serif",
+        fontWeight: 800,
+        fontSize: '8mm',
+        color: DARK_GREEN,
+        textTransform: 'uppercase',
+        lineHeight: 1.1,
+        margin: '1mm 0 2mm 0',
+        letterSpacing: '0.02em',
+        maxWidth: '90mm',
+        wordBreak: 'break-word',
+      }}>{label.name || 'Item Name'}</h2>
+      
+      {hasDietaryTags && (
+        <div style={{ display: 'flex', gap: '2mm', marginBottom: '2mm' }}>
+          {label.vegan && (
+            <span style={{
+              backgroundColor: DARK_GREEN,
+              color: '#fff',
+              fontSize: '3mm',
+              fontWeight: 700,
+              padding: '1mm 3mm',
+              borderRadius: '999px',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}>Vegan</span>
+          )}
+          {label.glutenFree && (
+            <span style={{
+              backgroundColor: DARK_GREEN,
+              color: '#fff',
+              fontSize: '3mm',
+              fontWeight: 700,
+              padding: '1mm 3mm',
+              borderRadius: '999px',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}>GF</span>
+          )}
+        </div>
+      )}
+      
+      {label.ingredients && (
+        <p style={{
+          fontSize: '2.5mm',
+          color: DARK_GREEN,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          lineHeight: 1.3,
+          maxWidth: '90mm',
+          margin: 0,
+          opacity: 0.85,
+        }}>{label.ingredients}</p>
+      )}
+      
       {label.price && (
-        <span className="label-price">${parseFloat(label.price).toFixed(2)}</span>
+        <span style={{
+          backgroundColor: DARK_GREEN,
+          color: '#fff',
+          fontSize: '5mm',
+          fontWeight: 800,
+          padding: '1.5mm 5mm',
+          borderRadius: '999px',
+          marginTop: '3mm',
+        }}>${parseFloat(label.price).toFixed(2)}</span>
       )}
     </div>
   );
@@ -326,12 +423,11 @@ export default function CafeLabelsPage() {
         
         /* ═══ PRINT STYLES ═══ */
         @media print {
-          /* Hide everything by default */
-          * {
+          /* Hide everything except print sheet */
+          body * {
             visibility: hidden;
           }
           
-          /* Show print sheet and all its contents */
           #print-sheet,
           #print-sheet * {
             visibility: visible !important;
@@ -339,110 +435,19 @@ export default function CafeLabelsPage() {
           
           #print-sheet {
             display: block !important;
-            position: fixed !important;
+            position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 210mm !important;
-            height: 297mm !important;
             margin: 0 !important;
-            padding: 5mm !important;
-            background: white !important;
-            z-index: 999999 !important;
-            box-sizing: border-box !important;
-          }
-          
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: white !important;
-          }
-          
-          /* Grid fills the page: 200mm × 287mm */
-          #print-sheet .print-grid {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            grid-template-rows: repeat(4, 1fr) !important;
-            gap: 0 !important;
-            width: 200mm !important;
-            height: 287mm !important;
-          }
-          
-          /* Each label: 100mm × 71.75mm */
-          #print-sheet .label-card {
-            width: 100mm !important;
-            height: 71.75mm !important;
-            min-height: unset !important;
-            padding: 5mm !important;
-            border-radius: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
           
-          /* Print typography - scaled for 100mm × 71.75mm labels */
-          #print-sheet .label-organic {
-            font-size: 7mm !important;
-            margin-bottom: 1mm !important;
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
           }
-          #print-sheet .label-title {
-            font-size: 8mm !important;
-            margin: 2mm 0 3mm !important;
-            line-height: 1.1 !important;
-          }
-          #print-sheet .label-badges {
-            margin-bottom: 2mm !important;
-            gap: 2mm !important;
-          }
-          #print-sheet .label-badge {
-            font-size: 3mm !important;
-            padding: 1mm 3mm !important;
-          }
-          #print-sheet .label-ingredients {
-            font-size: 2.5mm !important;
-            line-height: 1.3 !important;
-            max-width: 95% !important;
-          }
-          #print-sheet .label-price {
-            font-size: 5mm !important;
-            padding: 1.5mm 5mm !important;
-            margin-top: 3mm !important;
-          }
-          
-          /* Crop marks */
-          #print-sheet .crop-marks {
-            position: absolute !important;
-            top: 5mm !important;
-            left: 5mm !important;
-            width: 200mm !important;
-            height: 287mm !important;
-            pointer-events: none !important;
-          }
-          #print-sheet .crop-mark {
-            position: absolute !important;
-            background: #000 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          #print-sheet .crop-v {
-            width: 0.3mm !important;
-            height: 4mm !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-          }
-          #print-sheet .crop-v.top { top: -4.5mm !important; }
-          #print-sheet .crop-v.bottom { bottom: -4.5mm !important; }
-          #print-sheet .crop-v.row1 { top: calc(25% - 2mm) !important; }
-          #print-sheet .crop-v.row2 { top: calc(50% - 2mm) !important; }
-          #print-sheet .crop-v.row3 { top: calc(75% - 2mm) !important; }
-          #print-sheet .crop-h {
-            width: 4mm !important;
-            height: 0.3mm !important;
-          }
-          #print-sheet .crop-h.left { left: -4.5mm !important; }
-          #print-sheet .crop-h.right { right: -4.5mm !important; }
-          #print-sheet .crop-h.row1 { top: 25% !important; transform: translateY(-50%) !important; }
-          #print-sheet .crop-h.row2 { top: 50% !important; transform: translateY(-50%) !important; }
-          #print-sheet .crop-h.row3 { top: 75% !important; transform: translateY(-50%) !important; }
           
           @page {
             size: A4 portrait;
@@ -719,30 +724,20 @@ export default function CafeLabelsPage() {
         )}
       </div>
 
-      {/* Print-only sheet — 2×4 grid filling A4 with crop marks */}
-      <div id="print-sheet" ref={printRef}>
-        <div className="print-grid">
-          {labels.map((label) => (
-            <LabelCard key={label.id} label={label} />
+      {/* Print-only sheet — absolute positioned labels on A4 */}
+      <div id="print-sheet" ref={printRef} style={{
+        width: '210mm',
+        height: '297mm',
+        padding: '5mm',
+        boxSizing: 'border-box',
+        position: 'relative',
+        background: 'white',
+      }}>
+        {/* Labels container - 200mm × 287mm */}
+        <div style={{ position: 'relative', width: '200mm', height: '287mm' }}>
+          {labels.slice(0, 8).map((label, index) => (
+            <PrintLabel key={label.id} label={label} index={index} />
           ))}
-        </div>
-        {/* Crop marks overlay */}
-        <div className="crop-marks">
-          {/* Top & bottom center column marks */}
-          <div className="crop-mark crop-v top" />
-          <div className="crop-mark crop-v bottom" />
-          {/* Row divider marks - left side */}
-          <div className="crop-mark crop-h left row1" />
-          <div className="crop-mark crop-h left row2" />
-          <div className="crop-mark crop-h left row3" />
-          {/* Row divider marks - right side */}
-          <div className="crop-mark crop-h right row1" />
-          <div className="crop-mark crop-h right row2" />
-          <div className="crop-mark crop-h right row3" />
-          {/* Center column marks at row intersections */}
-          <div className="crop-mark crop-v row1" />
-          <div className="crop-mark crop-v row2" />
-          <div className="crop-mark crop-v row3" />
         </div>
       </div>
     </DashboardLayout>
