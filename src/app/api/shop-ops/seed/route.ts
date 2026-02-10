@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/api-utils';
 
 // POST /api/shop-ops/seed - Seed initial fridge maintenance tasks
 // This is a one-time setup endpoint

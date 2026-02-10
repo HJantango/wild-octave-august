@@ -12,6 +12,22 @@ const createPrismaClient = () => {
   if (!process.env.DATABASE_URL) {
     return null as unknown as PrismaClient;
   }
+  
+  // 🛡️ SAFEGUARD: Prevent connecting to production database in development mode
+  const isDevMode = process.env.NODE_ENV === 'development';
+  const isProdDb = process.env.DATABASE_URL?.includes('railway') || 
+                   process.env.DATABASE_URL?.includes('proxy.rlwy.net');
+  
+  if (isDevMode && isProdDb) {
+    console.error('\n🚨 ═══════════════════════════════════════════════════════════════');
+    console.error('🚨 DANGER: Attempting to connect to PRODUCTION database in dev mode!');
+    console.error('🚨 ═══════════════════════════════════════════════════════════════');
+    console.error('🚨 Your .env.local should use the LOCAL database URL:');
+    console.error('🚨 DATABASE_URL="postgresql://localdev:localdev123@localhost:5433/wildoctave_dev"');
+    console.error('🚨 ═══════════════════════════════════════════════════════════════\n');
+    throw new Error('Production database connection blocked in development mode. Check your .env.local');
+  }
+  
   return new PrismaClient({
     datasources: {
       db: {

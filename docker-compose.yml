@@ -1,0 +1,25 @@
+# Local Development Database
+# Run: docker compose up -d
+# Stop: docker compose down
+# Reset: docker compose down -v (deletes data)
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: wild-octave-local-db
+    environment:
+      POSTGRES_USER: localdev
+      POSTGRES_PASSWORD: localdev123
+      POSTGRES_DB: wildoctave_dev
+    ports:
+      - "5433:5432"  # Using 5433 to avoid conflicts with any system Postgres
+    volumes:
+      - wild_octave_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U localdev -d wildoctave_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  wild_octave_pgdata:
