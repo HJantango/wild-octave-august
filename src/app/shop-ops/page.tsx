@@ -65,6 +65,8 @@ const STATUS_COLORS: Record<string, string> = {
 export default function ShopOpsPage() {
   const toast = useToast();
   const [schedules, setSchedules] = useState<ShopOpsSchedule[]>([]);
+  const [todaySchedules, setTodaySchedules] = useState<ShopOpsSchedule[]>([]);
+  const [weekSchedules, setWeekSchedules] = useState<ShopOpsSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedSchedule, setSelectedSchedule] = useState<ShopOpsSchedule | null>(null);
@@ -75,6 +77,9 @@ export default function ShopOpsPage() {
   const loadSchedules = useCallback(async () => {
     try {
       setLoading(true);
+      const now = new Date();
+      
+      // Load month schedules
       const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
       const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
       
@@ -83,9 +88,18 @@ export default function ShopOpsPage() {
       );
       const result = await response.json();
 
+      // Load today and this week
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekEnd = new Date(today);
+      weekEnd.setDate(today.getDate() + 7);
+      
+      const weekResponse = await fetch(
+        `/api/shop-ops?startDate=${today.toISOString()}&endDate=${weekEnd.toISOString()}`
+      );
+      const weekResult = await weekResponse.json();
+
       if (result.success) {
         // Mark overdue items
-        const now = new Date();
         const schedulesWithStatus = result.data.map((s: ShopOpsSchedule) => {
           if (s.status === 'pending' && new Date(s.dueDate) < now) {
             return { ...s, status: 'overdue' };
@@ -93,7 +107,24 @@ export default function ShopOpsPage() {
           return s;
         });
         setSchedules(schedulesWithStatus);
-      } else {
+      }
+
+      if (weekResult.success) {
+        const todayStr = today.toISOString().split('T')[0];
+        
+        // Filter today's tasks
+        const todayTasks = weekResult.data.filter((s: ShopOpsSchedule) => {
+          const scheduleDate = new Date(s.dueDate).toISOString().split('T')[0];
+          return scheduleDate === todayStr && s.status !== 'completed';
+        });
+        setTodaySchedules(todayTasks);
+        
+        // All week tasks (excluding completed)
+        const weekTasks = weekResult.data.filter((s: ShopOpsSchedule) => s.status !== 'completed');
+        setWeekSchedules(weekTasks);
+      }
+
+      if (!result.success) {
         toast.error('Load Failed', 'Failed to load schedules');
       }
     } catch (error) {
@@ -243,6 +274,108 @@ export default function ShopOpsPage() {
             </div>
           </div>
         </div>
+
+        {/* TODAY Section */}
+        <Card className="border-2 border-blue-500 bg-blue-50">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-blue-800">
+              <CalendarIcon className="w-6 h-6" />
+              📍 Today — {new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {todaySchedules.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <CheckCircle2Icon className="w-12 h-12 mx-auto mb-2 text-green-500" />
+                <p className="text-lg font-medium text-green-700">All clear for today! ✨</p>
+                <p className="text-sm">No maintenance tasks due today.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {todaySchedules.map((schedule) => {
+                  const CategoryIcon = CATEGORY_ICONS[schedule.task.category] || BoxIcon;
+                  return (
+                    <div
+                      key={schedule.id}
+                      className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-lg ${CATEGORY_COLORS[schedule.task.category] || 'bg-gray-100'}`}>
+                          <CategoryIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-lg">{schedule.task.name}</h4>
+                          <p className="text-sm text-gray-500">
+                            {schedule.assignedTo && `Assigned to ${schedule.assignedTo}`}
+                            {schedule.task.estimatedMinutes && ` • ~${schedule.task.estimatedMinutes} min`}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => openCompleteModal(schedule)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-6"
+                      >
+                        <CheckCircle2Icon className="w-5 h-5 mr-2" />
+                        Mark Done
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* THIS WEEK Section */}
+        <Card className="border-2 border-purple-400">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-purple-800">
+              <ClockIcon className="w-6 h-6" />
+              📅 This Week — {weekSchedules.length} task{weekSchedules.length !== 1 ? 's' : ''} remaining
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {weekSchedules.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                <p>No tasks scheduled for this week.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {weekSchedules.map((schedule) => {
+                  const CategoryIcon = CATEGORY_ICONS[schedule.task.category] || BoxIcon;
+                  const scheduleDate = new Date(schedule.dueDate);
+                  const isToday = scheduleDate.toDateString() === new Date().toDateString();
+                  
+                  return (
+                    <div
+                      key={schedule.id}
+                      className={`p-4 rounded-lg border ${isToday ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${CATEGORY_COLORS[schedule.task.category] || 'bg-gray-100'}`}>
+                          <CategoryIcon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{schedule.task.name}</p>
+                          <p className={`text-sm ${isToday ? 'text-blue-700 font-semibold' : 'text-gray-500'}`}>
+                            {isToday ? '📍 Today' : scheduleDate.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => openCompleteModal(schedule)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Done
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Month Navigation */}
         <div className="flex items-center justify-between">
