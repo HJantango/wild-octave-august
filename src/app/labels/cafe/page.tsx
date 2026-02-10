@@ -59,12 +59,14 @@ function FontLoader() {
 function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }) {
   const hasDietaryTags = label.vegan || label.glutenFree;
 
+  // For print: labels are ~97mm x 70mm each, so we use proportional sizing
+  // Screen preview uses larger sizes for visibility
   return (
     <div
       className="label-card relative flex flex-col items-center justify-center text-center overflow-hidden"
       style={{
         backgroundColor: label.bgColor,
-        padding: forPrint ? '16px 20px' : '36px 32px',
+        padding: forPrint ? '8px 12px' : '36px 32px',
         borderRadius: forPrint ? '0' : '14px',
         minHeight: forPrint ? 'auto' : '320px',
         height: forPrint ? '100%' : 'auto',
@@ -77,10 +79,10 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
         <p
           style={{
             fontFamily: "'Dancing Script', cursive",
-            fontSize: forPrint ? '20px' : '34px',
+            fontSize: forPrint ? '28px' : '34px',
             color: DARK_GREEN,
-            marginBottom: forPrint ? '2px' : '4px',
-            lineHeight: 1.2,
+            marginBottom: forPrint ? '0px' : '4px',
+            lineHeight: 1.1,
           }}
         >
           Organic
@@ -92,11 +94,11 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
         style={{
           fontFamily: "'Playfair Display', Georgia, serif",
           fontWeight: 800,
-          fontSize: forPrint ? '24px' : '38px',
+          fontSize: forPrint ? '32px' : '38px',
           color: DARK_GREEN,
           textTransform: 'uppercase',
-          lineHeight: 1.15,
-          margin: forPrint ? '4px 0 6px' : '8px 0 12px',
+          lineHeight: 1.1,
+          margin: forPrint ? '2px 0 4px' : '8px 0 12px',
           letterSpacing: '0.02em',
           maxWidth: '100%',
           wordBreak: 'break-word',
@@ -107,15 +109,15 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
 
       {/* Dietary badges row — BELOW item name */}
       {hasDietaryTags && (
-        <div className="flex items-center justify-center gap-2" style={{ marginBottom: forPrint ? '6px' : '10px' }}>
+        <div className="flex items-center justify-center gap-2" style={{ marginBottom: forPrint ? '4px' : '10px' }}>
           {label.vegan && (
             <span
               style={{
                 backgroundColor: DARK_GREEN,
                 color: '#fff',
-                fontSize: forPrint ? '10px' : '13px',
+                fontSize: forPrint ? '12px' : '13px',
                 fontWeight: 700,
-                padding: forPrint ? '2px 10px' : '4px 16px',
+                padding: forPrint ? '3px 12px' : '4px 16px',
                 borderRadius: '999px',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -129,9 +131,9 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
               style={{
                 backgroundColor: DARK_GREEN,
                 color: '#fff',
-                fontSize: forPrint ? '10px' : '13px',
+                fontSize: forPrint ? '12px' : '13px',
                 fontWeight: 700,
-                padding: forPrint ? '2px 10px' : '4px 16px',
+                padding: forPrint ? '3px 12px' : '4px 16px',
                 borderRadius: '999px',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -147,12 +149,12 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
       {label.ingredients && (
         <p
           style={{
-            fontSize: forPrint ? '9px' : '13px',
+            fontSize: forPrint ? '11px' : '13px',
             color: DARK_GREEN,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
-            lineHeight: 1.5,
-            maxWidth: '90%',
+            lineHeight: 1.4,
+            maxWidth: '95%',
             margin: '0 auto',
             opacity: 0.85,
           }}
@@ -167,11 +169,11 @@ function LabelCard({ label, forPrint }: { label: CafeLabel; forPrint?: boolean }
           style={{
             backgroundColor: DARK_GREEN,
             color: '#fff',
-            fontSize: forPrint ? '14px' : '22px',
+            fontSize: forPrint ? '18px' : '22px',
             fontWeight: 800,
-            padding: forPrint ? '4px 16px' : '6px 24px',
+            padding: forPrint ? '5px 18px' : '6px 24px',
             borderRadius: '999px',
-            marginTop: forPrint ? '8px' : '14px',
+            marginTop: forPrint ? '6px' : '14px',
             display: 'inline-block',
           }}
         >
@@ -334,7 +336,7 @@ export default function CafeLabelsPage() {
     <DashboardLayout>
       <FontLoader />
 
-      {/* Print-only styles — 8 labels per A4 page with 1" margins, labels edge-to-edge */}
+      {/* Print-only styles — 8 labels per A4 page, edge-to-edge with crop marks */}
       <style jsx global>{`
         @media print {
           /* Hide all page content */
@@ -354,7 +356,7 @@ export default function CafeLabelsPage() {
             width: 210mm !important;
             height: 297mm !important;
             margin: 0 !important;
-            padding: 25.4mm !important; /* 1 inch margins */
+            padding: 8mm !important; /* Small margin for crop marks */
             background: white !important;
             z-index: 999999 !important;
             overflow: hidden !important;
@@ -372,9 +374,10 @@ export default function CafeLabelsPage() {
             grid-template-rows: repeat(4, 1fr);
             gap: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
+            width: 100%; /* 194mm available */
+            height: 100%; /* 281mm available */
             box-sizing: border-box;
+            position: relative;
           }
           #print-sheet .label-card {
             break-inside: avoid;
@@ -391,14 +394,46 @@ export default function CafeLabelsPage() {
             width: 100% !important;
             height: 100% !important;
             box-sizing: border-box;
+            padding: 12px 16px !important;
           }
-          /* Hide crop marks - labels are now edge-to-edge */
+          /* Crop marks */
+          #print-sheet .crop-marks {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+          }
           #print-sheet .crop-mark {
-            display: none !important;
+            position: absolute;
+            background: black;
           }
-          #print-sheet .crop-left { left: -6mm; }
+          /* Vertical crop mark (center column) */
+          #print-sheet .crop-v {
+            width: 0.25mm;
+            height: 5mm;
+            left: 50%;
+            transform: translateX(-50%);
+          }
+          #print-sheet .crop-v.top { top: -7mm; }
+          #print-sheet .crop-v.bottom { bottom: -7mm; }
+          /* Row crop marks */
+          #print-sheet .crop-v.row1 { top: 25%; transform: translate(-50%, -50%); }
+          #print-sheet .crop-v.row2 { top: 50%; transform: translate(-50%, -50%); }
+          #print-sheet .crop-v.row3 { top: 75%; transform: translate(-50%, -50%); }
+          /* Horizontal crop marks */
+          #print-sheet .crop-h {
+            width: 5mm;
+            height: 0.25mm;
+          }
+          #print-sheet .crop-h.left { left: -7mm; }
+          #print-sheet .crop-h.right { right: -7mm; }
+          #print-sheet .crop-h.row1 { top: 25%; transform: translateY(-50%); }
+          #print-sheet .crop-h.row2 { top: 50%; transform: translateY(-50%); }
+          #print-sheet .crop-h.row3 { top: 75%; transform: translateY(-50%); }
           @page {
-            size: A4;
+            size: A4 portrait;
             margin: 0;
           }
         }
@@ -672,27 +707,30 @@ export default function CafeLabelsPage() {
         )}
       </div>
 
-      {/* Hidden print-only sheet — 2×4 grid filling A4 */}
+      {/* Hidden print-only sheet — 2×4 grid filling A4 with crop marks */}
       <div id="print-sheet" style={{ display: 'none' }} ref={printRef}>
-        <div className="print-grid" style={{ position: 'relative' }}>
+        <div className="print-grid">
           {labels.map((label) => (
             <LabelCard key={label.id} label={label} forPrint />
           ))}
-          {/* Crop marks — centre column */}
-          <div className="crop-mark crop-v crop-top" />
-          <div className="crop-mark crop-v crop-bottom" />
-          {/* Crop marks — row lines, left side */}
-          {[1, 2, 3].map((row) => (
-            <div key={`hl-${row}`} className="crop-mark crop-h crop-left" style={{ top: `${(row / 4) * 100}%`, transform: 'translateY(-50%)' }} />
-          ))}
-          {/* Crop marks — row lines, right side */}
-          {[1, 2, 3].map((row) => (
-            <div key={`hr-${row}`} className="crop-mark crop-h crop-right" style={{ top: `${(row / 4) * 100}%`, transform: 'translateY(-50%)' }} />
-          ))}
-          {/* Crop marks — centre column at each row intersection */}
-          {[1, 2, 3].map((row) => (
-            <div key={`vc-${row}`} className="crop-mark crop-v" style={{ top: `calc(${(row / 4) * 100}% - 2.5mm)` }} />
-          ))}
+        </div>
+        {/* Crop marks overlay */}
+        <div className="crop-marks">
+          {/* Top & bottom center column marks */}
+          <div className="crop-mark crop-v top" />
+          <div className="crop-mark crop-v bottom" />
+          {/* Row divider marks - left side */}
+          <div className="crop-mark crop-h left row1" />
+          <div className="crop-mark crop-h left row2" />
+          <div className="crop-mark crop-h left row3" />
+          {/* Row divider marks - right side */}
+          <div className="crop-mark crop-h right row1" />
+          <div className="crop-mark crop-h right row2" />
+          <div className="crop-mark crop-h right row3" />
+          {/* Center column marks at row intersections */}
+          <div className="crop-mark crop-v row1" />
+          <div className="crop-mark crop-v row2" />
+          <div className="crop-mark crop-v row3" />
         </div>
       </div>
     </DashboardLayout>
