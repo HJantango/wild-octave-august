@@ -643,3 +643,81 @@ model CafeLabelTemplate {
   @@index([name])
   @@map("cafe_label_templates")
 }
+
+// SHOP OPS - Maintenance & Compliance Scheduling
+
+model ShopOpsTask {
+  id              String   @id @default(cuid())
+  name            String   // e.g., "Clean Dairy Fridge"
+  description     String?  @db.Text
+  category        String   @default("fridge") // "fridge", "freezer", "pest", "safety", etc.
+  asset           String?  // e.g., "Dairy Fridge", "Tempeh Fridge"
+  frequencyType   String   @map("frequency_type") // "monthly", "weekly", "biweekly", "custom"
+  frequencyValue  Int      @default(1) @map("frequency_value") // e.g., 1 = once per frequency period
+  estimatedMinutes Int?    @map("estimated_minutes") // How long the task takes
+  assignedTo      String[] @default([]) @map("assigned_to") // Default assignees
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  schedules       ShopOpsSchedule[]
+  completions     ShopOpsCompletion[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("shop_ops_tasks")
+}
+
+model ShopOpsSchedule {
+  id              String    @id @default(cuid())
+  taskId          String    @map("task_id")
+  dueDate         DateTime  @map("due_date") @db.Date
+  assignedTo      String?   @map("assigned_to") // Override for this specific occurrence
+  status          String    @default("pending") // "pending", "completed", "skipped", "overdue"
+  completedAt     DateTime? @map("completed_at")
+  completedBy     String?   @map("completed_by")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  task            ShopOpsTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dueDate])
+  @@index([dueDate])
+  @@index([status])
+  @@map("shop_ops_schedules")
+}
+
+model ShopOpsCompletion {
+  id              String   @id @default(cuid())
+  taskId          String   @map("task_id")
+  scheduleId      String?  @map("schedule_id") // Optional link to specific schedule
+  completedAt     DateTime @default(now()) @map("completed_at")
+  completedBy     String   @map("completed_by")
+  notes           String?
+  photoUrl        String?  @map("photo_url") // Optional proof photo
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  task            ShopOpsTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([completedAt])
+  @@index([completedBy])
+  @@map("shop_ops_completions")
+}
+
+model ShopOpsStaff {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  email           String?  // For Google Calendar invites
+  phone           String?
+  role            String   @default("staff") // "admin", "staff"
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("shop_ops_staff")
+}
