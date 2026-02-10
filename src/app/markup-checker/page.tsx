@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,11 +44,20 @@ interface MarkupData {
 }
 
 export default function MarkupCheckerPage() {
+  const router = useRouter();
   const [data, setData] = useState<MarkupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
   const [shelfLabel, setShelfLabel] = useState('all');
   const [targetMarkup, setTargetMarkup] = useState('1.75');
+
+  const handlePrintFixes = () => {
+    const params = new URLSearchParams();
+    if (category !== 'all') params.append('category', category);
+    if (shelfLabel !== 'all') params.append('shelfLabel', shelfLabel);
+    params.append('targetMarkup', targetMarkup);
+    router.push(`/markup-checker/print?${params}`);
+  };
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'under' | 'over' | 'on-target'>('all');
 
@@ -224,10 +234,14 @@ export default function MarkupCheckerPage() {
                 <div className="text-sm text-green-600">On Target ✓</div>
               </CardContent>
             </Card>
-            <Card className="border-red-200 bg-red-50">
+            <Card 
+              className="border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors"
+              onClick={handlePrintFixes}
+            >
               <CardContent className="p-4">
                 <div className="text-2xl font-bold text-red-700">{data.summary.under}</div>
                 <div className="text-sm text-red-600">Under Target ⚠️</div>
+                <div className="text-xs text-red-500 mt-1">🖨️ Click to print</div>
               </CardContent>
             </Card>
             <Card className="border-blue-200 bg-blue-50">
