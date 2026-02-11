@@ -1,5 +1,11 @@
 import { SquareClient, SquareEnvironment } from 'square';
 
+export interface SquareVendor {
+  id: string;
+  name: string;
+  status?: string;
+}
+
 export interface SquareItem {
   id: string;
   name: string;
@@ -7,10 +13,13 @@ export interface SquareItem {
     id: string;
     name: string;
   };
+  vendorId?: string;
+  vendorName?: string;
   variations: Array<{
     id: string;
     name: string;
     sku?: string;
+    vendorId?: string;
     priceMoney: {
       amount: number;
       currency: string;
@@ -171,15 +180,52 @@ class RealSquareService {
     }
   }
 
+  async getVendors(): Promise<SquareVendor[]> {
+    try {
+      const client = this.getClient();
+      const response = await client.catalog.list({
+        types: 'VENDOR'
+      });
+      
+      return response.result.objects?.filter(obj => obj.type === 'VENDOR').map(obj => {
+        const vendorData = (obj as any).vendorData;
+        return {
+          id: obj.id!,
+          name: vendorData?.name || 'Unknown Vendor',
+          status: vendorData?.status,
+        };
+      }) || [];
+    } catch (error) {
+      console.error('❌ Failed to get vendors:', error);
+      return [];
+    }
+  }
+
   async getCatalogItems(filters?: { types?: string[]; categoryId?: string }): Promise<SquareItem[]> {
     try {
       const client = this.getClient();
+      
+      // First, fetch all vendors to build a lookup map
+      const vendors = await this.getVendors();
+      const vendorMap = new Map<string, string>();
+      for (const v of vendors) {
+        vendorMap.set(v.id, v.name);
+      }
+      console.log(`📦 Loaded ${vendors.length} vendors from Square`);
+      
       const response = await client.catalog.list({
         types: filters?.types?.join(',') || 'ITEM'
       });
       
       return response.result.objects?.filter(obj => obj.type === 'ITEM').map(obj => {
         const itemData = obj.itemData;
+        
+        // Get vendor ID from the first variation's vendor info
+        const firstVariation = itemData?.variations?.[0];
+        const vendorInfo = firstVariation?.itemVariationData?.itemVariationVendorInfos?.[0];
+        const vendorId = vendorInfo?.vendorId || undefined;
+        const vendorName = vendorId ? vendorMap.get(vendorId) : undefined;
+        
         return {
           id: obj.id!,
           name: itemData?.name || 'Unknown Item',
@@ -187,16 +233,19 @@ class RealSquareService {
             id: itemData.categoryId,
             name: 'Unknown Category' // Would need separate call to get category name
           } : undefined,
+          vendorId,
+          vendorName,
           variations: itemData?.variations?.map(variation => {
             const varData = variation.itemVariationData;
             // Try to get cost from vendor info if available
-            const vendorInfo = varData?.itemVariationVendorInfos?.[0];
-            const costMoney = vendorInfo?.priceMoney;
+            const varVendorInfo = varData?.itemVariationVendorInfos?.[0];
+            const costMoney = varVendorInfo?.priceMoney;
             
             return {
               id: variation.id!,
               name: varData?.name || 'Default',
               sku: varData?.sku || undefined,
+              vendorId: varVendorInfo?.vendorId || undefined,
               priceMoney: {
                 amount: Number(varData?.priceMoney?.amount || 0),
                 currency: varData?.priceMoney?.currency || 'AUD'
