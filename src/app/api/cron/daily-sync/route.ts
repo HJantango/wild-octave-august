@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/api-utils';
+import { PrismaClient } from '@prisma/client';
 import { realSquareService } from '@/services/real-square-service';
 
 // This endpoint is protected by a secret key instead of user auth
-// Add CRON_SECRET to Railway env vars
 const CRON_SECRET = process.env.CRON_SECRET || 'wild-octave-sync-2024';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
+
+// Create prisma client at runtime to avoid build-time null issues
+function getPrisma() {
+  return new PrismaClient();
+}
 
 export async function GET(request: NextRequest) {
   // Check cron secret
@@ -28,6 +32,9 @@ export async function GET(request: NextRequest) {
     salesSync: null,
     errors: [],
   };
+
+  // Create prisma client at runtime
+  const prisma = getPrisma();
 
   try {
     // 1. Sync catalog items
@@ -104,11 +111,13 @@ export async function GET(request: NextRequest) {
     };
     console.log(`✅ Catalog sync: ${catalogCreated} created, ${catalogUpdated} updated, ${catalogSkipped} skipped`);
 
-    // 2. Sync sales data (last 7 days to catch any missed)
-    console.log('🔄 Starting sales sync...');
+    // 2. Sync sales data
+    // Use weeks param for historical sync, default to 1 week for daily cron
+    const weeksBack = parseInt(request.nextUrl.searchParams.get('weeks') || '1');
+    console.log(`🔄 Starting sales sync (${weeksBack} weeks back)...`);
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 7);
+    startDate.setDate(startDate.getDate() - weeksBack * 7);
 
     const orders = await realSquareService.searchOrders({
       startDate,
@@ -198,6 +207,7 @@ export async function GET(request: NextRequest) {
     };
     console.log(`✅ Sales sync: ${orders.length} orders → ${salesUpserted} daily records`);
 
+    await prisma.$disconnect();
     return NextResponse.json({
       success: true,
       ...results,
@@ -205,6 +215,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Daily sync failed:', error);
     results.errors.push({ phase: 'general', error: error.message });
+    await prisma.$disconnect();
     return NextResponse.json({
       success: false,
       ...results,
