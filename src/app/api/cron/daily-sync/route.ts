@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 7);
 
-    const orders = await realSquareService.getSalesOrders({
+    const orders = await realSquareService.searchOrders({
       startDate,
       endDate,
     });
