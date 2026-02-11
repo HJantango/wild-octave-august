@@ -15,7 +15,9 @@ interface ProductRationalizationItem {
   marginPercent: number;
   totalUnitsSold: number;
   totalRevenue: number;
+  totalProfit: number;
   avgWeeklySales: number;
+  avgWeeklyProfit: number;
   weeksWithSales: number;
   similarGroup?: string;
   decision?: 'keep' | 'remove' | 'staple' | null;
@@ -147,9 +149,15 @@ export async function GET(request: NextRequest) {
       const sales = salesLookup.get(item.name.toLowerCase()) || { units: 0, revenue: 0, weeks: 0 };
       const cost = Number(item.currentCostExGst) || 0;
       const sell = Number(item.currentSellIncGst) || 0;
+      const sellExGst = sell / 1.1;
       const marginPercent = sell > 0 && cost > 0 
-        ? ((sell / 1.1 - cost) / (sell / 1.1)) * 100 
+        ? ((sellExGst - cost) / sellExGst) * 100 
         : 0;
+      
+      // Calculate profit: (sell ex GST - cost) * units sold
+      const profitPerUnit = sellExGst - cost;
+      const totalProfit = profitPerUnit * sales.units;
+      const avgWeeklyProfit = totalProfit / weeksInPeriod;
 
       return {
         id: item.id,
@@ -163,7 +171,9 @@ export async function GET(request: NextRequest) {
         marginPercent: Math.round(marginPercent * 10) / 10,
         totalUnitsSold: sales.units,
         totalRevenue: Math.round(sales.revenue * 100) / 100,
+        totalProfit: Math.round(totalProfit * 100) / 100,
         avgWeeklySales: Math.round((sales.units / weeksInPeriod) * 10) / 10,
+        avgWeeklyProfit: Math.round(avgWeeklyProfit * 100) / 100,
         weeksWithSales: sales.weeks,
         similarGroup: similarGroups.get(item.id) || undefined,
         decision: decisionLookup.get(item.id) as any || null,

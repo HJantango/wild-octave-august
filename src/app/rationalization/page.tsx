@@ -22,7 +22,9 @@ interface RationalizationItem {
   marginPercent: number;
   totalUnitsSold: number;
   totalRevenue: number;
+  totalProfit: number;
   avgWeeklySales: number;
+  avgWeeklyProfit: number;
   weeksWithSales: number;
   similarGroup?: string;
   decision: 'keep' | 'remove' | 'staple' | null;
@@ -186,12 +188,12 @@ export default function RationalizationPage() {
       return <span className="text-red-600 font-medium">No sales</span>;
     }
     if (item.avgWeeklySales < 0.5) {
-      return <span className="text-orange-600">{item.avgWeeklySales}/wk</span>;
+      return <span className="text-orange-600">{item.avgWeeklySales} <span className="text-xs">per wk</span></span>;
     }
     if (item.avgWeeklySales < 2) {
-      return <span className="text-yellow-600">{item.avgWeeklySales}/wk</span>;
+      return <span className="text-yellow-600">{item.avgWeeklySales} <span className="text-xs">per wk</span></span>;
     }
-    return <span className="text-green-600">{item.avgWeeklySales}/wk</span>;
+    return <span className="text-green-600">{item.avgWeeklySales} <span className="text-xs">per wk</span></span>;
   };
 
   return (
@@ -356,6 +358,7 @@ export default function RationalizationPage() {
                       <th className="text-right p-3">Margin</th>
                       <th className="text-right p-3">Sales</th>
                       <th className="text-right p-3">Revenue</th>
+                      <th className="text-right p-3">Profit</th>
                       <th className="text-center p-3">Decision</th>
                       <th className="text-center p-3">Actions</th>
                     </tr>
@@ -401,7 +404,17 @@ export default function RationalizationPage() {
                               {getSalesIndicator(item)}
                               <div className="text-xs text-gray-400">{item.totalUnitsSold} total</div>
                             </td>
-                            <td className="p-3 text-right font-mono">{formatCurrency(item.totalRevenue)}</td>
+                            <td className="p-3 text-right font-mono">
+                              {formatCurrency(item.totalRevenue)}
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className={`font-mono ${item.totalProfit > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                {formatCurrency(item.totalProfit)}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {formatCurrency(item.avgWeeklyProfit)}/wk
+                              </div>
+                            </td>
                             <td className="p-3 text-center">
                               {getDecisionBadge(item.decision)}
                             </td>
