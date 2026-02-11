@@ -73,6 +73,8 @@ export default function ItemsPage() {
   const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingCatalog, setSyncingCatalog] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [filters, setFilters] = useState<ItemFilters>({
     category: 'all',
     vendorId: 'all',
@@ -86,8 +88,17 @@ export default function ItemsPage() {
     totalPages: 0,
   });
 
+  // Load last sync time from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('catalogLastSyncTime');
+    if (saved) {
+      setLastSyncTime(saved);
+    }
+  }, []);
+
   const handleSyncCatalog = async () => {
     setSyncingCatalog(true);
+    setSyncStatus(null);
     try {
       const response = await fetch('/api/square/catalog-sync', {
         method: 'POST',
@@ -97,6 +108,13 @@ export default function ItemsPage() {
       
       if (result.success || result.data) {
         const summary = result.data?.summary || result.summary;
+        const now = new Date().toISOString();
+        setLastSyncTime(now);
+        localStorage.setItem('catalogLastSyncTime', now);
+        setSyncStatus({
+          type: 'success',
+          message: `✓ Synced: ${summary?.updated || 0} updated, ${summary?.created || 0} created, ${summary?.skipped || 0} skipped`
+        });
         toast.success(
           'Catalog Synced',
           `Updated: ${summary?.updated || 0}, Created: ${summary?.created || 0}, Skipped: ${summary?.skipped || 0}`
@@ -107,6 +125,10 @@ export default function ItemsPage() {
         throw new Error(result.error?.message || 'Sync failed');
       }
     } catch (error: any) {
+      setSyncStatus({
+        type: 'error',
+        message: `✗ Sync failed: ${error.message || 'Unknown error'}`
+      });
       toast.error('Sync Failed', error.message || 'Failed to sync catalog from Square');
     } finally {
       setSyncingCatalog(false);
@@ -233,35 +255,55 @@ export default function ItemsPage() {
                   {pagination.total} items • {items.filter(i => i.hasPriceChanged).length} price changes
                 </p>
               </div>
-              <div className="mt-4 lg:mt-0 flex items-center gap-3">
-                <Button 
-                  onClick={handleSyncCatalog}
-                  disabled={syncingCatalog}
-                  className="bg-white/20 hover:bg-white/30 text-white border-white/20 backdrop-blur-sm"
-                >
-                  {syncingCatalog ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Sync from Square
-                    </>
-                  )}
-                </Button>
-                <Link href="/items/new">
-                  <Button className="bg-white/20 hover:bg-white/30 text-white border-white/20 backdrop-blur-sm px-6 py-3 text-lg font-semibold">
-                    <PlusIcon className="w-5 h-5 mr-2" />
-                    Add Item
+              <div className="mt-4 lg:mt-0 flex flex-col items-end gap-2">
+                <div className="flex items-center gap-3">
+                  <Button 
+                    onClick={handleSyncCatalog}
+                    disabled={syncingCatalog}
+                    className="bg-white/20 hover:bg-white/30 text-white border-white/20 backdrop-blur-sm"
+                  >
+                    {syncingCatalog ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4 mr-2" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Sync from Square
+                      </>
+                    )}
                   </Button>
-                </Link>
+                  <Link href="/items/new">
+                    <Button className="bg-white/20 hover:bg-white/30 text-white border-white/20 backdrop-blur-sm px-6 py-3 text-lg font-semibold">
+                      <PlusIcon className="w-5 h-5 mr-2" />
+                      Add Item
+                    </Button>
+                  </Link>
+                </div>
+                {/* Last sync time and status */}
+                <div className="text-right text-sm">
+                  {lastSyncTime && (
+                    <div className="text-purple-200">
+                      Last synced: {new Date(lastSyncTime).toLocaleString('en-AU', { 
+                        day: 'numeric', 
+                        month: 'short', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </div>
+                  )}
+                  {syncStatus && (
+                    <div className={syncStatus.type === 'success' ? 'text-green-300' : 'text-red-300'}>
+                      {syncStatus.message}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

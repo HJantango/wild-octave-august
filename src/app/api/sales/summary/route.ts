@@ -34,26 +34,20 @@ export async function GET(request: NextRequest) {
         totals,
         dateRange
       ] = await Promise.all([
-        // Category totals
+        // Category totals (filter nulls in JS to avoid Prisma quirks)
         prisma.squareDailySales.groupBy({
           by: ['category'],
-          where: {
-            ...where,
-            category: { not: null },
-          },
+          where,
           _sum: {
             netSalesCents: true,
             quantitySold: true,
           },
         }),
 
-        // Item totals
+        // Item totals (filter nulls in JS to avoid Prisma quirks)
         prisma.squareDailySales.groupBy({
           by: ['itemName'],
-          where: {
-            ...where,
-            itemName: { not: null },
-          },
+          where,
           _sum: {
             netSalesCents: true,
             quantitySold: true,
@@ -77,8 +71,9 @@ export async function GET(request: NextRequest) {
       const totalRevenueCents = totals._sum.netSalesCents || 0;
       const totalRevenueValue = totalRevenueCents / 100; // Convert cents to dollars
 
-      // Format and sort category results
+      // Format and sort category results (filter out null categories)
       const topCategories = categoryAggregates
+        .filter(agg => agg.category != null)
         .map(agg => ({
           category: agg.category,
           revenue: (agg._sum.netSalesCents || 0) / 100,
@@ -90,10 +85,10 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 10);
 
-      // Format item results (filter generic items, sort by revenue)
+      // Format item results (filter generic items and nulls, sort by revenue)
       const genericItems = ['Pies', 'Pie', 'Cake', 'Coffee', 'Smoothie', 'Salad'];
       const topItems = itemAggregates
-        .filter(agg => !genericItems.includes(agg.itemName) && agg.itemName && agg.itemName.length > 3)
+        .filter(agg => agg.itemName != null && !genericItems.includes(agg.itemName) && agg.itemName.length > 3)
         .map(agg => ({
           itemName: agg.itemName,
           revenue: (agg._sum.netSalesCents || 0) / 100,

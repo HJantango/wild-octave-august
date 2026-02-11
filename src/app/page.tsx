@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,16 @@ export default function Dashboard() {
     return defaultRange || { startDate: new Date(), endDate: new Date() };
   });
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingCatalog, setIsSyncingCatalog] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [lastSalesSync, setLastSalesSync] = useState<string | null>(null);
+  const [lastCatalogSync, setLastCatalogSync] = useState<string | null>(null);
+
+  // Load last sync times from localStorage
+  useEffect(() => {
+    setLastSalesSync(localStorage.getItem('salesLastSyncTime'));
+    setLastCatalogSync(localStorage.getItem('catalogLastSyncTime'));
+  }, []);
   
   // Sync sales from Square API
   const handleSquareSync = async (weeks: number = 4) => {
@@ -66,7 +75,10 @@ export default function Dashboard() {
       });
       const result = await response.json();
       if (response.ok) {
-        setSyncMessage(`✅ Synced ${result.data?.ordersProcessed || 0} orders (${weeks} weeks)`);
+        const now = new Date().toISOString();
+        setLastSalesSync(now);
+        localStorage.setItem('salesLastSyncTime', now);
+        setSyncMessage(`✅ Synced ${result.data?.summary?.ordersProcessed || result.data?.ordersProcessed || 0} orders (${weeks} weeks)`);
         refetch(); // Refresh dashboard data
       } else {
         setSyncMessage(`❌ ${result.error?.message || 'Sync failed'}`);
@@ -75,7 +87,34 @@ export default function Dashboard() {
       setSyncMessage('❌ Failed to connect to Square');
     } finally {
       setIsSyncing(false);
-      setTimeout(() => setSyncMessage(null), 5000);
+      setTimeout(() => setSyncMessage(null), 8000);
+    }
+  };
+
+  // Sync catalog from Square API
+  const handleCatalogSync = async () => {
+    setIsSyncingCatalog(true);
+    setSyncMessage(null);
+    try {
+      const response = await fetch('/api/square/catalog-sync', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await response.json();
+      if (response.ok) {
+        const now = new Date().toISOString();
+        setLastCatalogSync(now);
+        localStorage.setItem('catalogLastSyncTime', now);
+        const summary = result.data?.summary || result.summary;
+        setSyncMessage(`✅ Catalog: ${summary?.updated || 0} updated, ${summary?.created || 0} created`);
+      } else {
+        setSyncMessage(`❌ ${result.error?.message || 'Catalog sync failed'}`);
+      }
+    } catch (err) {
+      setSyncMessage('❌ Failed to sync catalog');
+    } finally {
+      setIsSyncingCatalog(false);
+      setTimeout(() => setSyncMessage(null), 8000);
     }
   };
   
@@ -117,43 +156,66 @@ export default function Dashboard() {
                   Health Food Shop Dashboard
                 </h1>
               </div>
-              <div className="mt-4 lg:mt-0 flex items-center space-x-3">
-                <Link href="/sales">
+              <div className="mt-4 lg:mt-0 flex flex-col items-end gap-2">
+                <div className="flex items-center space-x-2">
+                  <Link href="/sales">
+                    <Button
+                      variant="secondary"
+                      className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                    >
+                      📊 Sales
+                    </Button>
+                  </Link>
                   <Button
+                    onClick={handleCatalogSync}
+                    variant="secondary"
+                    className="bg-purple-500/80 hover:bg-purple-500 text-white border-purple-400/20"
+                    disabled={isSyncingCatalog || isSyncing}
+                  >
+                    {isSyncingCatalog ? '🔄...' : '📦 Catalog'}
+                  </Button>
+                  <Button
+                    onClick={() => handleSquareSync(4)}
                     variant="secondary"
                     className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                    disabled={isSyncing || isSyncingCatalog}
                   >
-                    📊 Sales Reports
+                    {isSyncing ? '🔄...' : '🔗 4wk'}
                   </Button>
-                </Link>
-                <Button
-                  onClick={() => handleSquareSync(4)}
-                  variant="secondary"
-                  className="bg-white/20 hover:bg-white/30 text-white border-white/20"
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? '🔄 Syncing...' : '🔗 Sync (4wk)'}
-                </Button>
-                <Button
-                  onClick={() => handleSquareSync(26)}
-                  variant="secondary"
-                  className="bg-yellow-500/80 hover:bg-yellow-500 text-white border-yellow-400/20"
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? '🔄 Syncing...' : '📅 Full Sync (6mo)'}
-                </Button>
-                <Button
-                  onClick={refetch}
-                  variant="secondary"
-                  className="bg-white/20 hover:bg-white/30 text-white border-white/20"
-                  disabled={isLoading}
-                >
-                  {isLoading ? '🔄' : '↻'} Refresh
-                </Button>
+                  <Button
+                    onClick={() => handleSquareSync(26)}
+                    variant="secondary"
+                    className="bg-yellow-500/80 hover:bg-yellow-500 text-white border-yellow-400/20"
+                    disabled={isSyncing || isSyncingCatalog}
+                  >
+                    {isSyncing ? '🔄...' : '📅 6mo'}
+                  </Button>
+                  <Button
+                    onClick={refetch}
+                    variant="secondary"
+                    className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? '🔄' : '↻'}
+                  </Button>
+                </div>
+                {/* Last sync times */}
+                <div className="text-xs text-blue-100 text-right">
+                  {lastCatalogSync && (
+                    <span className="mr-3">
+                      Catalog: {new Date(lastCatalogSync).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  {lastSalesSync && (
+                    <span>
+                      Sales: {new Date(lastSalesSync).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+                {syncMessage && (
+                  <div className="text-sm text-white font-medium">{syncMessage}</div>
+                )}
               </div>
-              {syncMessage && (
-                <div className="mt-2 text-sm text-white/90">{syncMessage}</div>
-              )}
             </div>
           </div>
         </div>

@@ -183,18 +183,21 @@ class RealSquareService {
   async getVendors(): Promise<SquareVendor[]> {
     try {
       const client = this.getClient();
-      const response = await client.catalog.list({
-        types: 'VENDOR'
+      // Use the Vendors API - must provide filter with status to avoid empty filter error
+      const response = await client.vendors.search({
+        filter: {
+          status: ['ACTIVE']  // Get all active vendors
+        }
       });
       
-      return response.result.objects?.filter(obj => obj.type === 'VENDOR').map(obj => {
-        const vendorData = (obj as any).vendorData;
-        return {
-          id: obj.id!,
-          name: vendorData?.name || 'Unknown Vendor',
-          status: vendorData?.status,
-        };
-      }) || [];
+      const vendors = response.result?.vendors || [];
+      console.log(`📦 Found ${vendors.length} vendors in Square`);
+      
+      return vendors.map(vendor => ({
+        id: vendor.id!,
+        name: vendor.name || 'Unknown Vendor',
+        status: vendor.status,
+      }));
     } catch (error) {
       console.error('❌ Failed to get vendors:', error);
       return [];
@@ -273,7 +276,12 @@ class RealSquareService {
 
       // Build search query
       const searchQuery: any = {
-        filter: {}
+        filter: {
+          // Only get completed orders for sales analysis
+          stateFilter: {
+            states: ['COMPLETED']
+          }
+        }
       };
 
       // Always use recent date filter to avoid huge datasets causing timeouts
@@ -294,7 +302,7 @@ class RealSquareService {
       const requestBody = {
         locationIds: filters.locationId ? [filters.locationId] : activeLocations.map(loc => loc.id),
         query: searchQuery,
-        limit: Math.min(filters.limit || 50, 50), // Smaller limit to prevent timeouts
+        limit: Math.min(filters.limit || 500, 500), // Larger limit for better sync
         cursor: filters.cursor,
         returnEntries: true
       };

@@ -15,6 +15,7 @@ interface Staff {
   id: string;
   name: string;
   role: string;
+  canDoBarista: boolean;
   baseHourlyRate: number;
   email?: string;
   phone?: string;
@@ -46,6 +47,7 @@ export function StaffManagement() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [canDoBarista, setCanDoBarista] = useState(false);
 
   useEffect(() => {
     loadStaff();
@@ -75,6 +77,7 @@ export function StaffManagement() {
       setEditingStaff(staffMember);
       setName(staffMember.name);
       setRole(staffMember.role);
+      setCanDoBarista(staffMember.canDoBarista || false);
       setBaseHourlyRate(staffMember.baseHourlyRate.toString());
       setEmail(staffMember.email || '');
       setPhone(staffMember.phone || '');
@@ -84,6 +87,7 @@ export function StaffManagement() {
       setName('');
       setRole('');
       setCustomRole('');
+      setCanDoBarista(false);
       setBaseHourlyRate('');
       setEmail('');
       setPhone('');
@@ -98,6 +102,7 @@ export function StaffManagement() {
     setName('');
     setRole('');
     setCustomRole('');
+    setCanDoBarista(false);
     setBaseHourlyRate('');
     setEmail('');
     setPhone('');
@@ -115,6 +120,7 @@ export function StaffManagement() {
     const staffData = {
       name,
       role: finalRole,
+      canDoBarista,
       baseHourlyRate: parseFloat(baseHourlyRate),
       email: email.trim() || null,
       phone: phone.trim() || null,
@@ -343,6 +349,27 @@ export function StaffManagement() {
                   onChange={(e) => setCustomRole(e.target.value)}
                   placeholder="Enter custom role name"
                 />
+              </div>
+            )}
+
+            {/* Show "Can Do Barista" checkbox if role is NOT already Barista */}
+            {role && role.toLowerCase() !== 'barista' && (
+              <div className="flex items-center space-x-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <input
+                  id="canDoBarista"
+                  type="checkbox"
+                  checked={canDoBarista}
+                  onChange={(e) => setCanDoBarista(e.target.checked)}
+                  className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                />
+                <div>
+                  <Label htmlFor="canDoBarista" className="text-sm font-medium text-amber-900">
+                    ☕ Also a Barista
+                  </Label>
+                  <p className="text-xs text-amber-700">
+                    Can cover barista shifts for validation
+                  </p>
+                </div>
               </div>
             )}
 

@@ -226,6 +226,7 @@ model RosterStaff {
   id                  String   @id @default(cuid())
   name                String   @unique
   role                String   // 'manager', 'barista', 'junior'
+  canDoBarista        Boolean  @default(false) @map("can_do_barista") // Can cover barista shifts even if primary role is different
   baseHourlyRate      Decimal  @map("base_hourly_rate") @db.Decimal(8, 2)
   saturdayHourlyRate  Decimal? @map("saturday_hourly_rate") @db.Decimal(8, 2)
   sundayHourlyRate    Decimal? @map("sunday_hourly_rate") @db.Decimal(8, 2)

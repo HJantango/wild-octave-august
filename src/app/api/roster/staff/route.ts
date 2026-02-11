@@ -12,6 +12,7 @@ export async function GET() {
         id: true,
         name: true,
         role: true,
+        canDoBarista: true,
         baseHourlyRate: true,
         saturdayHourlyRate: true,
         sundayHourlyRate: true,
@@ -55,7 +56,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, role, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive = true } = body;
+    const { name, role, canDoBarista = false, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive = true } = body;
 
     if (!name || !role || baseHourlyRate === undefined) {
       return NextResponse.json(
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         role,
+        canDoBarista,
         baseHourlyRate,
         saturdayHourlyRate,
         sundayHourlyRate,
@@ -128,7 +130,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, role, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive } = body;
+    const { id, name, role, canDoBarista, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -145,6 +147,7 @@ export async function PUT(request: NextRequest) {
       data: {
         ...(name !== undefined && { name }),
         ...(role !== undefined && { role }),
+        ...(canDoBarista !== undefined && { canDoBarista }),
         ...(baseHourlyRate !== undefined && { baseHourlyRate }),
         ...(saturdayHourlyRate !== undefined && { saturdayHourlyRate }),
         ...(sundayHourlyRate !== undefined && { sundayHourlyRate }),

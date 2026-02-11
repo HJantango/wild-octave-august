@@ -568,8 +568,11 @@ export default function RosterPage() {
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
     
     // Check for barista covering 8:00-16:30 (combine multiple barista/backup shifts)
+    // Staff can cover barista if: their role is barista, OR they have canDoBarista flag, OR shift has isBackupBarista
     const baristaShifts = dayShifts.filter(shift => {
-      return shift.role?.toLowerCase() === 'barista' || shift.staff.role.toLowerCase().includes('barista') || shift.isBackupBarista;
+      const isBarista = shift.role?.toLowerCase() === 'barista' || shift.staff.role.toLowerCase().includes('barista');
+      const canDoBarista = shift.staff.canDoBarista === true;
+      return isBarista || canDoBarista || shift.isBackupBarista;
     });
     
     // Check if the 8:00-16:30 period is covered by any combination of barista shifts
