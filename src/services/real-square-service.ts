@@ -308,7 +308,8 @@ class RealSquareService {
         query: searchQuery,
         limit: Math.min(filters.limit || 500, 500), // Larger limit for better sync
         cursor: filters.cursor,
-        returnEntries: true
+        // returnEntries: false means we get full order objects, not just order entries
+        returnEntries: false
       };
 
       console.log('🔍 Searching Square orders (last year, limit 50) with:', JSON.stringify(requestBody, null, 2));
