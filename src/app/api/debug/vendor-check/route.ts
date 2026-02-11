@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Check if there are items in sales that SHOULD match but don't have vendor
-    const vendorItemNames = vendors.flatMap(v => v.items.map(i => i.name.toLowerCase()));
+    const vendorItemNames = vendors.flatMap(v => v.items?.map(i => i.name.toLowerCase()) || []);
     const salesWithoutVendor = await prisma.squareDailySales.findMany({
       where: { vendorName: null },
       take: 100,
@@ -36,19 +36,21 @@ export async function GET(request: NextRequest) {
       distinct: ['itemName'],
     });
 
-    // Find potential matches
-    const potentialMatches = salesWithoutVendor.filter(s => 
-      vendorItemNames.some(name => 
-        s.itemName.toLowerCase().includes(name) || name.includes(s.itemName.toLowerCase())
-      )
-    );
+    // Find potential matches (only if we have vendor items to compare)
+    const potentialMatches = vendorItemNames.length > 0 
+      ? salesWithoutVendor.filter(s => 
+          vendorItemNames.some(name => 
+            s.itemName.toLowerCase().includes(name) || name.includes(s.itemName.toLowerCase())
+          )
+        )
+      : [];
 
     return NextResponse.json({
       vendors: vendors.map(v => ({
         id: v.id,
         name: v.name,
-        itemCount: v._count.items,
-        sampleItems: v.items.map(i => i.name),
+        itemCount: v._count?.items || 0,
+        sampleItems: v.items?.map(i => i.name) || [],
       })),
       salesRecordsWithVendor: salesWithVendor,
       potentialMismatches: potentialMatches.map(p => p.itemName).slice(0, 20),
