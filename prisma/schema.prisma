@@ -779,3 +779,16 @@ model ProductDecision {
 
   @@map("product_decisions")
 }
+
+model ShelfStatus {
+  id          String    @id @default(cuid())
+  shelfLabel  String    @unique @map("shelf_label")
+  completed   Boolean   @default(false)
+  completedAt DateTime? @map("completed_at")
+  completedBy String?   @map("completed_by")
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("shelf_statuses")
+}

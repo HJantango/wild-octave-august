@@ -50,6 +50,13 @@ export default function RationalizationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   
+  // Shelf progress
+  const [shelfProgress, setShelfProgress] = useState<{
+    shelves: { shelfLabel: string; itemCount: number; completed: boolean }[];
+    summary: { total: number; completed: number; remaining: number };
+  } | null>(null);
+  const [showProgress, setShowProgress] = useState(false);
+  
   // Filters
   const [shelfFilter, setShelfFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -82,9 +89,41 @@ export default function RationalizationPage() {
     }
   };
 
+  const fetchShelfProgress = async () => {
+    try {
+      const res = await fetch('/api/reports/product-rationalization/shelf-status');
+      const data = await res.json();
+      if (data.data) {
+        setShelfProgress(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching shelf progress:', err);
+    }
+  };
+
+  const toggleShelfComplete = async (shelfLabel: string, completed: boolean) => {
+    try {
+      const res = await fetch('/api/reports/product-rationalization/shelf-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shelfLabel, completed }),
+      });
+      if (res.ok) {
+        toast.success('Updated', completed ? `${shelfLabel} marked complete ✓` : `${shelfLabel} marked incomplete`);
+        fetchShelfProgress();
+      }
+    } catch (err) {
+      toast.error('Error', 'Failed to update shelf status');
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, [shelfFilter, categoryFilter]);
+
+  useEffect(() => {
+    fetchShelfProgress();
+  }, []);
 
   // Run migration on first load
   useEffect(() => {
@@ -243,6 +282,77 @@ export default function RationalizationPage() {
                 <div className="text-sm text-orange-600">✕ Remove</div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Shelf Progress */}
+        {shelfProgress && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                📋 Shelf Progress
+                <Badge className={shelfProgress.summary.remaining === 0 ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
+                  {shelfProgress.summary.completed}/{shelfProgress.summary.total} complete
+                </Badge>
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowProgress(!showProgress)}
+              >
+                {showProgress ? 'Hide' : 'Show All'}
+              </Button>
+            </CardHeader>
+            {showProgress && (
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                  {shelfProgress.shelves.map(shelf => (
+                    <div
+                      key={shelf.shelfLabel}
+                      onClick={() => toggleShelfComplete(shelf.shelfLabel, !shelf.completed)}
+                      className={`p-2 rounded border cursor-pointer transition-colors ${
+                        shelf.completed 
+                          ? 'bg-green-50 border-green-300 hover:bg-green-100' 
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className={shelf.completed ? 'text-green-600' : 'text-gray-400'}>
+                          {shelf.completed ? '✓' : '○'}
+                        </span>
+                        <span className="text-sm font-medium truncate">{shelf.shelfLabel}</span>
+                      </div>
+                      <div className="text-xs text-gray-500">{shelf.itemCount} items</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
+
+        {/* Mark Current Shelf Complete */}
+        {shelfFilter !== 'all' && shelfProgress && (
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div>
+              <span className="font-medium">Reviewing: {shelfFilter}</span>
+              <span className="text-gray-500 ml-2">({filteredItems.length} items)</span>
+            </div>
+            <Button
+              onClick={() => {
+                const isComplete = shelfProgress.shelves.find(s => s.shelfLabel === shelfFilter)?.completed;
+                toggleShelfComplete(shelfFilter, !isComplete);
+              }}
+              className={
+                shelfProgress.shelves.find(s => s.shelfLabel === shelfFilter)?.completed
+                  ? 'bg-gray-500 hover:bg-gray-600'
+                  : 'bg-green-600 hover:bg-green-700'
+              }
+            >
+              {shelfProgress.shelves.find(s => s.shelfLabel === shelfFilter)?.completed
+                ? '↩ Mark Incomplete'
+                : '✓ Mark Shelf Complete'}
+            </Button>
           </div>
         )}
 

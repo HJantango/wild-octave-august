@@ -22,9 +22,23 @@ export async function POST(request: NextRequest) {
       CREATE INDEX IF NOT EXISTS idx_product_decisions_item_id ON product_decisions(item_id)
     `;
 
+    // Create the shelf_statuses table if it doesn't exist
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS shelf_statuses (
+        id TEXT PRIMARY KEY,
+        shelf_label TEXT UNIQUE NOT NULL,
+        completed BOOLEAN DEFAULT FALSE,
+        completed_at TIMESTAMP,
+        completed_by TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
     return NextResponse.json({ 
       success: true, 
-      message: 'ProductDecision table created successfully' 
+      message: 'Tables created successfully' 
     });
   } catch (error: any) {
     console.error('Migration error:', error);
