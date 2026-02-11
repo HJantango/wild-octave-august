@@ -76,6 +76,7 @@ model Item {
   purchaseOrderLineItems PurchaseOrderLineItem[]
   wastageRecords       WastageRecord[]
   discountRecords      DiscountRecord[]
+  productDecision      ProductDecision?
 
   @@map("items")
 }
@@ -764,4 +765,17 @@ model CashUp {
   @@unique([date, register])
   @@index([date])
   @@map("cash_ups")
+}
+
+model ProductDecision {
+  id        String   @id @default(cuid())
+  itemId    String   @unique @map("item_id")
+  decision  String   // 'keep', 'remove', 'staple', 'undecided'
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("product_decisions")
 }
