@@ -220,7 +220,11 @@ class RealSquareService {
         types: filters?.types?.join(',') || 'ITEM'
       });
       
-      return response.result.objects?.filter(obj => obj.type === 'ITEM').map(obj => {
+      // Handle both old and new SDK response formats
+      const objects = response.result?.objects || response.objects || [];
+      console.log(`📦 Catalog response: ${objects.length} objects`);
+      
+      return objects.filter(obj => obj.type === 'ITEM').map(obj => {
         const itemData = obj.itemData;
         
         // Get vendor ID from the first variation's vendor info
@@ -319,8 +323,18 @@ class RealSquareService {
         timeoutPromise
       ]);
       
-      const orders = response.result?.orders || response.orders || [];
+      // Handle multiple SDK response formats
+      let orders: any[] = [];
+      if (response.result?.orders) {
+        orders = response.result.orders;
+      } else if (response.orders) {
+        orders = response.orders;
+      } else if (response.data?.orders) {
+        orders = response.data.orders;
+      }
+      
       console.log(`📦 Found ${orders.length} orders from Square API`);
+      console.log(`📦 Response keys: ${Object.keys(response || {}).join(', ')}`);
       
       return orders.map(order => ({
         id: order.id!,
