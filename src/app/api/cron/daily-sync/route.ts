@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { realSquareService } from '@/services/real-square-service';
 
 // This endpoint is protected by a secret key instead of user auth
@@ -8,8 +7,9 @@ const CRON_SECRET = process.env.CRON_SECRET || 'wild-octave-sync-2024';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes max
 
-// Create prisma client at runtime to avoid build-time null issues
-function getPrisma() {
+// Create prisma client at runtime using dynamic import
+async function getPrisma() {
+  const { PrismaClient } = await import('@prisma/client');
   return new PrismaClient();
 }
 
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
     errors: [],
   };
 
-  // Create prisma client at runtime
-  const prisma = getPrisma();
+  // Create prisma client at runtime (dynamic import to avoid build-time issues)
+  const prisma = await getPrisma();
 
   try {
     // 1. Sync catalog items
