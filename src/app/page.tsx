@@ -55,14 +55,18 @@ export default function Dashboard() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   
   // Sync sales from Square API
-  const handleSquareSync = async () => {
+  const handleSquareSync = async (weeks: number = 4) => {
     setIsSyncing(true);
     setSyncMessage(null);
     try {
-      const response = await fetch('/api/square/sync-sales?days=30', { method: 'POST' });
+      const response = await fetch('/api/square/sync-sales', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weeks }),
+      });
       const result = await response.json();
       if (response.ok) {
-        setSyncMessage(`✅ Synced ${result.data?.ordersProcessed || 0} orders`);
+        setSyncMessage(`✅ Synced ${result.data?.ordersProcessed || 0} orders (${weeks} weeks)`);
         refetch(); // Refresh dashboard data
       } else {
         setSyncMessage(`❌ ${result.error?.message || 'Sync failed'}`);
@@ -123,12 +127,20 @@ export default function Dashboard() {
                   </Button>
                 </Link>
                 <Button
-                  onClick={handleSquareSync}
+                  onClick={() => handleSquareSync(4)}
                   variant="secondary"
                   className="bg-white/20 hover:bg-white/30 text-white border-white/20"
                   disabled={isSyncing}
                 >
-                  {isSyncing ? '🔄 Syncing...' : '🔗 Sync Square'}
+                  {isSyncing ? '🔄 Syncing...' : '🔗 Sync (4wk)'}
+                </Button>
+                <Button
+                  onClick={() => handleSquareSync(26)}
+                  variant="secondary"
+                  className="bg-yellow-500/80 hover:bg-yellow-500 text-white border-yellow-400/20"
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? '🔄 Syncing...' : '📅 Full Sync (6mo)'}
                 </Button>
                 <Button
                   onClick={refetch}
