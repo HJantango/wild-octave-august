@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
 import { ClockIcon, TrendingUpIcon, UsersIcon, CalendarIcon } from 'lucide-react';
+import { HourlyDayChart } from '@/components/charts/hourly-day-chart';
 
 interface HourlyData {
   hour: number;
@@ -212,6 +213,30 @@ export default function HourlySalesPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Day-of-Week Line Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span>📈</span>
+                  <span>Sales Trends by Day of Week</span>
+                </CardTitle>
+                <CardDescription>
+                  Compare hourly patterns across different days — {data.dateRange.weeks} weeks
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <HourlyDayChart 
+                  data={data.hourlyData} 
+                  height={400}
+                  title={`All Sales - ${data.dateRange.weeks} Weeks`}
+                  showTransactions={true}
+                />
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  Solid lines = revenue ($) • Dotted lines = transactions (right axis)
+                </p>
+              </CardContent>
+            </Card>
 
             {/* Heatmap Table */}
             <Card>

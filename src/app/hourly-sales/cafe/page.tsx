@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
 import { ClockIcon, TrendingUpIcon, CoffeeIcon, UtensilsIcon, CalendarIcon } from 'lucide-react';
+import { HourlyDayChart } from '@/components/charts/hourly-day-chart';
 import Link from 'next/link';
 
 interface HourlyData {
@@ -264,6 +265,52 @@ export default function CafeHourlySalesPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Day-of-Week Line Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span>📈</span>
+                  <span>
+                    {viewMode === 'food' ? 'Food' : viewMode === 'drink' ? 'Drinks' : 'Cafe'} Trends by Day of Week
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  Compare hourly patterns across different days — {data.dateRange.weeks} weeks
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <HourlyDayChart 
+                  data={data.hourlyData.map(h => {
+                    // Calculate overall items avg from days
+                    const daysArray = Object.values(h.days);
+                    const overallItems = daysArray.reduce((sum, d) => sum + (d.avgItems || 0), 0) / daysArray.length;
+                    return {
+                      ...h,
+                      days: Object.fromEntries(
+                        Object.entries(h.days).map(([day, d]) => [
+                          day,
+                          {
+                            ...d,
+                            avgRevenue: viewMode === 'food' ? d.avgFood : viewMode === 'drink' ? d.avgDrink : d.avgRevenue,
+                            avgOrders: d.avgItems || 0
+                          }
+                        ])
+                      ),
+                      overallAvg: viewMode === 'food' ? h.foodAvg : viewMode === 'drink' ? h.drinkAvg : h.overallAvg,
+                      overallOrders: overallItems
+                    };
+                  })}
+                  height={400}
+                  title={`${viewMode === 'food' ? 'Food' : viewMode === 'drink' ? 'Drinks' : 'Food & Drinks'} - ${data.dateRange.weeks} Weeks`}
+                  colorScheme="cafe"
+                  showTransactions={true}
+                />
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  Solid lines = revenue ($) • Dotted lines = items sold (right axis)
+                </p>
+              </CardContent>
+            </Card>
 
             {/* Heatmap Table */}
             <Card>
