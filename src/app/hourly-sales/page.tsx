@@ -32,7 +32,9 @@ interface HourlyReport {
     from: string;
     to: string;
     weeks: number;
+    category?: string;
   };
+  availableCategories?: string[];
   totalOrders: number;
   hourlyData: HourlyData[];
   dailySummary: {
@@ -55,13 +57,14 @@ export default function HourlySalesPage() {
   const [data, setData] = useState<HourlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [weeks, setWeeks] = useState('12');
+  const [category, setCategory] = useState('all');
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async (weeksToFetch: string) => {
+  const fetchData = async (weeksToFetch: string, categoryToFetch: string) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/reports/hourly-sales?weeks=${weeksToFetch}`);
+      const response = await fetch(`/api/reports/hourly-sales?weeks=${weeksToFetch}&category=${encodeURIComponent(categoryToFetch)}`);
       const result = await response.json();
       if (result.success) {
         setData(result.data);
@@ -76,8 +79,8 @@ export default function HourlySalesPage() {
   };
 
   useEffect(() => {
-    fetchData(weeks);
-  }, [weeks]);
+    fetchData(weeks, category);
+  }, [weeks, category]);
 
   const getHeatmapColor = (value: number, max: number) => {
     if (value === 0) return 'bg-gray-100';
@@ -115,7 +118,7 @@ export default function HourlySalesPage() {
               <div>
                 <h1 className="text-3xl font-bold mb-2">⏰ Hourly Sales Analysis</h1>
                 <p className="text-indigo-100 text-lg">
-                  Average sales by hour — perfect for roster planning
+                  {category === 'all' ? 'Average sales by hour' : `${category} sales by hour`} — perfect for roster planning
                 </p>
                 {data && (
                   <p className="text-indigo-200 text-sm mt-1">
@@ -123,21 +126,32 @@ export default function HourlySalesPage() {
                   </p>
                 )}
               </div>
-              <div className="mt-4 lg:mt-0 flex items-center gap-3">
+              <div className="mt-4 lg:mt-0 flex flex-wrap items-center gap-2">
                 <Select value={weeks} onValueChange={setWeeks}>
-                  <SelectTrigger className="w-40 bg-white/20 border-white/20 text-white">
+                  <SelectTrigger className="w-32 bg-white/20 border-white/20 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="4">Last 4 weeks</SelectItem>
-                    <SelectItem value="8">Last 8 weeks</SelectItem>
-                    <SelectItem value="12">Last 12 weeks</SelectItem>
-                    <SelectItem value="16">Last 16 weeks</SelectItem>
-                    <SelectItem value="26">Last 6 months</SelectItem>
+                    <SelectItem value="4">4 weeks</SelectItem>
+                    <SelectItem value="8">8 weeks</SelectItem>
+                    <SelectItem value="12">12 weeks</SelectItem>
+                    <SelectItem value="16">16 weeks</SelectItem>
+                    <SelectItem value="26">6 months</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="w-40 bg-white/20 border-white/20 text-white">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {data?.availableCategories?.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button 
-                  onClick={() => fetchData(weeks)}
+                  onClick={() => fetchData(weeks, category)}
                   className="bg-white/20 hover:bg-white/30 text-white border-white/20"
                 >
                   ↻ Refresh
@@ -219,17 +233,18 @@ export default function HourlySalesPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <span>📈</span>
-                  <span>Sales Trends by Day of Week</span>
+                  <span>{category === 'all' ? 'Sales' : category} Trends by Day of Week</span>
                 </CardTitle>
                 <CardDescription>
                   Compare hourly patterns across different days — {data.dateRange.weeks} weeks
+                  {category !== 'all' && <span className="ml-1 text-indigo-600 font-medium">• Filtered by {category}</span>}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <HourlyDayChart 
                   data={data.hourlyData} 
                   height={400}
-                  title={`All Sales - ${data.dateRange.weeks} Weeks`}
+                  title={`${category === 'all' ? 'All Sales' : category} - ${data.dateRange.weeks} Weeks`}
                   showTransactions={true}
                 />
                 <p className="text-xs text-gray-500 text-center mt-2">

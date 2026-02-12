@@ -20,6 +20,55 @@ function getSquareClient(): SquareClient {
   });
 }
 
+// Fetch category map from Square catalog
+async function fetchCategoryMap(client: SquareClient): Promise<Map<string, string>> {
+  const categoryMap = new Map<string, string>();
+  try {
+    const response: any = await client.catalog.list({ types: 'CATEGORY' });
+    const objects = response.result?.objects || response.objects || [];
+    for (const obj of objects) {
+      if (obj.id && obj.categoryData?.name) {
+        categoryMap.set(obj.id, obj.categoryData.name);
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️  Could not fetch categories:', err);
+  }
+  return categoryMap;
+}
+
+// Fetch item -> category mapping from catalog
+async function fetchItemCategoryMap(client: SquareClient): Promise<Map<string, string>> {
+  const itemCategoryMap = new Map<string, string>();
+  try {
+    let cursor: string | undefined;
+    do {
+      const response: any = await client.catalog.list({ 
+        types: 'ITEM',
+        ...(cursor && { cursor })
+      });
+      const objects = response.result?.objects || response.objects || [];
+      for (const obj of objects) {
+        if (obj.id && obj.itemData?.categoryId) {
+          itemCategoryMap.set(obj.id, obj.itemData.categoryId);
+        }
+        // Also map variation IDs to the same category
+        if (obj.itemData?.variations) {
+          for (const variation of obj.itemData.variations) {
+            if (variation.id && obj.itemData.categoryId) {
+              itemCategoryMap.set(variation.id, obj.itemData.categoryId);
+            }
+          }
+        }
+      }
+      cursor = response.result?.cursor || response.cursor;
+    } while (cursor);
+  } catch (err) {
+    console.warn('⚠️  Could not fetch item catalog:', err);
+  }
+  return itemCategoryMap;
+}
+
 interface HourlyData {
   hour: number;
   dayOfWeek: number; // 0 = Sunday, 1 = Monday, etc.
@@ -32,14 +81,26 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const weeksBack = parseInt(searchParams.get('weeks') || '12'); // Default 12 weeks (3 months)
+    const categoryFilter = searchParams.get('category') || 'all'; // 'all' or category name
     
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeksBack * 7);
 
-    console.log(`📊 Fetching hourly sales from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+    console.log(`📊 Fetching hourly sales from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}, category: ${categoryFilter}`);
 
     const client = getSquareClient();
+    
+    // Fetch category mappings if filtering
+    let categoryMap = new Map<string, string>();
+    let itemCategoryMap = new Map<string, string>();
+    
+    if (categoryFilter !== 'all') {
+      [categoryMap, itemCategoryMap] = await Promise.all([
+        fetchCategoryMap(client),
+        fetchItemCategoryMap(client)
+      ]);
+    }
     
     // Fetch all completed orders
     const allOrders: any[] = [];
@@ -75,10 +136,15 @@ export async function GET(request: NextRequest) {
 
     console.log(`📦 Fetched ${allOrders.length} orders`);
 
+    // Also fetch all categories for the dropdown (always)
+    const allCategoriesMap = categoryMap.size > 0 ? categoryMap : await fetchCategoryMap(client);
+    const availableCategories = Array.from(allCategoriesMap.values()).sort();
+
     // Aggregate by hour and day of week
     // Using Australia/Sydney timezone
     const hourlyMap = new Map<string, HourlyData>();
     const dayCountMap = new Map<number, Set<string>>(); // Track unique dates per day of week
+    const seenCategories = new Set<string>();
 
     for (const order of allOrders) {
       const createdAt = new Date(order.createdAt);
@@ -89,30 +155,80 @@ export async function GET(request: NextRequest) {
       const dateStr = sydneyTime.toISOString().split('T')[0];
 
       const key = `${hour}-${dayOfWeek}`;
-      
-      // Track unique dates for averaging
-      if (!dayCountMap.has(dayOfWeek)) {
-        dayCountMap.set(dayOfWeek, new Set());
-      }
-      dayCountMap.get(dayOfWeek)!.add(dateStr);
 
-      const totalCents = Number(order.totalMoney?.amount || 0);
-      const itemCount = order.lineItems?.reduce((sum: number, item: any) => 
-        sum + parseFloat(item.quantity || '0'), 0) || 0;
+      // If filtering by category, process line items individually
+      if (categoryFilter !== 'all') {
+        if (!order.lineItems) continue;
+        
+        let orderHasMatchingItems = false;
+        let filteredTotalCents = 0;
+        let filteredItemCount = 0;
 
-      if (hourlyMap.has(key)) {
-        const existing = hourlyMap.get(key)!;
-        existing.totalCents += totalCents;
-        existing.orderCount += 1;
-        existing.itemCount += itemCount;
+        for (const item of order.lineItems) {
+          const catalogId = item.catalogObjectId;
+          const categoryId = catalogId ? itemCategoryMap.get(catalogId) : undefined;
+          const categoryName = categoryId ? categoryMap.get(categoryId) : undefined;
+          
+          if (categoryName) {
+            seenCategories.add(categoryName);
+          }
+          
+          // Check if this item matches the filter
+          if (categoryName && categoryName.toLowerCase() === categoryFilter.toLowerCase()) {
+            orderHasMatchingItems = true;
+            filteredTotalCents += Number(item.totalMoney?.amount || 0);
+            filteredItemCount += parseFloat(item.quantity || '0');
+          }
+        }
+
+        if (!orderHasMatchingItems) continue;
+
+        // Track unique dates for averaging
+        if (!dayCountMap.has(dayOfWeek)) {
+          dayCountMap.set(dayOfWeek, new Set());
+        }
+        dayCountMap.get(dayOfWeek)!.add(dateStr);
+
+        if (hourlyMap.has(key)) {
+          const existing = hourlyMap.get(key)!;
+          existing.totalCents += filteredTotalCents;
+          existing.orderCount += 1;
+          existing.itemCount += filteredItemCount;
+        } else {
+          hourlyMap.set(key, {
+            hour,
+            dayOfWeek,
+            totalCents: filteredTotalCents,
+            orderCount: 1,
+            itemCount: filteredItemCount,
+          });
+        }
       } else {
-        hourlyMap.set(key, {
-          hour,
-          dayOfWeek,
-          totalCents,
-          orderCount: 1,
-          itemCount,
-        });
+        // No filter - process whole orders
+        // Track unique dates for averaging
+        if (!dayCountMap.has(dayOfWeek)) {
+          dayCountMap.set(dayOfWeek, new Set());
+        }
+        dayCountMap.get(dayOfWeek)!.add(dateStr);
+
+        const totalCents = Number(order.totalMoney?.amount || 0);
+        const itemCount = order.lineItems?.reduce((sum: number, item: any) => 
+          sum + parseFloat(item.quantity || '0'), 0) || 0;
+
+        if (hourlyMap.has(key)) {
+          const existing = hourlyMap.get(key)!;
+          existing.totalCents += totalCents;
+          existing.orderCount += 1;
+          existing.itemCount += itemCount;
+        } else {
+          hourlyMap.set(key, {
+            hour,
+            dayOfWeek,
+            totalCents,
+            orderCount: 1,
+            itemCount,
+          });
+        }
       }
     }
 
@@ -191,6 +307,9 @@ export async function GET(request: NextRequest) {
       dateRange: {
         from: startDate.toISOString().split('T')[0],
         to: endDate.toISOString().split('T')[0],
+        category: categoryFilter,
+      },
+      availableCategories,
         weeks: weeksBack,
       },
       totalOrders: allOrders.length,
