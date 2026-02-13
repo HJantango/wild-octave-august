@@ -18,6 +18,7 @@ interface MarkupItem {
   shelfLabel: string;
   vendorName: string;
   cost: number;
+  targetMarkup: number;
   actualMarkup: number;
   actualSellExGst: number;
   actualSellIncGst: number;
@@ -26,6 +27,7 @@ interface MarkupItem {
   markupDiff: number;
   priceDiffExGst: number;
   priceDiffIncGst: number;
+  hasGst: boolean;
   status: 'on-target' | 'under' | 'over';
 }
 
@@ -35,9 +37,11 @@ interface MarkupData {
     onTarget: number;
     under: number;
     over: number;
-    targetMarkup: number;
+    withGst: number;
+    withoutGst: number;
     tolerance: number;
   };
+  categoryMarkups: Record<string, number>;
   categories: string[];
   shelfLabels: string[];
   items: MarkupItem[];
@@ -49,13 +53,11 @@ export default function MarkupCheckerPage() {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
   const [shelfLabel, setShelfLabel] = useState('all');
-  const [targetMarkup, setTargetMarkup] = useState('1.75');
 
   const handlePrintFixes = () => {
     const params = new URLSearchParams();
     if (category !== 'all') params.append('category', category);
     if (shelfLabel !== 'all') params.append('shelfLabel', shelfLabel);
-    params.append('targetMarkup', targetMarkup);
     router.push(`/markup-checker/print?${params}`);
   };
   const [search, setSearch] = useState('');
@@ -67,7 +69,6 @@ export default function MarkupCheckerPage() {
       const params = new URLSearchParams();
       if (category !== 'all') params.append('category', category);
       if (shelfLabel !== 'all') params.append('shelfLabel', shelfLabel);
-      params.append('targetMarkup', targetMarkup);
       
       const res = await fetch(`/api/reports/markup-checker?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -82,7 +83,7 @@ export default function MarkupCheckerPage() {
 
   useEffect(() => {
     fetchData();
-  }, [category, shelfLabel, targetMarkup]);
+  }, [category, shelfLabel]);
 
   const filteredItems = useMemo(() => {
     if (!data) return [];
@@ -171,25 +172,19 @@ export default function MarkupCheckerPage() {
                 </Select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Target Markup</label>
-                <Select value={targetMarkup} onValueChange={setTargetMarkup}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1.5">1.5x (50%)</SelectItem>
-                    <SelectItem value="1.6">1.6x (60%)</SelectItem>
-                    <SelectItem value="1.65">1.65x (65%)</SelectItem>
-                    <SelectItem value="1.7">1.7x (70%)</SelectItem>
-                    <SelectItem value="1.75">1.75x (75%)</SelectItem>
-                    <SelectItem value="1.8">1.8x (80%)</SelectItem>
-                    <SelectItem value="1.85">1.85x (85%)</SelectItem>
-                    <SelectItem value="1.9">1.9x (90%)</SelectItem>
-                    <SelectItem value="2.0">2.0x (100%)</SelectItem>
-                    <SelectItem value="2.2">2.2x (120%)</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="col-span-2 md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Target Markups</label>
+                <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded border max-h-20 overflow-y-auto">
+                  {data?.categoryMarkups && Object.entries(data.categoryMarkups).slice(0, 4).map(([cat, markup]) => (
+                    <div key={cat} className="flex justify-between">
+                      <span className="truncate">{cat}:</span>
+                      <span className="font-mono">{markup}x</span>
+                    </div>
+                  ))}
+                  {data?.categoryMarkups && Object.keys(data.categoryMarkups).length > 4 && (
+                    <div className="text-gray-400">+{Object.keys(data.categoryMarkups).length - 4} more...</div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -287,11 +282,12 @@ export default function MarkupCheckerPage() {
                   <thead>
                     <tr className="border-b bg-gray-50">
                       <th className="text-left p-3">Product</th>
-                      <th className="text-left p-3">Shelf</th>
+                      <th className="text-left p-3">Cat / Shelf</th>
                       <th className="text-right p-3">Cost</th>
-                      <th className="text-right p-3">Actual Markup</th>
-                      <th className="text-right p-3">Current Price</th>
-                      <th className="text-right p-3">Target Price</th>
+                      <th className="text-right p-3">Target</th>
+                      <th className="text-right p-3">Actual</th>
+                      <th className="text-right p-3">Current</th>
+                      <th className="text-right p-3">Expected</th>
                       <th className="text-right p-3">Diff</th>
                       <th className="text-center p-3">Status</th>
                     </tr>
@@ -307,17 +303,31 @@ export default function MarkupCheckerPage() {
                       >
                         <td className="p-3">
                           <div className="font-medium">{item.name}</div>
-                          <div className="text-xs text-gray-500">{item.vendorName}</div>
+                          <div className="text-xs text-gray-500">
+                            {item.vendorName}
+                            {!item.hasGst && <span className="ml-1 text-amber-600">(GST-free)</span>}
+                          </div>
                         </td>
-                        <td className="p-3 text-gray-600">{item.shelfLabel}</td>
+                        <td className="p-3 text-gray-600 text-xs">
+                          <div>{item.category}</div>
+                          <div className="text-gray-400">{item.shelfLabel}</div>
+                        </td>
                         <td className="p-3 text-right font-mono">{formatCurrency(item.cost)}</td>
+                        <td className="p-3 text-right font-mono text-gray-500">
+                          {item.targetMarkup.toFixed(2)}x
+                        </td>
                         <td className="p-3 text-right font-mono">
                           {item.actualMarkup.toFixed(2)}x
-                          <span className="text-gray-400 text-xs ml-1">
-                            ({formatMarkup(item.actualMarkup - 1)})
+                          <span className={`text-xs ml-1 ${
+                            item.markupDiff < -0.05 ? 'text-red-500' : 
+                            item.markupDiff > 0.05 ? 'text-blue-500' : 'text-gray-400'
+                          }`}>
+                            ({item.markupDiff >= 0 ? '+' : ''}{item.markupDiff.toFixed(2)})
                           </span>
                         </td>
-                        <td className="p-3 text-right font-mono">{formatCurrency(item.actualSellIncGst)}</td>
+                        <td className="p-3 text-right font-mono">
+                          {formatCurrency(item.actualSellIncGst)}
+                        </td>
                         <td className="p-3 text-right font-mono text-gray-500">
                           {formatCurrency(item.expectedSellIncGst)}
                         </td>
