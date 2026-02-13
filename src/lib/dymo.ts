@@ -53,21 +53,21 @@ function createLabelXml(label: ShelfLabel): string {
       <GroupID>-1</GroupID>
       <IsOutlined>False</IsOutlined>
       <HorizontalAlignment>Center</HorizontalAlignment>
-      <VerticalAlignment>Middle</VerticalAlignment>
-      <TextFitMode>ShrinkToFit</TextFitMode>
+      <VerticalAlignment>Bottom</VerticalAlignment>
+      <TextFitMode>AlwaysFit</TextFitMode>
       <UseFullFontHeight>True</UseFullFontHeight>
       <Verticalized>False</Verticalized>
       <StyledText>
         <Element>
           <String xml:space="preserve">${productName}</String>
           <Attributes>
-            <Font Family="Arial" Size="12" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
+            <Font Family="Arial" Size="14" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
             <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
           </Attributes>
         </Element>
       </StyledText>
     </TextObject>
-    <Bounds X="57" Y="57" Width="1326" Height="800"/>
+    <Bounds X="80" Y="80" Width="1280" Height="700"/>
   </ObjectInfo>
   <ObjectInfo>
     <TextObject>
@@ -81,21 +81,21 @@ function createLabelXml(label: ShelfLabel): string {
       <GroupID>-1</GroupID>
       <IsOutlined>False</IsOutlined>
       <HorizontalAlignment>Center</HorizontalAlignment>
-      <VerticalAlignment>Middle</VerticalAlignment>
-      <TextFitMode>ShrinkToFit</TextFitMode>
+      <VerticalAlignment>Top</VerticalAlignment>
+      <TextFitMode>AlwaysFit</TextFitMode>
       <UseFullFontHeight>True</UseFullFontHeight>
       <Verticalized>False</Verticalized>
       <StyledText>
         <Element>
           <String xml:space="preserve">${price}</String>
           <Attributes>
-            <Font Family="Arial" Size="18" Bold="True" Italic="False" Underline="False" Strikeout="False"/>
+            <Font Family="Arial" Size="24" Bold="True" Italic="False" Underline="False" Strikeout="False"/>
             <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
           </Attributes>
         </Element>
       </StyledText>
     </TextObject>
-    <Bounds X="57" Y="870" Width="1326" Height="513"/>
+    <Bounds X="80" Y="800" Width="1280" Height="560"/>
   </ObjectInfo>
 </DieCutLabel>`;
 }
