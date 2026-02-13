@@ -307,11 +307,10 @@ export async function GET(request: NextRequest) {
       dateRange: {
         from: startDate.toISOString().split('T')[0],
         to: endDate.toISOString().split('T')[0],
+        weeks: weeksBack,
         category: categoryFilter,
       },
       availableCategories,
-        weeks: weeksBack,
-      },
       totalOrders: allOrders.length,
       hourlyData: hourlyAverages,
       dailySummary,
