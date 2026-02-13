@@ -30,7 +30,7 @@ function createLabelXml(label: ShelfLabel): string {
   const price = escapeXml(label.price);
 
   // Format matching existing Wild Octave labels:
-  // - Product name at top, centered, smaller font, wraps to multiple lines
+  // - Product name at top, centered, readable font, wraps to multiple lines
   // - Price at bottom, centered, large bold font
   return `<?xml version="1.0" encoding="utf-8"?>
 <DieCutLabel Version="8.0" Units="twips">
@@ -61,13 +61,13 @@ function createLabelXml(label: ShelfLabel): string {
         <Element>
           <String xml:space="preserve">${productName}</String>
           <Attributes>
-            <Font Family="Arial" Size="8" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
+            <Font Family="Arial" Size="12" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
             <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
           </Attributes>
         </Element>
       </StyledText>
     </TextObject>
-    <Bounds X="57" Y="57" Width="1326" Height="756"/>
+    <Bounds X="57" Y="57" Width="1326" Height="800"/>
   </ObjectInfo>
   <ObjectInfo>
     <TextObject>
@@ -95,7 +95,7 @@ function createLabelXml(label: ShelfLabel): string {
         </Element>
       </StyledText>
     </TextObject>
-    <Bounds X="57" Y="850" Width="1326" Height="533"/>
+    <Bounds X="57" Y="870" Width="1326" Height="513"/>
   </ObjectInfo>
 </DieCutLabel>`;
 }
