@@ -1,25 +1,102 @@
 // DYMO Label Printing Utilities
-// Works with DYMO Connect Web Service (must be running locally)
+// Uses DYMO Connect JavaScript SDK (loaded from local web service)
 
 declare global {
   interface Window {
-    dymo: any;
+    dymo: {
+      label: {
+        framework: {
+          init: () => Promise<void>;
+          getPrinters: () => Array<{ name: string; printerType: string; isConnected: boolean }>;
+          openLabelXml: (xml: string) => any;
+          printLabel: (printerName: string, printParamsXml: string, labelXml: string, labelSetXml: string) => void;
+        };
+      };
+    };
   }
 }
-
-// DYMO Web Service endpoints
-const DYMO_WS_URL = 'https://127.0.0.1:41951/DYMO/DLS/Printing';
-const DYMO_WS_URL_HTTP = 'http://127.0.0.1:41950/DYMO/DLS/Printing';
 
 export interface ShelfLabel {
   productName: string;
   price: string;
 }
 
-// 25mm x 25mm (1" x 1") label template
-// Product name at top, price at bottom (large & bold)
+// Track if SDK is loaded
+let sdkLoaded = false;
+let sdkLoadPromise: Promise<boolean> | null = null;
+
+// Load DYMO JavaScript SDK from local web service
+async function loadDymoSdk(): Promise<boolean> {
+  if (sdkLoaded && window.dymo?.label?.framework) {
+    return true;
+  }
+
+  if (sdkLoadPromise) {
+    return sdkLoadPromise;
+  }
+
+  sdkLoadPromise = new Promise((resolve) => {
+    // Try HTTPS first, then HTTP
+    const urls = [
+      'https://127.0.0.1:41951/DYMO/DLS/Printing/JavaScript/dymo.connect.framework.js',
+      'http://127.0.0.1:41950/DYMO/DLS/Printing/JavaScript/dymo.connect.framework.js',
+    ];
+
+    let loaded = false;
+    let attempts = 0;
+
+    const tryLoad = (url: string) => {
+      const script = document.createElement('script');
+      script.src = url;
+      script.async = true;
+      
+      script.onload = async () => {
+        if (loaded) return;
+        loaded = true;
+        console.log('[DYMO] SDK loaded from', url);
+        
+        // Initialize the framework
+        try {
+          if (window.dymo?.label?.framework?.init) {
+            await window.dymo.label.framework.init();
+            console.log('[DYMO] Framework initialized');
+          }
+          sdkLoaded = true;
+          resolve(true);
+        } catch (err) {
+          console.error('[DYMO] Framework init failed:', err);
+          resolve(false);
+        }
+      };
+      
+      script.onerror = () => {
+        attempts++;
+        console.log(`[DYMO] Failed to load from ${url}`);
+        if (attempts >= urls.length) {
+          resolve(false);
+        }
+      };
+      
+      document.head.appendChild(script);
+    };
+
+    // Try both URLs
+    urls.forEach(tryLoad);
+
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      if (!loaded) {
+        console.log('[DYMO] SDK load timeout');
+        resolve(false);
+      }
+    }, 5000);
+  });
+
+  return sdkLoadPromise;
+}
+
+// 25mm x 25mm (1" x 1") label template for shelf prices
 function createLabelXml(label: ShelfLabel): string {
-  // Escape XML special characters
   const escapeXml = (str: string) => 
     str.replace(/&/g, '&amp;')
        .replace(/</g, '&lt;')
@@ -30,6 +107,7 @@ function createLabelXml(label: ShelfLabel): string {
   const productName = escapeXml(label.productName);
   const price = escapeXml(label.price);
 
+  // Simple label XML for 25x25mm label
   return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
   <DYMOLabel Version="3">
@@ -132,69 +210,61 @@ function createLabelXml(label: ShelfLabel): string {
 }
 
 // Check if DYMO Web Service is available
-export async function checkDymoService(): Promise<{ available: boolean; printers: string[]; error?: string; endpoint?: string }> {
-  // Try HTTPS first (preferred), then HTTP
-  const endpoints = [DYMO_WS_URL, DYMO_WS_URL_HTTP];
-  
-  for (const baseUrl of endpoints) {
-    try {
-      console.log(`[DYMO] Trying ${baseUrl}/GetPrinters...`);
-      const response = await fetch(`${baseUrl}/GetPrinters`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      });
-      
-      if (response.ok) {
-        const text = await response.text();
-        console.log('[DYMO] Response:', text.substring(0, 200));
-        // Parse printer list from XML response
-        const printerMatches = text.match(/<Name>([^<]+)<\/Name>/g) || [];
-        const printers = printerMatches.map(m => m.replace(/<\/?Name>/g, ''));
-        console.log('[DYMO] Found printers:', printers);
-        return { available: true, printers, endpoint: baseUrl };
-      } else {
-        console.log(`[DYMO] ${baseUrl} returned status ${response.status}`);
-      }
-    } catch (error) {
-      console.log(`[DYMO] ${baseUrl} failed:`, error);
+export async function checkDymoService(): Promise<{ available: boolean; printers: string[]; error?: string }> {
+  try {
+    const loaded = await loadDymoSdk();
+    if (!loaded) {
+      return { 
+        available: false, 
+        printers: [], 
+        error: 'Could not load DYMO SDK. Make sure DYMO Connect is running with Web Service enabled.' 
+      };
     }
+
+    const printers = window.dymo.label.framework.getPrinters();
+    console.log('[DYMO] Printers found:', printers);
+    
+    const printerNames = printers
+      .filter((p: any) => p.printerType === 'LabelWriterPrinter' && p.isConnected)
+      .map((p: any) => p.name);
+    
+    if (printerNames.length === 0) {
+      return { 
+        available: true, 
+        printers: [], 
+        error: 'DYMO service running but no label printers connected.' 
+      };
+    }
+
+    return { available: true, printers: printerNames };
+  } catch (error) {
+    console.error('[DYMO] Service check failed:', error);
+    return { 
+      available: false, 
+      printers: [], 
+      error: `DYMO check failed: ${error}` 
+    };
   }
-  
-  return { 
-    available: false, 
-    printers: [], 
-    error: 'Could not connect to DYMO Web Service on ports 41951 (HTTPS) or 41950 (HTTP). Make sure DYMO Connect is running and Web Service is enabled in Settings.' 
-  };
 }
 
-// Print a single label
-export async function printLabel(label: ShelfLabel, printerName?: string): Promise<boolean> {
+// Print a single label using the SDK
+export async function printLabel(label: ShelfLabel, printerName: string): Promise<boolean> {
   try {
-    const labelXml = createLabelXml(label);
-    
-    const params = new URLSearchParams();
-    params.append('printerName', printerName || '');
-    params.append('labelXml', labelXml);
-    params.append('labelSetXml', '');
-    
-    let response;
-    try {
-      response = await fetch(`${DYMO_WS_URL}/PrintLabel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-    } catch {
-      response = await fetch(`${DYMO_WS_URL_HTTP}/PrintLabel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
+    if (!window.dymo?.label?.framework) {
+      const loaded = await loadDymoSdk();
+      if (!loaded) return false;
     }
+
+    const labelXml = createLabelXml(label);
+    console.log('[DYMO] Printing to', printerName, ':', label.productName, label.price);
     
-    return response.ok;
+    // Open the label and print
+    const labelObj = window.dymo.label.framework.openLabelXml(labelXml);
+    labelObj.print(printerName);
+    
+    return true;
   } catch (error) {
-    console.error('Print failed:', error);
+    console.error('[DYMO] Print failed:', error);
     return false;
   }
 }
@@ -202,7 +272,7 @@ export async function printLabel(label: ShelfLabel, printerName?: string): Promi
 // Print multiple labels
 export async function printLabels(
   labels: ShelfLabel[], 
-  printerName?: string,
+  printerName: string,
   onProgress?: (current: number, total: number) => void
 ): Promise<{ success: number; failed: number }> {
   let success = 0;
@@ -217,9 +287,9 @@ export async function printLabels(
     }
     onProgress?.(i + 1, labels.length);
     
-    // Small delay between prints to not overwhelm the printer
+    // Small delay between prints
     if (i < labels.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
   
