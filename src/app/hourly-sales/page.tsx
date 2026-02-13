@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
-import { ClockIcon, TrendingUpIcon, UsersIcon, CalendarIcon } from 'lucide-react';
+import { ClockIcon, TrendingUpIcon, UsersIcon, CalendarIcon, DownloadIcon } from 'lucide-react';
 import { HourlyDayChart } from '@/components/charts/hourly-day-chart';
+
+const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 interface HourlyData {
   hour: number;
@@ -51,14 +53,45 @@ interface HourlyReport {
   };
 }
 
-const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 export default function HourlySalesPage() {
   const [data, setData] = useState<HourlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [weeks, setWeeks] = useState('12');
   const [category, setCategory] = useState('all');
   const [error, setError] = useState<string | null>(null);
+
+  const exportToCSV = () => {
+    if (!data) return;
+    
+    // Build CSV content
+    const headers = ['Hour', ...DAY_ORDER, 'Average'];
+    const rows = data.hourlyData.map(h => [
+      h.hourLabel,
+      ...DAY_ORDER.map(day => h.days[day]?.avgRevenue?.toFixed(2) || '0'),
+      h.overallAvg?.toFixed(2) || '0'
+    ]);
+    
+    // Add daily totals row
+    rows.push([
+      'Day Total',
+      ...DAY_ORDER.map(day => data.dailySummary[day]?.avgDailyRevenue?.toFixed(2) || '0'),
+      (Object.values(data.dailySummary).reduce((sum, d) => sum + d.avgDailyRevenue, 0) / 7).toFixed(2)
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hourly-sales-${category === 'all' ? 'all' : category}-${weeks}wks-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const fetchData = async (weeksToFetch: string, categoryToFetch: string) => {
     setLoading(true);
@@ -155,6 +188,13 @@ export default function HourlySalesPage() {
                   className="bg-white/20 hover:bg-white/30 text-white border-white/20"
                 >
                   ↻ Refresh
+                </Button>
+                <Button 
+                  onClick={exportToCSV}
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                  disabled={!data}
+                >
+                  <DownloadIcon className="w-4 h-4 mr-1" /> CSV
                 </Button>
               </div>
             </div>

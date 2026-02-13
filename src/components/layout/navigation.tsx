@@ -54,6 +54,7 @@ const navigation: NavItem[] = [
       { name: '🎄 Xmas Schedule', href: '/ordering/christmas-closures' },
       { name: '☕ Cafe Schedule', href: '/ordering/cafe-schedule' },
       { name: '🏷️ Cafe Labels', href: '/labels/cafe' },
+      { name: '🥗 Salad Recipes', href: '/salad-recipes' },
     ],
   },
   {

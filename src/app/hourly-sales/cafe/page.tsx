@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
-import { ClockIcon, TrendingUpIcon, CoffeeIcon, UtensilsIcon, CalendarIcon } from 'lucide-react';
+import { ClockIcon, TrendingUpIcon, CoffeeIcon, UtensilsIcon, CalendarIcon, DownloadIcon } from 'lucide-react';
 import { HourlyDayChart } from '@/components/charts/hourly-day-chart';
 import Link from 'next/link';
 
@@ -77,6 +77,45 @@ export default function CafeHourlySalesPage() {
   const [filterType, setFilterType] = useState<'all' | 'food' | 'drink'>('all');
   const [viewMode, setViewMode] = useState<'total' | 'food' | 'drink'>('total');
   const [error, setError] = useState<string | null>(null);
+
+  const exportToCSV = () => {
+    if (!data) return;
+    
+    // Build CSV content with food/drink breakdown
+    const headers = ['Hour', ...DAY_ORDER.map(d => `${d} Total`), ...DAY_ORDER.map(d => `${d} Food`), ...DAY_ORDER.map(d => `${d} Drink`), 'Avg Total', 'Avg Food', 'Avg Drink'];
+    const rows = data.hourlyData.map(h => [
+      h.hourLabel,
+      ...DAY_ORDER.map(day => h.days[day]?.avgRevenue?.toFixed(2) || '0'),
+      ...DAY_ORDER.map(day => h.days[day]?.avgFood?.toFixed(2) || '0'),
+      ...DAY_ORDER.map(day => h.days[day]?.avgDrink?.toFixed(2) || '0'),
+      h.overallAvg?.toFixed(2) || '0',
+      h.foodAvg?.toFixed(2) || '0',
+      h.drinkAvg?.toFixed(2) || '0',
+    ]);
+    
+    // Add daily totals row
+    rows.push([
+      'Day Total',
+      ...DAY_ORDER.map(day => data.dailySummary[day]?.avgDailyRevenue?.toFixed(2) || '0'),
+      ...DAY_ORDER.map(day => data.dailySummary[day]?.avgFood?.toFixed(2) || '0'),
+      ...DAY_ORDER.map(day => data.dailySummary[day]?.avgDrink?.toFixed(2) || '0'),
+      '', '', ''
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cafe-hourly-sales-${weeks}wks-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -183,6 +222,13 @@ export default function CafeHourlySalesPage() {
                     📊 All Sales
                   </Button>
                 </Link>
+                <Button 
+                  onClick={exportToCSV}
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                  disabled={!data}
+                >
+                  <DownloadIcon className="w-4 h-4 mr-1" /> CSV
+                </Button>
               </div>
             </div>
           </div>
