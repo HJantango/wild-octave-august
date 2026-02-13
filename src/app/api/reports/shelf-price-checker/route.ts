@@ -1,25 +1,7 @@
 import { NextRequest } from 'next/server';
-import { SquareClient, SquareEnvironment } from 'square';
-import { createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
+import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
-
-function getSquareClient(): SquareClient {
-  const accessToken = process.env.SQUARE_ACCESS_TOKEN;
-  const environment = process.env.SQUARE_ENVIRONMENT === 'production'
-    ? SquareEnvironment.Production
-    : SquareEnvironment.Sandbox;
-
-  if (!accessToken) {
-    throw new Error('SQUARE_ACCESS_TOKEN environment variable is required');
-  }
-
-  return new SquareClient({
-    token: accessToken,
-    environment,
-  });
-}
 
 interface ShelfItem {
   id: string;
@@ -40,64 +22,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const shelfFilter = searchParams.get('shelf') || 'all';
 
-    console.log('📋 Fetching shelf price checker data...');
+    console.log('📋 Fetching shelf price checker data from local database...');
 
-    const client = getSquareClient();
+    // Fetch items from local database (synced from Square)
+    const items = await prisma.item.findMany({
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
 
-    // Fetch categories first
-    const categoryMap = new Map<string, string>();
-    try {
-      const catResponse: any = await client.catalog.list({ types: 'CATEGORY' });
-      const catObjects = catResponse.result?.objects || catResponse.objects || [];
-      for (const obj of catObjects) {
-        if (obj.id && obj.categoryData?.name) {
-          categoryMap.set(obj.id, obj.categoryData.name);
-        }
-      }
-    } catch (err) {
-      console.warn('⚠️ Could not fetch categories:', err);
-    }
+    console.log(`📦 Fetched ${items.length} items from database`);
 
-    // Fetch all items from catalog
-    const allItems: ShelfItem[] = [];
-    let cursor: string | undefined;
-
-    do {
-      const response: any = await client.catalog.list({
-        types: 'ITEM',
-        ...(cursor && { cursor }),
-      });
-
-      const objects = response.result?.objects || response.objects || [];
-
-      for (const obj of objects) {
-        if (!obj.itemData) continue;
-
-        const categoryId = obj.itemData.categoryId;
-        const categoryName = categoryId ? categoryMap.get(categoryId) || 'Uncategorized' : 'Uncategorized';
-
-        // Get first variation's price
-        const variations = obj.itemData.variations || [];
-        const firstVariation = variations[0];
-        const priceMoney = firstVariation?.itemVariationData?.priceMoney;
-        const price = priceMoney ? Number(priceMoney.amount) / 100 : 0;
-
-        // Get SKU from first variation
-        const sku = firstVariation?.itemVariationData?.sku || null;
-
-        allItems.push({
-          id: obj.id,
-          name: obj.itemData.name || 'Unknown Item',
-          sku,
-          price,
-          categoryName,
-        });
-      }
-
-      cursor = response.result?.cursor || response.cursor;
-    } while (cursor);
-
-    console.log(`📦 Fetched ${allItems.length} items from catalog`);
+    // Transform to ShelfItem format
+    const allItems: ShelfItem[] = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      sku: item.sku || null,
+      price: Number(item.currentSellIncGst), // Use selling price inc GST
+      categoryName: item.category || 'Uncategorized',
+    }));
 
     // Get unique categories (shelf labels)
     const uniqueCategories = [...new Set(allItems.map(i => i.categoryName))].sort();
