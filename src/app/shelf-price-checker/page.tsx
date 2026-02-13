@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
-import { PrinterIcon, CheckCircleIcon, RefreshCwIcon } from 'lucide-react';
+import { PrinterIcon, CheckCircleIcon, RefreshCwIcon, TagIcon } from 'lucide-react';
+import { checkDymoService, printLabels, formatPriceForLabel, type ShelfLabel } from '@/lib/dymo';
 
 interface ShelfItem {
   id: string;
@@ -43,6 +44,13 @@ export default function ShelfPriceCheckerPage() {
   const [checkedItems, setCheckedItems] = useState<CheckedState>({});
   const [labelNeeds, setLabelNeeds] = useState<LabelState>({});
   const [compactMode, setCompactMode] = useState(true);
+  
+  // DYMO printing state
+  const [dymoAvailable, setDymoAvailable] = useState<boolean | null>(null);
+  const [dymoPrinters, setDymoPrinters] = useState<string[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  const [printing, setPrinting] = useState(false);
+  const [printProgress, setPrintProgress] = useState({ current: 0, total: 0 });
 
   // Load checked state from localStorage
   useEffect(() => {
@@ -72,6 +80,20 @@ export default function ShelfPriceCheckerPage() {
   // Save label state to localStorage
   const saveLabelState = useCallback((state: LabelState) => {
     localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(state));
+  }, []);
+
+  // Check DYMO service on mount
+  useEffect(() => {
+    const checkDymo = async () => {
+      const result = await checkDymoService();
+      setDymoAvailable(result.available);
+      setDymoPrinters(result.printers);
+      if (result.printers.length > 0) {
+        // Auto-select first printer (likely the DYMO 550)
+        setSelectedPrinter(result.printers[0]);
+      }
+    };
+    checkDymo();
   }, []);
 
   const fetchData = async () => {
@@ -145,6 +167,49 @@ export default function ShelfPriceCheckerPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Print labels to DYMO
+  const handlePrintLabels = async () => {
+    if (!dymoAvailable || totalLabelNeeds === 0) return;
+    
+    // Get all items that need labels
+    const allItems = shelfGroups.flatMap(g => g.items);
+    const itemsToPrint = allItems.filter(item => labelNeeds[item.id]);
+    
+    if (itemsToPrint.length === 0) return;
+    
+    const labels: ShelfLabel[] = itemsToPrint.map(item => ({
+      productName: item.name,
+      price: formatPriceForLabel(item.price),
+    }));
+    
+    setPrinting(true);
+    setPrintProgress({ current: 0, total: labels.length });
+    
+    try {
+      const result = await printLabels(
+        labels, 
+        selectedPrinter,
+        (current, total) => setPrintProgress({ current, total })
+      );
+      
+      if (result.success > 0) {
+        alert(`✅ Printed ${result.success} labels${result.failed > 0 ? ` (${result.failed} failed)` : ''}`);
+        // Optionally clear the printed labels
+        if (result.failed === 0) {
+          clearAllLabels();
+        }
+      } else {
+        alert('❌ Failed to print labels. Is DYMO Connect running?');
+      }
+    } catch (err) {
+      console.error('Print error:', err);
+      alert('❌ Print error. Check DYMO Connect is running.');
+    } finally {
+      setPrinting(false);
+      setPrintProgress({ current: 0, total: 0 });
+    }
   };
 
   // Calculate progress
@@ -241,6 +306,24 @@ export default function ShelfPriceCheckerPage() {
                     >
                       Clear Labels ({totalLabelNeeds})
                     </Button>
+                  )}
+                  {/* DYMO Print Button */}
+                  {totalLabelNeeds > 0 && dymoAvailable && (
+                    <Button 
+                      onClick={handlePrintLabels}
+                      disabled={printing}
+                      className="bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      <TagIcon className="w-4 h-4 mr-1" />
+                      {printing 
+                        ? `Printing ${printProgress.current}/${printProgress.total}...` 
+                        : `Print ${totalLabelNeeds} Labels`}
+                    </Button>
+                  )}
+                  {dymoAvailable === false && totalLabelNeeds > 0 && (
+                    <div className="text-xs text-yellow-200 bg-yellow-600/50 px-2 py-1 rounded">
+                      DYMO not detected
+                    </div>
                   )}
                 </div>
               </div>
