@@ -82,7 +82,7 @@ function createLabelXml(label: ShelfLabel): string {
         </Element>
       </StyledText>
     </TextObject>
-    <Bounds X="57" Y="57" Width="1326" Height="850"/>
+    <Bounds X="72" Y="72" Width="1296" Height="820"/>
   </ObjectInfo>
   <ObjectInfo>
     <TextObject>
@@ -110,7 +110,7 @@ function createLabelXml(label: ShelfLabel): string {
         </Element>
       </StyledText>
     </TextObject>
-    <Bounds X="57" Y="920" Width="1326" Height="463"/>
+    <Bounds X="72" Y="900" Width="1296" Height="468"/>
   </ObjectInfo>
 </DieCutLabel>`;
 }
