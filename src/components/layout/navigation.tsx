@@ -62,6 +62,7 @@ const navigation: NavItem[] = [
     submenu: [
       { name: '⏰ Hourly Sales', href: '/hourly-sales' },
       { name: '☕ Cafe Hourly Sales', href: '/hourly-sales/cafe' },
+      { name: '🏷️ Shelf Price Checker', href: '/shelf-price-checker' },
       { name: '📦 Product Rationalization', href: '/rationalization' },
       { name: '🎯 Markup Checker', href: '/markup-checker' },
       { name: '💹 Profit Margins', href: '/reports/margins' },
