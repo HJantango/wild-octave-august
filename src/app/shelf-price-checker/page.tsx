@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
-import { PrinterIcon, CheckCircleIcon, RefreshCwIcon, TagIcon } from 'lucide-react';
+import { PrinterIcon, CheckCircleIcon, RefreshCwIcon, TagIcon, SaveIcon, DownloadIcon, UploadIcon } from 'lucide-react';
 import { checkDymoService, printLabels, formatPriceForLabel, type ShelfLabel } from '@/lib/dymo';
 
 interface ShelfItem {
@@ -52,36 +52,111 @@ export default function ShelfPriceCheckerPage() {
   const [selectedPrinter, setSelectedPrinter] = useState<string>('');
   const [printing, setPrinting] = useState(false);
   const [printProgress, setPrintProgress] = useState({ current: 0, total: 0 });
+  
+  // Server backup state
+  const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Load checked state from localStorage
+  // Load state - try server first, then localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    const loadState = async () => {
+      // Try to load from server first
       try {
-        setCheckedItems(JSON.parse(saved));
+        const response = await fetch('/api/shelf-checker-state');
+        const result = await response.json();
+        if (result.success && result.data.savedAt) {
+          console.log('[Shelf Checker] Loaded from server:', result.data);
+          setCheckedItems(result.data.checkedItems || {});
+          setLabelNeeds(result.data.labelNeeds || {});
+          setLastSaved(result.data.savedAt);
+          // Also update localStorage
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(result.data.checkedItems || {}));
+          localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(result.data.labelNeeds || {}));
+          return;
+        }
       } catch (e) {
-        console.error('Error loading saved state:', e);
+        console.log('[Shelf Checker] Server load failed, trying localStorage');
       }
-    }
-    const savedLabels = localStorage.getItem(LABEL_STORAGE_KEY);
-    if (savedLabels) {
-      try {
-        setLabelNeeds(JSON.parse(savedLabels));
-      } catch (e) {
-        console.error('Error loading label state:', e);
+
+      // Fall back to localStorage
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          setCheckedItems(JSON.parse(saved));
+        } catch (e) {
+          console.error('Error loading saved state:', e);
+        }
       }
-    }
+      const savedLabels = localStorage.getItem(LABEL_STORAGE_KEY);
+      if (savedLabels) {
+        try {
+          setLabelNeeds(JSON.parse(savedLabels));
+        } catch (e) {
+          console.error('Error loading label state:', e);
+        }
+      }
+    };
+    loadState();
   }, []);
 
-  // Save checked state to localStorage
+  // Save to localStorage (immediate)
   const saveCheckedState = useCallback((state: CheckedState) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    setHasUnsavedChanges(true);
   }, []);
 
-  // Save label state to localStorage
+  // Save label state to localStorage (immediate)
   const saveLabelState = useCallback((state: LabelState) => {
     localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(state));
+    setHasUnsavedChanges(true);
   }, []);
+
+  // Save to server (manual backup)
+  const saveToServer = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch('/api/shelf-checker-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkedItems, labelNeeds })
+      });
+      const result = await response.json();
+      if (result.success) {
+        setLastSaved(result.savedAt);
+        setHasUnsavedChanges(false);
+        alert(`✅ ${result.message}`);
+      } else {
+        alert('❌ Failed to save: ' + result.error);
+      }
+    } catch (e) {
+      console.error('Save error:', e);
+      alert('❌ Failed to save to server');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Export data as JSON file
+  const exportData = () => {
+    const data = {
+      checkedItems,
+      labelNeeds,
+      exportedAt: new Date().toISOString(),
+      stats: {
+        totalChecked: Object.keys(checkedItems).filter(k => checkedItems[k]).length,
+        missingLabels: Object.values(labelNeeds).filter(v => v === 'missing').length,
+        needsUpdate: Object.values(labelNeeds).filter(v => v === 'update').length,
+      }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shelf-checker-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Check DYMO service on mount
   useEffect(() => {
@@ -280,6 +355,11 @@ export default function ShelfPriceCheckerPage() {
                         )}
                       </>
                     )}
+                    {lastSaved && (
+                      <div className="bg-blue-500/60 rounded-full px-3 py-1 text-sm">
+                        💾 Saved: {new Date(lastSaved).toLocaleString()}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4 lg:mt-0 flex flex-wrap items-center gap-2">
@@ -294,6 +374,23 @@ export default function ShelfPriceCheckerPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {/* SAVE BUTTON - Primary action */}
+                  <Button 
+                    onClick={saveToServer}
+                    disabled={saving}
+                    className={`${hasUnsavedChanges ? 'bg-orange-500 hover:bg-orange-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'} text-white font-semibold`}
+                  >
+                    <SaveIcon className="w-4 h-4 mr-1" />
+                    {saving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes!' : 'Save'}
+                  </Button>
+                  <Button 
+                    onClick={exportData}
+                    variant="outline"
+                    className="bg-white/20 hover:bg-white/30 text-white border-white/20"
+                    title="Download backup file"
+                  >
+                    <DownloadIcon className="w-4 h-4 mr-1" /> Export
+                  </Button>
                   <Button 
                     onClick={fetchData}
                     variant="outline"
