@@ -1,7 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Printer } from 'lucide-react';
 
 interface Recipe {
   id: string;
@@ -131,11 +134,19 @@ export default function SaladRecipesPage() {
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 rounded-2xl p-8 text-white">
           <div className="absolute inset-0 bg-black opacity-10"></div>
-          <div className="relative">
-            <h1 className="text-3xl font-bold mb-2">🥗 Salad Recipes</h1>
-            <p className="text-green-100 text-lg">
-              Fresh salad recipes for the cafe
-            </p>
+          <div className="relative flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">🥗 Salad Recipes</h1>
+              <p className="text-green-100 text-lg">
+                Fresh salad recipes for the cafe
+              </p>
+            </div>
+            <Link href="/salad-recipes/print" target="_blank">
+              <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                <Printer className="w-4 h-4 mr-2" />
+                Print All
+              </Button>
+            </Link>
           </div>
         </div>
 
