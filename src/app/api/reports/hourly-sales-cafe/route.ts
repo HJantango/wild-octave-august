@@ -68,6 +68,8 @@ interface HourlyData {
 }
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const weeksBack = parseInt(searchParams.get('weeks') || '12');
@@ -79,7 +81,15 @@ export async function GET(request: NextRequest) {
 
     console.log(`📊 Fetching cafe hourly sales from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
 
-    const client = getSquareClient();
+    let client;
+    try {
+      client = getSquareClient();
+    } catch (err: any) {
+      console.error('❌ Square client error:', err.message);
+      return createErrorResponse('SQUARE_CLIENT_ERROR', err.message, 500);
+    }
+    
+    console.log(`⏱️ Square client created in ${Date.now() - startTime}ms`);
     
     // Fetch all completed orders
     const allOrders: any[] = [];
@@ -113,7 +123,7 @@ export async function GET(request: NextRequest) {
       cursor = response.result?.cursor || response.cursor || undefined;
     } while (cursor && pageCount < MAX_PAGES);
 
-    console.log(`📦 Fetched ${allOrders.length} orders`);
+    console.log(`📦 Fetched ${allOrders.length} orders in ${Date.now() - startTime}ms`);
 
     // Aggregate cafe items by hour and day of week
     const hourlyMap = new Map<string, HourlyData>();
@@ -317,8 +327,11 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('❌ Cafe hourly sales error:', error);
-    return createErrorResponse('CAFE_HOURLY_SALES_ERROR', error.message, 500);
+    const elapsed = Date.now() - startTime;
+    console.error(`❌ Cafe hourly sales error after ${elapsed}ms:`, error);
+    const errorMessage = error?.message || String(error);
+    const errorDetail = error?.errors ? JSON.stringify(error.errors) : errorMessage;
+    return createErrorResponse('CAFE_HOURLY_SALES_ERROR', `${errorMessage} (after ${elapsed}ms)`, 500);
   }
 }
 
