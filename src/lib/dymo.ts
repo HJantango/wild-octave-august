@@ -26,7 +26,23 @@ function createLabelXml(label: ShelfLabel): string {
        .replace(/"/g, '&quot;')
        .replace(/'/g, '&apos;');
 
-  const productName = escapeXml(label.productName);
+  // Break product name into lines of ~15 chars for better display
+  const words = label.productName.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  
+  for (const word of words) {
+    if (currentLine.length + word.length + 1 <= 18) {
+      currentLine = currentLine ? `${currentLine} ${word}` : word;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  
+  // Join with line breaks (max 3 lines)
+  const productName = escapeXml(lines.slice(0, 3).join('\n'));
   const price = escapeXml(label.price);
 
   // Format matching existing Wild Octave labels:
@@ -54,20 +70,20 @@ function createLabelXml(label: ShelfLabel): string {
       <IsOutlined>False</IsOutlined>
       <HorizontalAlignment>Center</HorizontalAlignment>
       <VerticalAlignment>Bottom</VerticalAlignment>
-      <TextFitMode>AlwaysFit</TextFitMode>
+      <TextFitMode>None</TextFitMode>
       <UseFullFontHeight>True</UseFullFontHeight>
       <Verticalized>False</Verticalized>
       <StyledText>
         <Element>
           <String xml:space="preserve">${productName}</String>
           <Attributes>
-            <Font Family="Arial" Size="14" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
+            <Font Family="Arial" Size="10" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
             <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
           </Attributes>
         </Element>
       </StyledText>
     </TextObject>
-    <Bounds X="80" Y="80" Width="1280" Height="700"/>
+    <Bounds X="70" Y="50" Width="1300" Height="750"/>
   </ObjectInfo>
   <ObjectInfo>
     <TextObject>
