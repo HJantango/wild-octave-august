@@ -45,76 +45,74 @@ function createLabelXml(label: ShelfLabel): string {
   const productName = escapeXml(lines.slice(0, 3).join('\n'));
   const price = escapeXml(label.price);
 
-  // Using older label format that respects font sizes better
+  // DieCutLabel format - this prints successfully
+  // Give product name MORE vertical space so ShrinkToFit doesn't shrink it as much
   return `<?xml version="1.0" encoding="utf-8"?>
-<DesktopLabel Version="1">
-  <DYMOLabel Version="3">
-    <Description>Shelf Price</Description>
-    <Orientation>Landscape</Orientation>
-    <LabelName>30332 1 in x 1 in</LabelName>
-    <InitialLength>0</InitialLength>
-    <BorderStyle>SolidLine</BorderStyle>
-    <DYMORect>
-      <DYMOPoint><X>0</X><Y>0</Y></DYMOPoint>
-      <Size><Width>1440</Width><Height>1440</Height></Size>
-    </DYMORect>
-    <BorderColor Alpha="0" Red="0" Green="0" Blue="0"/>
-    <BorderThickness>0</BorderThickness>
-    <Show_Border>False</Show_Border>
-    <ObjectInfo>
-      <TextObject>
-        <Name>PRODUCTNAME</Name>
-        <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-        <BackColor Alpha="0" Red="255" Green="255" Blue="255"/>
-        <LinkedObjectName/>
-        <Rotation>Rotation0</Rotation>
-        <IsMirrored>False</IsMirrored>
-        <IsVariable>False</IsVariable>
-        <HorizontalAlignment>Center</HorizontalAlignment>
-        <VerticalAlignment>Middle</VerticalAlignment>
-        <TextFitMode>ShrinkToFit</TextFitMode>
-        <UseFullFontHeight>True</UseFullFontHeight>
-        <Verticalized>False</Verticalized>
-        <StyledText>
-          <Element>
-            <String>${productName}</String>
-            <Attributes>
-              <Font Family="Arial" Size="12" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
-              <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-            </Attributes>
-          </Element>
-        </StyledText>
-      </TextObject>
-      <Bounds X="100" Y="100" Width="1240" Height="650"/>
-    </ObjectInfo>
-    <ObjectInfo>
-      <TextObject>
-        <Name>PRICE</Name>
-        <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-        <BackColor Alpha="0" Red="255" Green="255" Blue="255"/>
-        <LinkedObjectName/>
-        <Rotation>Rotation0</Rotation>
-        <IsMirrored>False</IsMirrored>
-        <IsVariable>False</IsVariable>
-        <HorizontalAlignment>Center</HorizontalAlignment>
-        <VerticalAlignment>Middle</VerticalAlignment>
-        <TextFitMode>ShrinkToFit</TextFitMode>
-        <UseFullFontHeight>True</UseFullFontHeight>
-        <Verticalized>False</Verticalized>
-        <StyledText>
-          <Element>
-            <String>${price}</String>
-            <Attributes>
-              <Font Family="Arial" Size="36" Bold="True" Italic="False" Underline="False" Strikeout="False"/>
-              <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-            </Attributes>
-          </Element>
-        </StyledText>
-      </TextObject>
-      <Bounds X="100" Y="750" Width="1240" Height="590"/>
-    </ObjectInfo>
-  </DYMOLabel>
-</DesktopLabel>`;
+<DieCutLabel Version="8.0" Units="twips">
+  <PaperOrientation>Landscape</PaperOrientation>
+  <Id>Small30332</Id>
+  <IsOutlined>false</IsOutlined>
+  <PaperName>30332 1 in x 1 in</PaperName>
+  <DrawCommands>
+    <RoundRectangle X="0" Y="0" Width="1440" Height="1440" Rx="180" Ry="180"/>
+  </DrawCommands>
+  <ObjectInfo>
+    <TextObject>
+      <Name>ProductName</Name>
+      <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
+      <BackColor Alpha="0" Red="255" Green="255" Blue="255"/>
+      <LinkedObjectName/>
+      <Rotation>Rotation0</Rotation>
+      <IsMirrored>False</IsMirrored>
+      <IsVariable>False</IsVariable>
+      <GroupID>-1</GroupID>
+      <IsOutlined>False</IsOutlined>
+      <HorizontalAlignment>Center</HorizontalAlignment>
+      <VerticalAlignment>Middle</VerticalAlignment>
+      <TextFitMode>ShrinkToFit</TextFitMode>
+      <UseFullFontHeight>True</UseFullFontHeight>
+      <Verticalized>False</Verticalized>
+      <StyledText>
+        <Element>
+          <String xml:space="preserve">${productName}</String>
+          <Attributes>
+            <Font Family="Arial" Size="48" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
+            <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
+          </Attributes>
+        </Element>
+      </StyledText>
+    </TextObject>
+    <Bounds X="57" Y="57" Width="1326" Height="850"/>
+  </ObjectInfo>
+  <ObjectInfo>
+    <TextObject>
+      <Name>Price</Name>
+      <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
+      <BackColor Alpha="0" Red="255" Green="255" Blue="255"/>
+      <LinkedObjectName/>
+      <Rotation>Rotation0</Rotation>
+      <IsMirrored>False</IsMirrored>
+      <IsVariable>False</IsVariable>
+      <GroupID>-1</GroupID>
+      <IsOutlined>False</IsOutlined>
+      <HorizontalAlignment>Center</HorizontalAlignment>
+      <VerticalAlignment>Middle</VerticalAlignment>
+      <TextFitMode>ShrinkToFit</TextFitMode>
+      <UseFullFontHeight>True</UseFullFontHeight>
+      <Verticalized>False</Verticalized>
+      <StyledText>
+        <Element>
+          <String xml:space="preserve">${price}</String>
+          <Attributes>
+            <Font Family="Arial" Size="72" Bold="True" Italic="False" Underline="False" Strikeout="False"/>
+            <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
+          </Attributes>
+        </Element>
+      </StyledText>
+    </TextObject>
+    <Bounds X="57" Y="920" Width="1326" Height="463"/>
+  </ObjectInfo>
+</DieCutLabel>`;
 }
 
 // Try to connect to DYMO Web Service
