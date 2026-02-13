@@ -15,6 +15,41 @@ interface Recipe {
 
 const recipes: Recipe[] = [
   {
+    id: 'dill-potato-salad',
+    name: 'Dill Potato Salad',
+    emoji: '🥔',
+    ingredients: [
+      '2kg potatoes (skin on)',
+      '1 jar Naked Baren Foods Aioli',
+      '¼ cup lemon juice or apple cider vinegar',
+      'Fresh dill (a whole bunch, finely chopped)',
+      'Dill pickles (diced into small pieces)',
+      'Red onion or spring onion (finely diced)',
+      'Salt & pepper (generous!)',
+    ],
+    steps: [
+      'Brush dirt off potatoes in hot water in the sink',
+      'Prick holes in each potato with a fork (helps them cook soft inside)',
+      'Boil potatoes with skins on - takes a long time, check every 10-20 mins',
+      'Once boiled, transfer to a silver bowl and cool in the cool room',
+      'Make the sauce: empty aioli jar into a bowl',
+      'Fill the empty aioli jar ¼ to ½ way with lemon juice or apple cider vinegar, add to bowl',
+      'Add lots of salt, finely chopped dill, diced pickles, and diced onion',
+      'Mix sauce together well',
+      'Once potatoes are cool, cut into chunks and mix with sauce',
+      'Pop into containers and refrigerate',
+    ],
+    dressingOptions: [
+      'Sauce is built-in: aioli + lemon/vinegar base',
+    ],
+    tips: [
+      'Be generous with the salt and pepper!',
+      'Use the empty aioli jar to measure the lemon juice/vinegar',
+      'Make sure potatoes are properly cooled before mixing with sauce',
+      'Pricking the potatoes is key - makes them soft and fluffy inside',
+    ],
+  },
+  {
     id: 'zucchini-millet',
     name: 'Roasted Zucchini Salad with Millet',
     emoji: '🥒',
