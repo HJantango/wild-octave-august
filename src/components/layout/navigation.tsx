@@ -79,7 +79,6 @@ const navigation: NavItem[] = [
     icon: '🧮',
     submenu: [
       { name: '💰 Markup Calculator', href: '/calculator' },
-      { name: '🍺 Bottle Shop (6 vs 4)', href: '/calculator/bottle-shop' },
       { name: '🥧 Pie Calculator', href: '/orders/pie-calculator' },
     ],
   },
