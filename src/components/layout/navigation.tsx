@@ -26,6 +26,7 @@ const navigation: NavItem[] = [
       { name: '🗓️ Order Calendar', href: '/ordering/calendar' },
       { name: '🚚 Vendor Schedules', href: '/ordering/vendor-schedules' },
       { name: '☕ Cafe Schedule', href: '/ordering/cafe-schedule' },
+      { name: '☕ Cafe Ordering', href: '/cafe-ordering' },
       { name: '🤖 AI Smart Order', href: '/ordering/suggestions' },
       { name: '📜 Invoice Based Suggestions', href: '/ordering/historical' },
       { name: '📦 Manage Inventory', href: '/ordering/inventory' },
