@@ -199,7 +199,7 @@ export default function PrintableRecipesPage() {
       <style jsx global>{`
         @page {
           size: A4;
-          margin: 1.5cm;
+          margin: 1cm;
         }
 
         body {
@@ -216,7 +216,7 @@ export default function PrintableRecipesPage() {
         .recipe-page {
           page-break-after: always;
           min-height: 100vh;
-          padding: 20px;
+          padding: 10px;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
@@ -228,19 +228,19 @@ export default function PrintableRecipesPage() {
 
         .recipe-header {
           text-align: center;
-          padding: 20px 0 30px;
+          padding: 8px 0 12px;
           border-bottom: 3px solid #10b981;
-          margin-bottom: 30px;
+          margin-bottom: 16px;
         }
 
         .recipe-emoji {
-          font-size: 64px;
+          font-size: 48px;
           display: block;
-          margin-bottom: 10px;
+          margin-bottom: 4px;
         }
 
         .recipe-title {
-          font-size: 32px;
+          font-size: 28px;
           font-weight: 700;
           color: #065f46;
           margin: 0;
@@ -250,19 +250,19 @@ export default function PrintableRecipesPage() {
           flex: 1;
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 30px;
+          gap: 20px;
         }
 
         .recipe-section {
-          margin-bottom: 20px;
+          margin-bottom: 12px;
         }
 
         .recipe-section h2 {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 600;
           color: #065f46;
-          margin: 0 0 12px 0;
-          padding-bottom: 8px;
+          margin: 0 0 8px 0;
+          padding-bottom: 6px;
           border-bottom: 2px solid #d1fae5;
         }
 
@@ -273,10 +273,10 @@ export default function PrintableRecipesPage() {
         }
 
         .ingredients-list li {
-          padding: 6px 0;
-          padding-left: 20px;
+          padding: 3px 0;
+          padding-left: 16px;
           position: relative;
-          font-size: 14px;
+          font-size: 13px;
           border-bottom: 1px solid #f0fdf4;
         }
 
@@ -297,28 +297,28 @@ export default function PrintableRecipesPage() {
         .steps-list li {
           display: flex;
           align-items: flex-start;
-          gap: 12px;
-          padding: 8px 0;
-          font-size: 13px;
-          line-height: 1.4;
+          gap: 8px;
+          padding: 4px 0;
+          font-size: 12px;
+          line-height: 1.3;
         }
 
         .step-number {
           flex-shrink: 0;
-          width: 24px;
-          height: 24px;
+          width: 20px;
+          height: 20px;
           background: #10b981;
           color: white;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 600;
         }
 
         .step-text {
-          padding-top: 2px;
+          padding-top: 1px;
         }
 
         .dressing-section {
@@ -328,29 +328,30 @@ export default function PrintableRecipesPage() {
         .dressing-options {
           display: flex;
           flex-wrap: wrap;
-          gap: 10px;
+          gap: 8px;
         }
 
         .dressing-tag {
           background: #fef3c7;
           color: #92400e;
-          padding: 8px 16px;
-          border-radius: 20px;
-          font-size: 14px;
+          padding: 6px 12px;
+          border-radius: 16px;
+          font-size: 13px;
           font-weight: 500;
         }
 
         .tips-section {
           grid-column: 1 / -1;
           background: #eff6ff;
-          padding: 16px;
-          border-radius: 12px;
+          padding: 10px 12px;
+          border-radius: 8px;
           margin-top: auto;
         }
 
         .tips-section h2 {
           color: #1e40af;
           border-bottom-color: #bfdbfe;
+          margin-bottom: 6px !important;
         }
 
         .tips-list {
@@ -359,13 +360,13 @@ export default function PrintableRecipesPage() {
           margin: 0;
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 8px;
+          gap: 4px;
         }
 
         .tips-list li {
-          font-size: 13px;
+          font-size: 12px;
           color: #1e40af;
-          padding-left: 20px;
+          padding-left: 16px;
           position: relative;
         }
 
