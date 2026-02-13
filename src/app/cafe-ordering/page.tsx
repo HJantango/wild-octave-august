@@ -12,7 +12,9 @@ import {
   CalendarIcon,
   SaveIcon,
   Trash2Icon,
-  EditIcon
+  EditIcon,
+  RefreshCwIcon,
+  DownloadCloudIcon
 } from 'lucide-react';
 
 interface CafeItem {
@@ -99,6 +101,8 @@ export default function CafeOrderingPage() {
   const [newItemVendor, setNewItemVendor] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingSquare, setLoadingSquare] = useState(false);
+  const [squareData, setSquareData] = useState<any>(null);
 
   // Load data from localStorage
   useEffect(() => {
@@ -112,6 +116,77 @@ export default function CafeOrderingPage() {
       }
     }
   }, []);
+
+  // Fetch Square sales data
+  const fetchSquareData = async () => {
+    setLoadingSquare(true);
+    try {
+      const response = await fetch('/api/reports/cafe-ordering?weeks=4');
+      const result = await response.json();
+      if (result.success) {
+        setSquareData(result.data);
+        // Auto-populate items from Square data
+        populateFromSquare(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch Square data:', error);
+    } finally {
+      setLoadingSquare(false);
+    }
+  };
+
+  // Populate vendors with Square data
+  const populateFromSquare = (data: any) => {
+    if (!data?.vendors) return;
+    
+    setVendors(prev => prev.map(vendor => {
+      const squareVendor = data.vendors.find((v: any) => v.vendor === vendor.id);
+      if (!squareVendor) return vendor;
+      
+      // Merge Square items with existing items
+      const existingNames = new Set(vendor.items.map(i => i.name.toLowerCase()));
+      const newItems: CafeItem[] = [];
+      
+      for (const sqItem of squareVendor.items) {
+        if (!existingNames.has(sqItem.name.toLowerCase())) {
+          newItems.push({
+            id: `${vendor.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: sqItem.name,
+            vendor: vendor.name,
+            avgPerDay: sqItem.avgPerDay,
+            avgPerWeek: sqItem.avgPerWeek,
+            currentStock: 0,
+            parLevel: Math.ceil(sqItem.avgPerDay * 2),
+            orderQty: 0,
+            deliveryDays: [],
+            notes: `Auto-imported from Square (${sqItem.totalQty} sold in 4 weeks)`
+          });
+        }
+      }
+      
+      // Update existing items with latest averages
+      const updatedItems = vendor.items.map(item => {
+        const sqItem = squareVendor.items.find((s: any) => 
+          s.name.toLowerCase() === item.name.toLowerCase()
+        );
+        if (sqItem) {
+          return {
+            ...item,
+            avgPerDay: sqItem.avgPerDay,
+            avgPerWeek: sqItem.avgPerWeek,
+          };
+        }
+        return item;
+      });
+      
+      return {
+        ...vendor,
+        items: [...updatedItems, ...newItems]
+      };
+    }));
+    
+    setHasChanges(true);
+  };
 
   // Save to localStorage
   const saveData = () => {
@@ -208,15 +283,30 @@ export default function CafeOrderingPage() {
               <p className="text-orange-100">
                 Manage cafe suppliers, track stock levels, and plan orders
               </p>
+              {squareData && (
+                <p className="text-orange-200 text-sm mt-1">
+                  📊 Square data: {squareData.period.startDate} to {squareData.period.endDate} • {squareData.summary.totalQtySold} items sold • ${squareData.summary.totalRevenue.toFixed(0)} revenue
+                </p>
+              )}
             </div>
-            <Button 
-              onClick={saveData}
-              disabled={saving}
-              className={`${hasChanges ? 'bg-white text-orange-600 hover:bg-orange-50' : 'bg-white/20 hover:bg-white/30 text-white'}`}
-            >
-              <SaveIcon className="w-4 h-4 mr-2" />
-              {saving ? 'Saving...' : hasChanges ? 'Save Changes' : 'Saved'}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={fetchSquareData}
+                disabled={loadingSquare}
+                className="bg-white/20 hover:bg-white/30 text-white"
+              >
+                <DownloadCloudIcon className={`w-4 h-4 mr-2 ${loadingSquare ? 'animate-spin' : ''}`} />
+                {loadingSquare ? 'Syncing...' : 'Sync from Square'}
+              </Button>
+              <Button 
+                onClick={saveData}
+                disabled={saving}
+                className={`${hasChanges ? 'bg-white text-orange-600 hover:bg-orange-50' : 'bg-white/20 hover:bg-white/30 text-white'}`}
+              >
+                <SaveIcon className="w-4 h-4 mr-2" />
+                {saving ? 'Saving...' : hasChanges ? 'Save Changes' : 'Saved'}
+              </Button>
+            </div>
           </div>
         </div>
 
