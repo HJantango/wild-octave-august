@@ -286,11 +286,8 @@ export default function ShelfPriceCheckerPage() {
       );
       
       if (result.success > 0) {
-        alert(`✅ Printed ${result.success} labels${result.failed > 0 ? ` (${result.failed} failed)` : ''}`);
-        // Optionally clear the printed labels
-        if (result.failed === 0) {
-          clearAllLabels();
-        }
+        alert(`✅ Printed ${result.success} labels${result.failed > 0 ? ` (${result.failed} failed)` : ''}!\n\nUse "Clear Labels" button when you're done, or print again if needed.`);
+        // DON'T auto-clear - let user decide when to clear
       } else {
         alert('❌ Failed to print labels. Is DYMO Connect running?');
       }
