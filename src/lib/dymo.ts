@@ -132,34 +132,39 @@ function createLabelXml(label: ShelfLabel): string {
 }
 
 // Check if DYMO Web Service is available
-export async function checkDymoService(): Promise<{ available: boolean; printers: string[] }> {
-  try {
-    // Try HTTPS first (preferred), then HTTP
-    let response;
+export async function checkDymoService(): Promise<{ available: boolean; printers: string[]; error?: string; endpoint?: string }> {
+  // Try HTTPS first (preferred), then HTTP
+  const endpoints = [DYMO_WS_URL, DYMO_WS_URL_HTTP];
+  
+  for (const baseUrl of endpoints) {
     try {
-      response = await fetch(`${DYMO_WS_URL}/GetPrinters`, {
+      console.log(`[DYMO] Trying ${baseUrl}/GetPrinters...`);
+      const response = await fetch(`${baseUrl}/GetPrinters`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
       });
-    } catch {
-      response = await fetch(`${DYMO_WS_URL_HTTP}/GetPrinters`, {
-        method: 'GET', 
-        headers: { 'Accept': 'application/json' },
-      });
+      
+      if (response.ok) {
+        const text = await response.text();
+        console.log('[DYMO] Response:', text.substring(0, 200));
+        // Parse printer list from XML response
+        const printerMatches = text.match(/<Name>([^<]+)<\/Name>/g) || [];
+        const printers = printerMatches.map(m => m.replace(/<\/?Name>/g, ''));
+        console.log('[DYMO] Found printers:', printers);
+        return { available: true, printers, endpoint: baseUrl };
+      } else {
+        console.log(`[DYMO] ${baseUrl} returned status ${response.status}`);
+      }
+    } catch (error) {
+      console.log(`[DYMO] ${baseUrl} failed:`, error);
     }
-    
-    if (response.ok) {
-      const text = await response.text();
-      // Parse printer list from XML response
-      const printerMatches = text.match(/<Name>([^<]+)<\/Name>/g) || [];
-      const printers = printerMatches.map(m => m.replace(/<\/?Name>/g, ''));
-      return { available: true, printers };
-    }
-    return { available: false, printers: [] };
-  } catch (error) {
-    console.error('DYMO service check failed:', error);
-    return { available: false, printers: [] };
   }
+  
+  return { 
+    available: false, 
+    printers: [], 
+    error: 'Could not connect to DYMO Web Service on ports 41951 (HTTPS) or 41950 (HTTP). Make sure DYMO Connect is running and Web Service is enabled in Settings.' 
+  };
 }
 
 // Print a single label

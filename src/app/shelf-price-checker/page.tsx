@@ -47,6 +47,7 @@ export default function ShelfPriceCheckerPage() {
   
   // DYMO printing state
   const [dymoAvailable, setDymoAvailable] = useState<boolean | null>(null);
+  const [dymoError, setDymoError] = useState<string | null>(null);
   const [dymoPrinters, setDymoPrinters] = useState<string[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState<string>('');
   const [printing, setPrinting] = useState(false);
@@ -88,10 +89,12 @@ export default function ShelfPriceCheckerPage() {
       const result = await checkDymoService();
       setDymoAvailable(result.available);
       setDymoPrinters(result.printers);
+      setDymoError(result.error || null);
       if (result.printers.length > 0) {
         // Auto-select first printer (likely the DYMO 550)
         setSelectedPrinter(result.printers[0]);
       }
+      console.log('[Shelf Checker] DYMO status:', result);
     };
     checkDymo();
   }, []);
@@ -167,6 +170,19 @@ export default function ShelfPriceCheckerPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Recheck DYMO service
+  const recheckDymo = async () => {
+    setDymoAvailable(null); // Show loading state
+    const result = await checkDymoService();
+    setDymoAvailable(result.available);
+    setDymoPrinters(result.printers);
+    setDymoError(result.error || null);
+    if (result.printers.length > 0) {
+      setSelectedPrinter(result.printers[0]);
+    }
+    console.log('[Shelf Checker] DYMO recheck:', result);
   };
 
   // Print labels to DYMO
@@ -321,8 +337,27 @@ export default function ShelfPriceCheckerPage() {
                     </Button>
                   )}
                   {dymoAvailable === false && totalLabelNeeds > 0 && (
-                    <div className="text-xs text-yellow-200 bg-yellow-600/50 px-2 py-1 rounded">
-                      DYMO not detected
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-yellow-200 bg-yellow-600/50 px-2 py-1 rounded" title={dymoError || undefined}>
+                        ⚠️ DYMO not detected
+                      </div>
+                      <Button 
+                        onClick={recheckDymo}
+                        size="sm"
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs h-6 px-2"
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  )}
+                  {dymoAvailable === null && (
+                    <div className="text-xs text-blue-200 bg-blue-600/50 px-2 py-1 rounded">
+                      Checking DYMO...
+                    </div>
+                  )}
+                  {dymoAvailable && dymoPrinters.length > 0 && (
+                    <div className="text-xs text-green-200 bg-green-600/50 px-2 py-1 rounded">
+                      ✓ DYMO: {selectedPrinter || dymoPrinters[0]}
                     </div>
                   )}
                 </div>
