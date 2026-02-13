@@ -26,7 +26,12 @@ interface CheckedState {
   [itemId: string]: boolean;
 }
 
+interface LabelState {
+  [itemId: string]: 'missing' | 'update' | null;
+}
+
 const STORAGE_KEY = 'shelf-price-checker-state';
+const LABEL_STORAGE_KEY = 'shelf-price-checker-labels';
 
 export default function ShelfPriceCheckerPage() {
   const [shelfGroups, setShelfGroups] = useState<ShelfGroup[]>([]);
@@ -36,6 +41,7 @@ export default function ShelfPriceCheckerPage() {
   const [error, setError] = useState<string | null>(null);
   const [shelfFilter, setShelfFilter] = useState('all');
   const [checkedItems, setCheckedItems] = useState<CheckedState>({});
+  const [labelNeeds, setLabelNeeds] = useState<LabelState>({});
   const [compactMode, setCompactMode] = useState(true);
 
   // Load checked state from localStorage
@@ -48,11 +54,24 @@ export default function ShelfPriceCheckerPage() {
         console.error('Error loading saved state:', e);
       }
     }
+    const savedLabels = localStorage.getItem(LABEL_STORAGE_KEY);
+    if (savedLabels) {
+      try {
+        setLabelNeeds(JSON.parse(savedLabels));
+      } catch (e) {
+        console.error('Error loading label state:', e);
+      }
+    }
   }, []);
 
   // Save checked state to localStorage
   const saveCheckedState = useCallback((state: CheckedState) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, []);
+
+  // Save label state to localStorage
+  const saveLabelState = useCallback((state: LabelState) => {
+    localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(state));
   }, []);
 
   const fetchData = async () => {
@@ -103,6 +122,27 @@ export default function ShelfPriceCheckerPage() {
     localStorage.removeItem(STORAGE_KEY);
   };
 
+  const toggleLabelNeed = (itemId: string, type: 'missing' | 'update') => {
+    setLabelNeeds(prev => {
+      const current = prev[itemId];
+      const newState = { ...prev };
+      if (current === type) {
+        // Toggle off
+        delete newState[itemId];
+      } else {
+        // Set to this type
+        newState[itemId] = type;
+      }
+      saveLabelState(newState);
+      return newState;
+    });
+  };
+
+  const clearAllLabels = () => {
+    setLabelNeeds({});
+    localStorage.removeItem(LABEL_STORAGE_KEY);
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -111,6 +151,11 @@ export default function ShelfPriceCheckerPage() {
   const allItems = shelfGroups.flatMap(g => g.items);
   const checkedCount = allItems.filter(item => checkedItems[item.id]).length;
   const progressPercent = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
+  
+  // Calculate label needs
+  const missingLabelCount = Object.values(labelNeeds).filter(v => v === 'missing').length;
+  const updateLabelCount = Object.values(labelNeeds).filter(v => v === 'update').length;
+  const totalLabelNeeds = missingLabelCount + updateLabelCount;
 
   if (loading) {
     return (
@@ -136,10 +181,24 @@ export default function ShelfPriceCheckerPage() {
                   <p className="text-green-100">
                     Verify shelf labels match system prices • {totalItems} items
                   </p>
-                  <div className="flex items-center gap-4 mt-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     <div className="bg-white/20 rounded-full px-3 py-1 text-sm">
                       ✓ {checkedCount} / {totalItems} checked ({progressPercent}%)
                     </div>
+                    {totalLabelNeeds > 0 && (
+                      <>
+                        {missingLabelCount > 0 && (
+                          <div className="bg-red-500/80 rounded-full px-3 py-1 text-sm">
+                            🚫 {missingLabelCount} missing
+                          </div>
+                        )}
+                        {updateLabelCount > 0 && (
+                          <div className="bg-amber-500/80 rounded-full px-3 py-1 text-sm">
+                            🔄 {updateLabelCount} need update
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4 lg:mt-0 flex flex-wrap items-center gap-2">
@@ -172,8 +231,17 @@ export default function ShelfPriceCheckerPage() {
                     variant="outline"
                     className="bg-white/20 hover:bg-white/30 text-white border-white/20"
                   >
-                    Reset All
+                    Reset Checks
                   </Button>
+                  {totalLabelNeeds > 0 && (
+                    <Button 
+                      onClick={clearAllLabels}
+                      variant="outline"
+                      className="bg-red-500/50 hover:bg-red-500/70 text-white border-red-400/50"
+                    >
+                      Clear Labels ({totalLabelNeeds})
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -183,7 +251,15 @@ export default function ShelfPriceCheckerPage() {
         {/* Print Header */}
         <div className="hidden print:block mb-4">
           <h1 className="text-xl font-bold">Shelf Price Checker — {shelfFilter === 'all' ? 'All Shelves' : shelfFilter}</h1>
-          <p className="text-sm text-gray-600">Printed: {new Date().toLocaleDateString()} • {totalItems} items</p>
+          <p className="text-sm text-gray-600">
+            Printed: {new Date().toLocaleDateString()} • {totalItems} items
+            {totalLabelNeeds > 0 && (
+              <span className="ml-2">
+                • <span className="text-red-600">{missingLabelCount} missing labels</span>
+                • <span className="text-amber-600">{updateLabelCount} need updates</span>
+              </span>
+            )}
+          </p>
         </div>
 
         {error && (
@@ -219,30 +295,63 @@ export default function ShelfPriceCheckerPage() {
                 </CardHeader>
                 <CardContent className="py-1 px-3 print:py-0 print:px-2">
                   {/* Ultra-compact grid - 3 columns on desktop/print, 2 on mobile */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-x-2 gap-y-0.5 text-xs">
-                    {group.items.map((item) => (
-                      <label
-                        key={item.id}
-                        className={`
-                          flex items-center gap-1.5 py-0.5 px-1 rounded cursor-pointer
-                          hover:bg-gray-100 print:hover:bg-transparent
-                          ${checkedItems[item.id] ? 'text-gray-400 line-through' : ''}
-                        `}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checkedItems[item.id] || false}
-                          onChange={() => toggleItem(item.id)}
-                          className="w-3 h-3 rounded print:w-2.5 print:h-2.5"
-                        />
-                        <span className="flex-1 truncate" title={item.name}>
-                          {item.name}
-                        </span>
-                        <span className="font-mono text-gray-600 whitespace-nowrap">
-                          {formatCurrency(item.price)}
-                        </span>
-                      </label>
-                    ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 gap-x-2 gap-y-0.5 text-xs">
+                    {group.items.map((item) => {
+                      const labelStatus = labelNeeds[item.id];
+                      return (
+                        <div
+                          key={item.id}
+                          className={`
+                            flex items-center gap-1 py-0.5 px-1 rounded
+                            ${checkedItems[item.id] ? 'bg-gray-50' : ''}
+                            ${labelStatus === 'missing' ? 'bg-red-50 border border-red-200' : ''}
+                            ${labelStatus === 'update' ? 'bg-amber-50 border border-amber-200' : ''}
+                          `}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checkedItems[item.id] || false}
+                            onChange={() => toggleItem(item.id)}
+                            className="w-3 h-3 rounded print:w-2.5 print:h-2.5 cursor-pointer"
+                          />
+                          <span 
+                            className={`flex-1 truncate cursor-pointer ${checkedItems[item.id] ? 'text-gray-400 line-through' : ''}`} 
+                            title={item.name}
+                            onClick={() => toggleItem(item.id)}
+                          >
+                            {labelStatus === 'missing' && <span className="text-red-500 mr-1">🚫</span>}
+                            {labelStatus === 'update' && <span className="text-amber-500 mr-1">🔄</span>}
+                            {item.name}
+                          </span>
+                          <span className="font-mono text-gray-600 whitespace-nowrap">
+                            {formatCurrency(item.price)}
+                          </span>
+                          {/* Label action buttons - hidden on print */}
+                          <div className="flex gap-0.5 print:hidden ml-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleLabelNeed(item.id, 'missing'); }}
+                              className={`w-5 h-5 rounded text-[10px] flex items-center justify-center transition-colors
+                                ${labelStatus === 'missing' 
+                                  ? 'bg-red-500 text-white' 
+                                  : 'bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-600'}`}
+                              title="Missing label"
+                            >
+                              🚫
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleLabelNeed(item.id, 'update'); }}
+                              className={`w-5 h-5 rounded text-[10px] flex items-center justify-center transition-colors
+                                ${labelStatus === 'update' 
+                                  ? 'bg-amber-500 text-white' 
+                                  : 'bg-gray-100 hover:bg-amber-100 text-gray-500 hover:text-amber-600'}`}
+                              title="Needs price update"
+                            >
+                              🔄
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
