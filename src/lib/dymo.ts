@@ -1,99 +1,20 @@
 // DYMO Label Printing Utilities
-// Uses DYMO Connect JavaScript SDK (loaded from local web service)
-
-declare global {
-  interface Window {
-    dymo: {
-      label: {
-        framework: {
-          init: () => Promise<void>;
-          getPrinters: () => Array<{ name: string; printerType: string; isConnected: boolean }>;
-          openLabelXml: (xml: string) => any;
-          printLabel: (printerName: string, printParamsXml: string, labelXml: string, labelSetXml: string) => void;
-        };
-      };
-    };
-  }
-}
+// Uses direct REST API calls to DYMO Web Service
 
 export interface ShelfLabel {
   productName: string;
   price: string;
 }
 
-// Track if SDK is loaded
-let sdkLoaded = false;
-let sdkLoadPromise: Promise<boolean> | null = null;
+// DYMO Web Service endpoints - try both HTTPS and HTTP
+const ENDPOINTS = [
+  'https://127.0.0.1:41951/DYMO/DLS/Printing',
+  'https://localhost:41951/DYMO/DLS/Printing',
+  'http://127.0.0.1:41950/DYMO/DLS/Printing',
+  'http://localhost:41950/DYMO/DLS/Printing',
+];
 
-// Load DYMO JavaScript SDK from local web service
-async function loadDymoSdk(): Promise<boolean> {
-  if (sdkLoaded && window.dymo?.label?.framework) {
-    return true;
-  }
-
-  if (sdkLoadPromise) {
-    return sdkLoadPromise;
-  }
-
-  sdkLoadPromise = new Promise((resolve) => {
-    // Try HTTPS first, then HTTP
-    const urls = [
-      'https://127.0.0.1:41951/DYMO/DLS/Printing/JavaScript/dymo.connect.framework.js',
-      'http://127.0.0.1:41950/DYMO/DLS/Printing/JavaScript/dymo.connect.framework.js',
-    ];
-
-    let loaded = false;
-    let attempts = 0;
-
-    const tryLoad = (url: string) => {
-      const script = document.createElement('script');
-      script.src = url;
-      script.async = true;
-      
-      script.onload = async () => {
-        if (loaded) return;
-        loaded = true;
-        console.log('[DYMO] SDK loaded from', url);
-        
-        // Initialize the framework
-        try {
-          if (window.dymo?.label?.framework?.init) {
-            await window.dymo.label.framework.init();
-            console.log('[DYMO] Framework initialized');
-          }
-          sdkLoaded = true;
-          resolve(true);
-        } catch (err) {
-          console.error('[DYMO] Framework init failed:', err);
-          resolve(false);
-        }
-      };
-      
-      script.onerror = () => {
-        attempts++;
-        console.log(`[DYMO] Failed to load from ${url}`);
-        if (attempts >= urls.length) {
-          resolve(false);
-        }
-      };
-      
-      document.head.appendChild(script);
-    };
-
-    // Try both URLs
-    urls.forEach(tryLoad);
-
-    // Timeout after 5 seconds
-    setTimeout(() => {
-      if (!loaded) {
-        console.log('[DYMO] SDK load timeout');
-        resolve(false);
-      }
-    }, 5000);
-  });
-
-  return sdkLoadPromise;
-}
+let workingEndpoint: string | null = null;
 
 // 25mm x 25mm (1" x 1") label template for shelf prices
 function createLabelXml(label: ShelfLabel): string {
@@ -107,7 +28,6 @@ function createLabelXml(label: ShelfLabel): string {
   const productName = escapeXml(label.productName);
   const price = escapeXml(label.price);
 
-  // Simple label XML for 25x25mm label
   return `<?xml version="1.0" encoding="utf-8"?>
 <DesktopLabel Version="1">
   <DYMOLabel Version="3">
@@ -209,62 +129,111 @@ function createLabelXml(label: ShelfLabel): string {
 </DesktopLabel>`;
 }
 
-// Check if DYMO Web Service is available
-export async function checkDymoService(): Promise<{ available: boolean; printers: string[]; error?: string }> {
+// Try to connect to DYMO Web Service
+async function tryEndpoint(endpoint: string): Promise<{ ok: boolean; printers: string[] }> {
   try {
-    const loaded = await loadDymoSdk();
-    if (!loaded) {
-      return { 
-        available: false, 
-        printers: [], 
-        error: 'Could not load DYMO SDK. Make sure DYMO Connect is running with Web Service enabled.' 
-      };
-    }
-
-    const printers = window.dymo.label.framework.getPrinters();
-    console.log('[DYMO] Printers found:', printers);
+    console.log(`[DYMO] Trying ${endpoint}...`);
     
-    const printerNames = printers
-      .filter((p: any) => p.printerType === 'LabelWriterPrinter' && p.isConnected)
-      .map((p: any) => p.name);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
     
-    if (printerNames.length === 0) {
-      return { 
-        available: true, 
-        printers: [], 
-        error: 'DYMO service running but no label printers connected.' 
-      };
+    const response = await fetch(`${endpoint}/GetPrinters`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeout);
+    
+    if (response.ok) {
+      const text = await response.text();
+      console.log(`[DYMO] ${endpoint} responded:`, text.substring(0, 100));
+      
+      // Parse printer names from XML
+      const printerMatches = text.match(/<Name>([^<]+)<\/Name>/g) || [];
+      const printers = printerMatches.map(m => m.replace(/<\/?Name>/g, ''));
+      
+      return { ok: true, printers };
     }
-
-    return { available: true, printers: printerNames };
-  } catch (error) {
-    console.error('[DYMO] Service check failed:', error);
-    return { 
-      available: false, 
-      printers: [], 
-      error: `DYMO check failed: ${error}` 
-    };
+    
+    console.log(`[DYMO] ${endpoint} returned status ${response.status}`);
+    return { ok: false, printers: [] };
+  } catch (error: any) {
+    console.log(`[DYMO] ${endpoint} failed:`, error.message || error);
+    return { ok: false, printers: [] };
   }
 }
 
-// Print a single label using the SDK
-export async function printLabel(label: ShelfLabel, printerName: string): Promise<boolean> {
-  try {
-    if (!window.dymo?.label?.framework) {
-      const loaded = await loadDymoSdk();
-      if (!loaded) return false;
-    }
+// Check if DYMO Web Service is available
+export async function checkDymoService(): Promise<{ available: boolean; printers: string[]; error?: string; endpoint?: string }> {
+  // Try all endpoints in parallel
+  const results = await Promise.all(ENDPOINTS.map(async (endpoint) => {
+    const result = await tryEndpoint(endpoint);
+    return { endpoint, ...result };
+  }));
+  
+  // Find the first working endpoint
+  const working = results.find(r => r.ok && r.printers.length > 0);
+  
+  if (working) {
+    workingEndpoint = working.endpoint;
+    console.log(`[DYMO] Using endpoint: ${workingEndpoint}`);
+    return { 
+      available: true, 
+      printers: working.printers,
+      endpoint: working.endpoint 
+    };
+  }
+  
+  // Check if service is up but no printers
+  const serviceUp = results.find(r => r.ok);
+  if (serviceUp) {
+    workingEndpoint = serviceUp.endpoint;
+    return {
+      available: true,
+      printers: [],
+      error: 'DYMO service running but no printers connected',
+      endpoint: serviceUp.endpoint
+    };
+  }
+  
+  return { 
+    available: false, 
+    printers: [], 
+    error: 'Cannot connect to DYMO Web Service. Make sure DYMO Connect is running with Web Service enabled. Check browser console (F12) for CORS errors.' 
+  };
+}
 
+// Print a single label
+export async function printLabel(label: ShelfLabel, printerName: string): Promise<boolean> {
+  if (!workingEndpoint) {
+    const check = await checkDymoService();
+    if (!check.available) return false;
+  }
+
+  try {
     const labelXml = createLabelXml(label);
-    console.log('[DYMO] Printing to', printerName, ':', label.productName, label.price);
+    console.log(`[DYMO] Printing "${label.productName}" - ${label.price} to ${printerName}`);
     
-    // Open the label and print
-    const labelObj = window.dymo.label.framework.openLabelXml(labelXml);
-    labelObj.print(printerName);
+    const params = new URLSearchParams();
+    params.append('printerName', printerName);
+    params.append('labelXml', labelXml);
+    params.append('labelSetXml', '');
     
-    return true;
+    const response = await fetch(`${workingEndpoint}/PrintLabel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    
+    if (response.ok) {
+      console.log('[DYMO] Print success');
+      return true;
+    } else {
+      console.log('[DYMO] Print failed:', response.status, await response.text());
+      return false;
+    }
   } catch (error) {
-    console.error('[DYMO] Print failed:', error);
+    console.error('[DYMO] Print error:', error);
     return false;
   }
 }
@@ -287,7 +256,7 @@ export async function printLabels(
     }
     onProgress?.(i + 1, labels.length);
     
-    // Small delay between prints
+    // Delay between prints
     if (i < labels.length - 1) {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
