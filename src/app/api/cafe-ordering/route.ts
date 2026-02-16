@@ -2,41 +2,44 @@ import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
 // Vendor patterns - map product names to vendors
+// These are configured here but can be extended via the cafe-schedule system
 const VENDOR_PATTERNS: { vendor: string; vendorName: string; patterns: string[]; deliveryDays: number[] }[] = [
   {
     vendor: 'yomify',
     vendorName: 'Yomify',
-    patterns: ['yomify', 'yummify', 'arianne'],
+    // Yomify products - savory and sweet cafe items
+    patterns: ['yomify', 'yummify', 'arianne', 'y0m', 'yom ', 'sausage roll', 'spinach roll', 'curry puff', 'spring roll', 'arancini'],
     deliveryDays: [1, 4], // Mon, Thu
   },
   {
     vendor: 'liz-jackson',
     vendorName: 'Liz Jackson',
-    patterns: ['liz jackson', 'lj ', 'liz j', 'gf cake', 'gluten free cake'],
+    // Liz Jackson - GF cakes and slices
+    patterns: ['liz jackson', 'liz j', 'lj cake', 'lj slice', 'gf cake', 'gf slice', 'gluten free cake', 'gluten free slice', 'gf brownie', 'gf caramel'],
     deliveryDays: [2, 5], // Tue, Fri
   },
   {
     vendor: 'love-bites',
     vendorName: 'Love Bites',
-    patterns: ['love bite', 'love bites', 'bliss ball', 'protein ball', 'energy ball', 'raw ball'],
+    patterns: ['love bite', 'love bites', 'bliss ball', 'protein ball', 'energy ball', 'raw ball', 'paleo ball'],
     deliveryDays: [2], // Tue
   },
   {
     vendor: 'byron-bay-brownies',
     vendorName: 'Byron Bay Brownies',
-    patterns: ['brownie', 'byron brownie', 'bb brownie'],
+    patterns: ['brownie', 'byron brownie', 'bb brownie', 'byron bay brown'],
     deliveryDays: [3], // Wed
   },
   {
     vendor: 'samosas',
     vendorName: 'Marlena (Samosas)',
-    patterns: ['samosa'],
+    patterns: ['samosa', 'marlena'],
     deliveryDays: [1], // Mon
   },
   {
     vendor: 'gigis',
     vendorName: 'Gigis',
-    patterns: ['gigi', 'vegan sweet', 'vegan cake', 'vegan slice'],
+    patterns: ['gigi', 'vegan sweet', 'vegan cake', 'vegan slice', 'gigi\'s'],
     deliveryDays: [0], // Sun (fortnightly)
   },
 ];
@@ -248,8 +251,18 @@ export async function GET(request: NextRequest) {
       };
     });
     
-    // Sort vendors by total quantity
-    vendors.sort((a, b) => b.totalQty - a.totalQty);
+    // Sort vendors: "Other Cafe Items" at bottom, then by urgency (days until delivery), then by total quantity
+    vendors.sort((a, b) => {
+      // "Other Cafe Items" always last
+      if (a.id === 'other-cafe') return 1;
+      if (b.id === 'other-cafe') return -1;
+      // Sort by days until delivery (most urgent first)
+      if (a.daysUntilDelivery !== b.daysUntilDelivery) {
+        return a.daysUntilDelivery - b.daysUntilDelivery;
+      }
+      // Then by total quantity
+      return b.totalQty - a.totalQty;
+    });
     
     // Calculate summary
     const summary = {

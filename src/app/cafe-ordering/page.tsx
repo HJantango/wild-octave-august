@@ -15,8 +15,11 @@ import {
   ClockIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  PrinterIcon
+  PrinterIcon,
+  PlusIcon,
+  SettingsIcon
 } from 'lucide-react';
+import Link from 'next/link';
 
 interface CafeItem {
   id: string;
@@ -270,20 +273,31 @@ export default function CafeOrderingPage() {
                 <option value="12" className="text-gray-900">12 weeks</option>
               </select>
               <Button 
+                variant="ghost"
                 onClick={fetchData}
                 disabled={loading}
-                className="bg-white/20 hover:bg-white/30 text-white border-0"
+                className="bg-white/20 hover:bg-white/30 text-white border border-white/30"
               >
                 <RefreshCwIcon className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 {loading ? 'Loading...' : 'Refresh Data'}
               </Button>
               <Button 
+                variant="secondary"
                 onClick={handlePrint}
-                className="bg-white text-orange-600 hover:bg-orange-50"
+                className="bg-white text-orange-600 hover:bg-orange-50 border-white"
               >
                 <PrinterIcon className="w-4 h-4 mr-2" />
                 Print Orders
               </Button>
+              <Link href="/ordering/cafe-schedule">
+                <Button 
+                  variant="ghost"
+                  className="bg-white/20 hover:bg-white/30 text-white border border-white/30"
+                >
+                  <SettingsIcon className="w-4 h-4 mr-2" />
+                  Manage Vendors
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -377,7 +391,8 @@ export default function CafeOrderingPage() {
         {/* Vendor Cards */}
         {data && (
           <div className="space-y-4">
-            {data.vendors.map(vendor => {
+            {/* Named vendors first */}
+            {data.vendors.filter(v => v.id !== 'other-cafe').map(vendor => {
               const priority = getVendorPriority(vendor);
               const summary = getVendorOrderSummary(vendor);
               const isExpanded = expandedVendors.has(vendor.id);
@@ -532,6 +547,95 @@ export default function CafeOrderingPage() {
                           {vendor.deliveryDays.length > 0 
                             ? vendor.deliveryDays.map(d => DAYS[d]).join(', ')
                             : 'As needed'}
+                        </p>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+            
+            {/* Other Cafe Items section - catch-all at the bottom */}
+            {data.vendors.filter(v => v.id === 'other-cafe').map(vendor => {
+              const summary = getVendorOrderSummary(vendor);
+              const isExpanded = expandedVendors.has(vendor.id);
+              
+              return (
+                <Card key={vendor.id} className="vendor-card overflow-hidden border-2 border-dashed border-gray-300 bg-gray-50">
+                  <CardHeader 
+                    className="pb-2 cursor-pointer hover:bg-gray-100/50 transition-colors"
+                    onClick={() => toggleVendor(vendor.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronDownIcon className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronRightIcon className="w-5 h-5 text-gray-400" />
+                        )}
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2 text-gray-600">
+                            📦 {vendor.name}
+                            <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded-full font-medium">Unassigned</span>
+                          </CardTitle>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                            <span>{vendor.itemCount} items</span>
+                            <span>•</span>
+                            <span>Avg {vendor.avgPerDay.toFixed(1)}/day</span>
+                            <span>•</span>
+                            <Link href="/ordering/cafe-schedule" className="text-blue-600 hover:underline flex items-center gap-1">
+                              <PlusIcon className="w-3 h-3" /> Add to vendor
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right no-print">
+                        <span className="text-sm text-gray-500">{summary.itemsToOrder} items need assignment</span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  
+                  {isExpanded && (
+                    <CardContent className="pt-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-gray-600">
+                              <th className="text-left py-2 px-2 font-medium">Item</th>
+                              <th className="text-center py-2 px-2 font-medium w-20">Avg/Day</th>
+                              <th className="text-center py-2 px-2 font-medium w-24">Total Sold</th>
+                              <th className="text-center py-2 px-2 font-medium w-24">Revenue</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vendor.items.map((item, idx) => (
+                              <tr 
+                                key={item.id} 
+                                className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                              >
+                                <td className="py-2 px-2">
+                                  <span className="font-medium">{item.itemName}</span>
+                                  {item.variationName && (
+                                    <span className="text-gray-500 ml-1">- {item.variationName}</span>
+                                  )}
+                                </td>
+                                <td className="text-center py-2 px-2 font-medium">
+                                  {item.avgPerDay.toFixed(1)}
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  {item.totalQty}
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  ${item.totalRevenue.toFixed(0)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <p className="text-sm text-gray-500 italic">
+                          💡 These items need to be assigned to a vendor. Use the <Link href="/ordering/cafe-schedule" className="text-blue-600 hover:underline">Manage Vendors</Link> page to set up vendor patterns.
                         </p>
                       </div>
                     </CardContent>
