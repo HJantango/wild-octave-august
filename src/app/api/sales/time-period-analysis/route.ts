@@ -72,25 +72,59 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Since we don't have actual time data in sales_aggregates, we'll simulate it
-    // In a real implementation, this would filter by actual time data
-    // For now, we'll apply a time-based distribution simulation
+    // Check if Square data exists
+    const squareDataCount = await prisma.squareDailySales.count({ where });
+    const useSquareData = squareDataCount > 0;
 
-    const salesData = await prisma.salesAggregate.findMany({
-      where,
-      select: {
-        date: true,
-        category: true,
-        itemName: true,
-        quantity: true,
-        revenue: true,
-      },
-      orderBy: {
-        date: 'asc'
-      }
-    });
+    // Get sales data - Square data doesn't have actual time data either,
+    // so we'll apply a time-based distribution simulation for both sources
+    let salesData: Array<{ date: Date; category: string | null; itemName: string | null; quantity: number; revenue: number }>;
 
-    console.log(`⏰ Found ${salesData.length} records for time period analysis`);
+    if (useSquareData) {
+      // Use Square API data
+      const squareData = await prisma.squareDailySales.findMany({
+        where,
+        select: {
+          date: true,
+          category: true,
+          itemName: true,
+          quantitySold: true,
+          netSalesCents: true,
+        },
+        orderBy: { date: 'asc' }
+      });
+
+      salesData = squareData.map(r => ({
+        date: r.date,
+        category: r.category,
+        itemName: r.itemName,
+        quantity: Number(r.quantitySold || 0),
+        revenue: (r.netSalesCents || 0) / 100,
+      }));
+    } else {
+      // Fallback to CSV data
+      const legacyData = await prisma.salesAggregate.findMany({
+        where,
+        select: {
+          date: true,
+          category: true,
+          itemName: true,
+          quantity: true,
+          revenue: true,
+        },
+        orderBy: { date: 'asc' }
+      });
+
+      salesData = legacyData.map(r => ({
+        date: r.date,
+        category: r.category,
+        itemName: r.itemName,
+        quantity: Number(r.quantity || 0),
+        revenue: Number(r.revenue || 0),
+      }));
+    }
+
+    console.log(`⏰ Found ${salesData.length} records for time period analysis (source: ${useSquareData ? 'Square' : 'CSV'})`);
 
     if (salesData.length === 0) {
       return createSuccessResponse({

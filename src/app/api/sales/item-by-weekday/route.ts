@@ -20,53 +20,102 @@ export async function GET(request: NextRequest) {
     const { itemName, startDate, endDate } = validation.data;
 
     // Build where clause - exact matching first, fallback to contains
-    const where: any = {
+    const baseWhere: any = {
       itemName: { equals: itemName }
     };
     
     console.log(`📊 Searching for exact item name: "${itemName}"`);
 
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
-      if (endDate) where.date.lte = new Date(endDate);
+      baseWhere.date = {};
+      if (startDate) baseWhere.date.gte = new Date(startDate);
+      if (endDate) baseWhere.date.lte = new Date(endDate);
     }
 
+    // Check if Square data exists
+    const squareDataCount = await prisma.squareDailySales.count({ where: baseWhere });
+    const useSquareData = squareDataCount > 0;
+
     // Get raw sales data for the item
-    let salesData = await prisma.salesAggregate.findMany({
-      where,
-      select: {
-        date: true,
-        quantity: true,
-        revenue: true,
-        category: true,
-      },
-      orderBy: {
-        date: 'asc'
-      }
-    });
-    
-    console.log(`📊 Found ${salesData.length} records with exact match for "${itemName}"`);
-    
-    // If no exact match found, try contains search as fallback
-    if (salesData.length === 0) {
-      console.log(`📊 No exact match found, trying contains search for "${itemName}"`);
-      salesData = await prisma.salesAggregate.findMany({
-        where: {
-          ...where,
-          itemName: { contains: itemName, mode: 'insensitive' }
+    let salesData: Array<{ date: Date; quantity: number; revenue: number; category: string | null }>;
+
+    if (useSquareData) {
+      // Use Square API data
+      let squareData = await prisma.squareDailySales.findMany({
+        where: baseWhere,
+        select: {
+          date: true,
+          quantitySold: true,
+          netSalesCents: true,
+          category: true,
         },
+        orderBy: { date: 'asc' }
+      });
+
+      console.log(`📊 Found ${squareData.length} Square records with exact match for "${itemName}"`);
+
+      // If no exact match, try contains
+      if (squareData.length === 0) {
+        squareData = await prisma.squareDailySales.findMany({
+          where: {
+            ...baseWhere,
+            itemName: { contains: itemName, mode: 'insensitive' }
+          },
+          select: {
+            date: true,
+            quantitySold: true,
+            netSalesCents: true,
+            category: true,
+          },
+          orderBy: { date: 'asc' }
+        });
+        console.log(`📊 Found ${squareData.length} Square records with contains search for "${itemName}"`);
+      }
+
+      salesData = squareData.map(r => ({
+        date: r.date,
+        quantity: Number(r.quantitySold || 0),
+        revenue: (r.netSalesCents || 0) / 100,
+        category: r.category,
+      }));
+    } else {
+      // Fallback to CSV data
+      let legacyData = await prisma.salesAggregate.findMany({
+        where: baseWhere,
         select: {
           date: true,
           quantity: true,
           revenue: true,
           category: true,
         },
-        orderBy: {
-          date: 'asc'
-        }
+        orderBy: { date: 'asc' }
       });
-      console.log(`📊 Found ${salesData.length} records with contains search for "${itemName}"`);
+      
+      console.log(`📊 Found ${legacyData.length} CSV records with exact match for "${itemName}"`);
+      
+      if (legacyData.length === 0) {
+        legacyData = await prisma.salesAggregate.findMany({
+          where: {
+            ...baseWhere,
+            itemName: { contains: itemName, mode: 'insensitive' }
+          },
+          select: {
+            date: true,
+            quantity: true,
+            revenue: true,
+            category: true,
+          },
+          orderBy: { date: 'asc' }
+        });
+        console.log(`📊 Found ${legacyData.length} CSV records with contains search for "${itemName}"`);
+      }
+
+      salesData = legacyData.map(r => ({
+        date: r.date,
+        quantity: Number(r.quantity || 0),
+        revenue: Number(r.revenue || 0),
+        category: r.category,
+      }));
     }
 
     // Group by day of the week (0 = Sunday, 1 = Monday, etc.)

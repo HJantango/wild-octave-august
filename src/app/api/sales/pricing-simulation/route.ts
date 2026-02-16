@@ -59,20 +59,50 @@ export async function GET(request: NextRequest) {
 
     console.log(`💰 Pricing simulation for "${itemName}" with primary markup: ${primaryMarkupValue}${primaryMarkupType === 'percentage' ? '%' : '$'}`);
 
-    // Get sales data for the item
-    const salesData = await prisma.salesAggregate.findMany({
-      where,
-      select: {
-        date: true,
-        quantity: true,
-        revenue: true,
-      },
-      orderBy: {
-        date: 'asc'
-      }
-    });
+    // Check if Square data exists
+    const squareDataCount = await prisma.squareDailySales.count({ where });
+    const useSquareData = squareDataCount > 0;
 
-    console.log(`💰 Found ${salesData.length} records for pricing simulation`);
+    // Get sales data for the item
+    let salesData: Array<{ date: Date; quantity: number; revenue: number }>;
+
+    if (useSquareData) {
+      // Use Square API data
+      const squareData = await prisma.squareDailySales.findMany({
+        where,
+        select: {
+          date: true,
+          quantitySold: true,
+          netSalesCents: true,
+        },
+        orderBy: { date: 'asc' }
+      });
+
+      salesData = squareData.map(r => ({
+        date: r.date,
+        quantity: Number(r.quantitySold || 0),
+        revenue: (r.netSalesCents || 0) / 100,
+      }));
+    } else {
+      // Fallback to CSV data
+      const legacyData = await prisma.salesAggregate.findMany({
+        where,
+        select: {
+          date: true,
+          quantity: true,
+          revenue: true,
+        },
+        orderBy: { date: 'asc' }
+      });
+
+      salesData = legacyData.map(r => ({
+        date: r.date,
+        quantity: Number(r.quantity || 0),
+        revenue: Number(r.revenue || 0),
+      }));
+    }
+
+    console.log(`💰 Found ${salesData.length} records for pricing simulation (source: ${useSquareData ? 'Square' : 'CSV'})`);
 
     if (salesData.length === 0) {
       return createSuccessResponse({
