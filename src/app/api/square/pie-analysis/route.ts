@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     startDate.setDate(startDate.getDate() - weeks * 7);
 
     // Fetch all daily sales records that look like pie items
+    // Note: Exclude false positives like "nappies" (contains "pie") and "pizza" (in bakery category)
     const dailySales = await prisma.squareDailySales.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
@@ -24,6 +25,15 @@ export async function GET(request: NextRequest) {
           { category: { contains: 'bakery', mode: 'insensitive' } },
           { category: { contains: 'pastry', mode: 'insensitive' } },
         ],
+        // Exclude false positives
+        NOT: {
+          OR: [
+            { itemName: { contains: 'nappie', mode: 'insensitive' } },
+            { itemName: { contains: 'nappy', mode: 'insensitive' } },
+            { itemName: { contains: 'pizza', mode: 'insensitive' } },
+            { itemName: { contains: 'diaper', mode: 'insensitive' } },
+          ],
+        },
       },
       orderBy: { date: 'asc' },
     });
