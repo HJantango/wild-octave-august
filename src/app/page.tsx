@@ -228,9 +228,12 @@ export default function Dashboard() {
             <CardContent className="relative p-6 text-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-emerald-100 text-sm font-medium">Week Sales</p>
+                  <p className="text-emerald-100 text-sm font-medium">Week Sales (Gross)</p>
                   <p className="text-2xl font-bold">
-                    {isLoadingOps ? '...' : formatCurrency(operationalData?.sales.weekTotal || 0)}
+                    {isLoadingOps ? '...' : formatCurrency(operationalData?.sales.weekGrossSales || operationalData?.sales.weekTotal || 0)}
+                  </p>
+                  <p className="text-emerald-100 text-xs mt-1">
+                    Net: {isLoadingOps ? '...' : formatCurrency(operationalData?.sales.weekNetSales || operationalData?.sales.weekTotal || 0)}
                   </p>
                   <p className="text-emerald-100 text-xs mt-1">
                     {isLoadingOps ? '' : `${operationalData?.sales.weekQuantity || 0} items`}

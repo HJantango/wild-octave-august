@@ -106,12 +106,16 @@ export async function GET(request: NextRequest) {
         if (squareCount > 0) {
           const result = await prisma.squareDailySales.aggregate({
             where: { date: { gte: weekAgo } },
-            _sum: { netSalesCents: true, quantitySold: true },
+            _sum: { netSalesCents: true, grossSalesCents: true, quantitySold: true },
             _count: true,
           });
+          const grossSales = (result._sum.grossSalesCents || 0) / 100;
+          const netSales = (result._sum.netSalesCents || 0) / 100;
           return {
             _sum: {
-              revenue: (result._sum.netSalesCents || 0) / 100,
+              revenue: netSales,
+              grossRevenue: grossSales,
+              discounts: grossSales - netSales, // Tax difference (discounts tracked separately)
               quantity: result._sum.quantitySold,
               margin: 0, // Square doesn't have margin data
             },
@@ -281,7 +285,9 @@ export async function GET(request: NextRequest) {
         totals: discountTotals,
       },
       sales: {
-        weekTotal: Number(salesSummary._sum.revenue || 0),
+        weekNetSales: Number(salesSummary._sum.revenue || 0),
+        weekGrossSales: Number(salesSummary._sum.grossRevenue || salesSummary._sum.revenue || 0),
+        weekTotal: Number(salesSummary._sum.revenue || 0), // Keep for backwards compat
         weekQuantity: Number(salesSummary._sum.quantity || 0),
         weekMargin: Number(salesSummary._sum.margin || 0),
         weekWastage: Number(weekWastageTotals._sum.totalCost || 0),
