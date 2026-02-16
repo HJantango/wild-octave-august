@@ -111,13 +111,30 @@ export async function GET(request: NextRequest) {
     };
     console.log(`✅ Catalog sync: ${catalogCreated} created, ${catalogUpdated} updated, ${catalogSkipped} skipped`);
 
-    // 2. Sync sales data
+    // 2. Sync sales data with category enrichment
     // Use weeks param for historical sync, default to 1 week for daily cron
     const weeksBack = parseInt(request.nextUrl.searchParams.get('weeks') || '1');
     console.log(`🔄 Starting sales sync (${weeksBack} weeks back)...`);
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeksBack * 7);
+
+    // Fetch catalog data for category enrichment
+    const catalogItems = await realSquareService.getCatalogItems();
+    const categoryLookup = new Map<string, string>();
+    for (const item of catalogItems) {
+      if (item.category?.name) {
+        // Map item name to category
+        categoryLookup.set(item.name.toLowerCase().trim(), item.category.name);
+        // Also map variations
+        for (const variation of item.variations || []) {
+          if (variation.name) {
+            categoryLookup.set(variation.name.toLowerCase().trim(), item.category.name);
+          }
+        }
+      }
+    }
+    console.log(`📚 Loaded ${categoryLookup.size} category mappings`);
 
     const orders = await realSquareService.searchOrders({
       startDate,
@@ -126,12 +143,16 @@ export async function GET(request: NextRequest) {
 
     // Get vendor lookup from items
     const dbItems = await prisma.item.findMany({
-      select: { name: true, vendor: { select: { name: true } } },
+      select: { name: true, category: true, vendor: { select: { name: true } } },
     });
     const vendorLookup = new Map<string, string>();
+    const dbCategoryLookup = new Map<string, string>();
     for (const dbItem of dbItems) {
       if (dbItem.vendor?.name) {
         vendorLookup.set(dbItem.name.toLowerCase().trim(), dbItem.vendor.name);
+      }
+      if (dbItem.category) {
+        dbCategoryLookup.set(dbItem.name.toLowerCase().trim(), dbItem.category);
       }
     }
 
@@ -151,16 +172,25 @@ export async function GET(request: NextRequest) {
         const grossCents = Number(item.totalMoney?.amount || 0);
         const taxCents = Number(item.totalTaxMoney?.amount || 0);
 
+        // Try to find category from Square catalog, then fall back to DB
+        const itemKey = itemName.toLowerCase().trim();
+        const category = categoryLookup.get(itemKey) || dbCategoryLookup.get(itemKey) || null;
+
         if (aggregated.has(key)) {
           const existing = aggregated.get(key);
           existing.quantitySold += quantity;
           existing.grossSalesCents += grossCents;
           existing.netSalesCents += (grossCents - taxCents);
+          // Keep first category found
+          if (!existing.category && category) {
+            existing.category = category;
+          }
         } else {
           aggregated.set(key, {
             date: new Date(dateStr + 'T00:00:00.000Z'),
             itemName,
             variationName,
+            category,
             quantitySold: quantity,
             grossSalesCents: grossCents,
             netSalesCents: grossCents - taxCents,
@@ -182,6 +212,7 @@ export async function GET(request: NextRequest) {
           },
         },
         update: {
+          category: entry.category,
           vendorName,
           quantitySold: entry.quantitySold,
           grossSalesCents: entry.grossSalesCents,
@@ -191,6 +222,7 @@ export async function GET(request: NextRequest) {
           date: entry.date,
           itemName: entry.itemName,
           variationName: entry.variationName,
+          category: entry.category,
           vendorName,
           quantitySold: entry.quantitySold,
           grossSalesCents: entry.grossSalesCents,
