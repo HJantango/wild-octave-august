@@ -119,8 +119,7 @@ export async function GET(request: NextRequest) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeksBack * 7);
 
-    // Fetch catalog data for category enrichment
-    const catalogItems = await realSquareService.getCatalogItems();
+    // Build category lookup from catalog items (already fetched above)
     const categoryLookup = new Map<string, string>();
     for (const item of catalogItems) {
       if (item.category?.name) {
