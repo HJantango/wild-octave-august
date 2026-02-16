@@ -1,6 +1,39 @@
 import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
+// Default config if none exists in database
+const DEFAULT_PIE_CONFIG = {
+  // Vendors whose items should ALL appear in pie report
+  vendors: ['Byron Bay Gourmet Pies', 'Byron Gourmet Pies'],
+  // Specific items to include (from any vendor)
+  extraItems: ['samosa', 'samosas'],
+  // Items to always exclude (overrides vendor inclusion)
+  excludeItems: ['ratatouille'],
+};
+
+type PieReportConfig = typeof DEFAULT_PIE_CONFIG;
+
+async function getPieReportConfig(): Promise<PieReportConfig> {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: 'pie-report-config' },
+    });
+    
+    if (setting?.value) {
+      const config = setting.value as PieReportConfig;
+      return {
+        vendors: config.vendors || DEFAULT_PIE_CONFIG.vendors,
+        extraItems: config.extraItems || DEFAULT_PIE_CONFIG.extraItems,
+        excludeItems: config.excludeItems || DEFAULT_PIE_CONFIG.excludeItems,
+      };
+    }
+  } catch (e) {
+    console.warn('Could not load pie report config, using defaults');
+  }
+  
+  return DEFAULT_PIE_CONFIG;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
@@ -10,51 +43,65 @@ export async function GET(request: NextRequest) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeks * 7);
 
-    // Fetch all daily sales records that look like pie items
-    // Note: Exclude false positives like "nappies" (contains "pie") and "pizza" (in bakery category)
+    // Load config from database (or use defaults)
+    const config = await getPieReportConfig();
+    
+    // Build vendor name conditions (case-insensitive matching)
+    const vendorConditions = config.vendors.map(v => ({
+      vendorName: { equals: v, mode: 'insensitive' as const },
+    }));
+    
+    // Build extra item conditions
+    const extraItemConditions = config.extraItems.map(item => ({
+      itemName: { contains: item, mode: 'insensitive' as const },
+    }));
+
+    // Fetch all daily sales records matching our config
     const dailySales = await prisma.squareDailySales.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
         OR: [
-          { itemName: { contains: 'pie', mode: 'insensitive' } },
-          { itemName: { contains: 'quiche', mode: 'insensitive' } },
-          { itemName: { contains: 'sausage roll', mode: 'insensitive' } },
-          { itemName: { contains: 'pasty', mode: 'insensitive' } },
-          { itemName: { contains: 'pastie', mode: 'insensitive' } },
-          { category: { contains: 'pie', mode: 'insensitive' } },
-          { category: { contains: 'bakery', mode: 'insensitive' } },
-          { category: { contains: 'pastry', mode: 'insensitive' } },
+          // All items from specified vendors
+          ...vendorConditions,
+          // Plus any extra items by name
+          ...extraItemConditions,
         ],
-        // Exclude false positives
-        NOT: {
-          OR: [
-            { itemName: { contains: 'nappie', mode: 'insensitive' } },
-            { itemName: { contains: 'nappy', mode: 'insensitive' } },
-            { itemName: { contains: 'pizza', mode: 'insensitive' } },
-            { itemName: { contains: 'diaper', mode: 'insensitive' } },
-          ],
-        },
       },
       orderBy: { date: 'asc' },
     });
 
-    if (dailySales.length === 0) {
+    // Filter out excluded items
+    const excludeLower = config.excludeItems.map(e => e.toLowerCase());
+    const filteredSales = dailySales.filter(record => {
+      const itemLower = record.itemName.toLowerCase();
+      const varLower = (record.variationName || '').toLowerCase();
+      return !excludeLower.some(ex => itemLower.includes(ex) || varLower.includes(ex));
+    });
+
+    if (filteredSales.length === 0) {
       return createSuccessResponse({
         variations: [],
         timeAnalysis: { hourly: [], periods: [], dayOfWeek: [] },
         totalPiesSold: 0,
         totalDays: 0,
         dateRange: { start: startDate.toISOString(), end: endDate.toISOString() },
+        config: { 
+          vendors: config.vendors, 
+          extraItems: config.extraItems,
+          excludeItems: config.excludeItems,
+          source: 'vendor-based' 
+        },
       });
     }
 
     // Get unique dates to calculate total days
-    const uniqueDates = new Set(dailySales.map(s => s.date.toISOString().split('T')[0]));
+    const uniqueDates = new Set(filteredSales.map(s => s.date.toISOString().split('T')[0]));
     const totalDays = uniqueDates.size || 1;
 
     // Aggregate by variation (item + variation name)
     const variationMap = new Map<string, {
       name: string;
+      vendorName: string | null;
       totalSold: number;
       byDayOfWeek: number[];
     }>();
@@ -63,7 +110,7 @@ export async function GET(request: NextRequest) {
     const dayOfWeekTotals = new Array(7).fill(0);
     const dayOfWeekCounts = new Array(7).fill(0);
 
-    for (const record of dailySales) {
+    for (const record of filteredSales) {
       const key = record.variationName && record.variationName !== ''
         ? `${record.itemName} - ${record.variationName}`
         : record.itemName;
@@ -71,6 +118,7 @@ export async function GET(request: NextRequest) {
       if (!variationMap.has(key)) {
         variationMap.set(key, {
           name: key,
+          vendorName: record.vendorName,
           totalSold: 0,
           byDayOfWeek: new Array(7).fill(0),
         });
@@ -103,6 +151,7 @@ export async function GET(request: NextRequest) {
 
         return {
           name: v.name,
+          vendorName: v.vendorName,
           totalSold: parseFloat(v.totalSold.toFixed(1)),
           avgPerDay: parseFloat(avgPerDay.toFixed(1)),
           avgPerDeliveryPeriod: parseFloat((avgPerDay * 3).toFixed(1)), // Assuming 3-day delivery periods
@@ -122,10 +171,10 @@ export async function GET(request: NextRequest) {
       sales: parseFloat(dayOfWeekTotals[i].toFixed(1)),
     }));
 
-    const totalPiesSold = dailySales.reduce((sum, r) => sum + Number(r.quantitySold), 0);
+    const totalPiesSold = filteredSales.reduce((sum, r) => sum + Number(r.quantitySold), 0);
 
     // Find actual date range from data
-    const dates = dailySales.map(s => s.date);
+    const dates = filteredSales.map(s => s.date);
     const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
 
@@ -141,6 +190,12 @@ export async function GET(request: NextRequest) {
       dateRange: {
         start: minDate.toISOString().split('T')[0],
         end: maxDate.toISOString().split('T')[0],
+      },
+      config: { 
+        vendors: config.vendors, 
+        extraItems: config.extraItems,
+        excludeItems: config.excludeItems,
+        source: 'vendor-based' 
       },
     });
   } catch (error: any) {

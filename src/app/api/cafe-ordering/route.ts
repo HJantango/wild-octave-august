@@ -1,6 +1,55 @@
 import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
+// Default pack sizes for items sold by piece but ordered as whole units
+const DEFAULT_PACK_SIZES: Record<string, { packSize: number; unitName: string }> = {
+  'cake': { packSize: 12, unitName: 'cake' },
+  'cheesecake': { packSize: 12, unitName: 'cake' },
+  'gf chocolate cake': { packSize: 12, unitName: 'cake' },
+  'gf carrot cake': { packSize: 12, unitName: 'cake' },
+  'gf lemon cake': { packSize: 12, unitName: 'cake' },
+};
+
+type PackSizeConfig = Record<string, { packSize: number; unitName: string }>;
+
+// Get pack size config from database or use defaults
+async function getPackSizeConfig(): Promise<PackSizeConfig> {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: 'cafe-pack-sizes' },
+    });
+    if (setting?.value) {
+      return setting.value as PackSizeConfig;
+    }
+  } catch (e) {
+    console.warn('Could not load pack sizes, using defaults');
+  }
+  return DEFAULT_PACK_SIZES;
+}
+
+// Find pack size for an item
+function getPackSizeForItem(
+  itemName: string,
+  config: PackSizeConfig
+): { packSize: number; unitName: string } | null {
+  const nameLower = itemName.toLowerCase();
+  
+  // Check exact match first
+  if (config[nameLower]) {
+    return config[nameLower];
+  }
+  
+  // Check partial matches (longer patterns first for specificity)
+  const sortedKeys = Object.keys(config).sort((a, b) => b.length - a.length);
+  for (const pattern of sortedKeys) {
+    if (nameLower.includes(pattern)) {
+      return config[pattern];
+    }
+  }
+  
+  return null;
+}
+
 // Vendor delivery schedules - these could come from a database table
 // Map vendor name (lowercase) to delivery days
 const VENDOR_DELIVERY_SCHEDULES: Record<string, number[]> = {
@@ -105,6 +154,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const weeksBack = parseInt(searchParams.get('weeks') || '6');
     
+    // Load pack size config
+    const packSizeConfig = await getPackSizeConfig();
+    
     // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
@@ -189,6 +241,16 @@ export async function GET(request: NextRequest) {
       const buffer = 1.2;
       const suggestedQty = Math.ceil(avgPerDay * daysUntilDelivery * buffer);
       
+      // Check for pack size (e.g., cake sold by slice but ordered as whole cake)
+      const packInfo = getPackSizeForItem(item.itemName, packSizeConfig);
+      const hasPackSize = packInfo !== null;
+      const packSize = packInfo?.packSize || 1;
+      const unitName = packInfo?.unitName || 'unit';
+      
+      // Calculate order in whole units (round up)
+      const suggestedUnits = hasPackSize ? Math.ceil(suggestedQty / packSize) : suggestedQty;
+      const totalUnitsFromQty = hasPackSize ? suggestedUnits * packSize : suggestedQty;
+      
       return {
         id: `${item.vendorName || 'unassigned'}-${item.itemName}-${item.variationName}`.replace(/[^a-z0-9-]/gi, '-').toLowerCase(),
         itemName: item.itemName,
@@ -205,6 +267,12 @@ export async function GET(request: NextRequest) {
         avgPerWeek: Math.round(avgPerWeek * 10) / 10,
         suggestedQty,
         byDayOfWeek: item.byDayOfWeek.map(qty => Math.round(qty / weeksInPeriod * 10) / 10),
+        // Pack size info
+        hasPackSize,
+        packSize,
+        unitName,
+        suggestedUnits, // How many whole units (cakes/boxes) to order
+        totalFromUnits: totalUnitsFromQty, // Total pieces if ordering whole units
       };
     });
     
