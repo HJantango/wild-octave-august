@@ -392,7 +392,7 @@ export default function CafeOrderingPage() {
         {data && (
           <div className="space-y-4">
             {/* Named vendors first */}
-            {data.vendors.filter(v => v.id !== 'other-cafe').map(vendor => {
+            {data.vendors.filter(v => v.id !== 'unassigned').map(vendor => {
               const priority = getVendorPriority(vendor);
               const summary = getVendorOrderSummary(vendor);
               const isExpanded = expandedVendors.has(vendor.id);
@@ -555,8 +555,8 @@ export default function CafeOrderingPage() {
               );
             })}
             
-            {/* Other Cafe Items section - catch-all at the bottom */}
-            {data.vendors.filter(v => v.id === 'other-cafe').map(vendor => {
+            {/* Unassigned Items section - catch-all at the bottom */}
+            {data.vendors.filter(v => v.id === 'unassigned').map(vendor => {
               const summary = getVendorOrderSummary(vendor);
               const isExpanded = expandedVendors.has(vendor.id);
               
@@ -576,7 +576,7 @@ export default function CafeOrderingPage() {
                         <div>
                           <CardTitle className="text-lg flex items-center gap-2 text-gray-600">
                             📦 {vendor.name}
-                            <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded-full font-medium">Unassigned</span>
+                            <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded-full font-medium">No Vendor Set</span>
                           </CardTitle>
                           <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
                             <span>{vendor.itemCount} items</span>

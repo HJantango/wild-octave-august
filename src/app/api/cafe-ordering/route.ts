@@ -1,80 +1,61 @@
 import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
-// Vendor patterns - map product names to vendors
-// These are configured here but can be extended via the cafe-schedule system
-const VENDOR_PATTERNS: { vendor: string; vendorName: string; patterns: string[]; deliveryDays: number[] }[] = [
-  {
-    vendor: 'yomify',
-    vendorName: 'Yomify',
-    // Yomify products - savory and sweet cafe items
-    patterns: ['yomify', 'yummify', 'arianne', 'y0m', 'yom ', 'sausage roll', 'spinach roll', 'curry puff', 'spring roll', 'arancini'],
-    deliveryDays: [1, 4], // Mon, Thu
-  },
-  {
-    vendor: 'liz-jackson',
-    vendorName: 'Liz Jackson',
-    // Liz Jackson - GF cakes and slices
-    patterns: ['liz jackson', 'liz j', 'lj cake', 'lj slice', 'gf cake', 'gf slice', 'gluten free cake', 'gluten free slice', 'gf brownie', 'gf caramel'],
-    deliveryDays: [2, 5], // Tue, Fri
-  },
-  {
-    vendor: 'love-bites',
-    vendorName: 'Love Bites',
-    patterns: ['love bite', 'love bites', 'bliss ball', 'protein ball', 'energy ball', 'raw ball', 'paleo ball'],
-    deliveryDays: [2], // Tue
-  },
-  {
-    vendor: 'byron-bay-brownies',
-    vendorName: 'Byron Bay Brownies',
-    patterns: ['brownie', 'byron brownie', 'bb brownie', 'byron bay brown'],
-    deliveryDays: [3], // Wed
-  },
-  {
-    vendor: 'samosas',
-    vendorName: 'Marlena (Samosas)',
-    patterns: ['samosa', 'marlena'],
-    deliveryDays: [1], // Mon
-  },
-  {
-    vendor: 'gigis',
-    vendorName: 'Gigis',
-    patterns: ['gigi', 'vegan sweet', 'vegan cake', 'vegan slice', 'gigi\'s'],
-    deliveryDays: [0], // Sun (fortnightly)
-  },
-];
+// Vendor delivery schedules - these could come from a database table
+// Map vendor name (lowercase) to delivery days
+const VENDOR_DELIVERY_SCHEDULES: Record<string, number[]> = {
+  'yummify': [1, 4], // Mon, Thu
+  'liz jackson': [2, 5], // Tue, Fri
+  'love bites': [2], // Tue
+  'byron bay brownies': [3], // Wed
+  'marlena': [1], // Mon
+  'gigis': [0], // Sun
+  // Add more as needed
+};
 
-// Categories to include for cafe items
-const CAFE_CATEGORIES = ['cafe', 'bakery', 'sweets', 'treats', 'cakes', 'pastry'];
+// Categories that indicate cafe items
+const CAFE_CATEGORIES = ['cafe', 'bakery', 'sweets', 'treats', 'cakes', 'pastry', 'food'];
 
-// Item name patterns for cafe items (when vendor not matched)
+// Item name patterns that indicate cafe items (fallback when no category)
 const CAFE_ITEM_PATTERNS = [
   'muffin', 'cookie', 'cake', 'slice', 'brownie', 'ball', 'bar',
   'croissant', 'danish', 'scroll', 'bun', 'sweet', 'treat',
-  'tart', 'cupcake', 'donut', 'scone', 'friand'
+  'tart', 'cupcake', 'donut', 'scone', 'friand', 'pie', 'roll',
+  'samosa', 'curry puff', 'arancini', 'spring roll'
 ];
 
-function identifyVendor(itemName: string, category?: string | null): { vendor: string; vendorName: string; deliveryDays: number[] } | null {
+// Check if an item is a cafe item
+function isCafeItem(itemName: string, category?: string | null): boolean {
   const nameLower = itemName.toLowerCase();
   
-  // Check vendor patterns
-  for (const { vendor, vendorName, patterns, deliveryDays } of VENDOR_PATTERNS) {
-    if (patterns.some(pattern => nameLower.includes(pattern))) {
-      return { vendor, vendorName, deliveryDays };
+  // Check category first
+  if (category && CAFE_CATEGORIES.some(c => category.toLowerCase().includes(c))) {
+    return true;
+  }
+  
+  // Check item name patterns
+  return CAFE_ITEM_PATTERNS.some(pattern => nameLower.includes(pattern));
+}
+
+// Get delivery days for a vendor
+function getVendorDeliveryDays(vendorName: string | null): number[] {
+  if (!vendorName) return [];
+  
+  const key = vendorName.toLowerCase();
+  
+  // Check exact match first
+  if (VENDOR_DELIVERY_SCHEDULES[key]) {
+    return VENDOR_DELIVERY_SCHEDULES[key];
+  }
+  
+  // Check partial match
+  for (const [vendor, days] of Object.entries(VENDOR_DELIVERY_SCHEDULES)) {
+    if (key.includes(vendor) || vendor.includes(key)) {
+      return days;
     }
   }
   
-  // Check if it's a cafe item by category
-  if (category && CAFE_CATEGORIES.some(c => category.toLowerCase().includes(c))) {
-    return { vendor: 'other-cafe', vendorName: 'Other Cafe Items', deliveryDays: [] };
-  }
-  
-  // Check if it's a cafe item by name pattern
-  if (CAFE_ITEM_PATTERNS.some(pattern => nameLower.includes(pattern))) {
-    return { vendor: 'other-cafe', vendorName: 'Other Cafe Items', deliveryDays: [] };
-  }
-  
-  return null;
+  return []; // No schedule found
 }
 
 // Calculate days until next delivery
@@ -93,7 +74,7 @@ function getDaysUntilDelivery(deliveryDays: number[]): number {
   return minDays;
 }
 
-// Get the next delivery date
+// Get the next delivery date string
 function getNextDeliveryDate(deliveryDays: number[]): string {
   if (deliveryDays.length === 0) return 'As needed';
   
@@ -113,7 +94,7 @@ function getNextDeliveryDate(deliveryDays: number[]): string {
   }
   
   if (minDays === 1) return 'Tomorrow';
-  if (minDays === 7) return 'Today';
+  if (minDays === 7 && deliveryDays.includes(today)) return 'Today';
   return dayNames[nextDay];
 }
 
@@ -129,7 +110,7 @@ export async function GET(request: NextRequest) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - (weeksBack * 7));
     
-    // Fetch all daily sales records
+    // Fetch all daily sales records with vendor info
     const dailySales = await prisma.squareDailySales.findMany({
       where: {
         date: { gte: startDate, lte: endDate },
@@ -140,8 +121,9 @@ export async function GET(request: NextRequest) {
     if (dailySales.length === 0) {
       return createSuccessResponse({
         vendors: [],
+        allItems: [],
         summary: { totalItems: 0, totalQtySold: 0, totalRevenue: 0 },
-        period: { startDate: startDate.toISOString(), endDate: endDate.toISOString(), weeks: weeksBack },
+        period: { startDate: startDate.toISOString(), endDate: endDate.toISOString(), weeks: weeksBack, days: 0 },
       });
     }
     
@@ -149,31 +131,35 @@ export async function GET(request: NextRequest) {
     const uniqueDates = new Set(dailySales.map(s => s.date.toISOString().split('T')[0]));
     const totalDays = uniqueDates.size || 1;
     
-    // Aggregate by item and vendor
+    // Aggregate by item and actual vendor from database
     const itemMap = new Map<string, {
       itemName: string;
       variationName: string;
-      vendor: string;
-      vendorName: string;
-      deliveryDays: number[];
+      vendorName: string | null;
+      category: string | null;
       totalQty: number;
       totalRevenue: number;
       byDayOfWeek: number[];
     }>();
     
     for (const record of dailySales) {
-      const vendorInfo = identifyVendor(record.itemName, record.category);
-      if (!vendorInfo) continue; // Skip non-cafe items
+      // Use the vendorName from the database
+      const vendorName = record.vendorName;
       
-      const key = `${vendorInfo.vendor}::${record.itemName}::${record.variationName || ''}`;
+      // Skip if not a cafe item (unless it has a known cafe vendor)
+      const isCafe = isCafeItem(record.itemName, record.category);
+      const hasKnownVendor = vendorName && getVendorDeliveryDays(vendorName).length > 0;
+      
+      if (!isCafe && !hasKnownVendor) continue;
+      
+      const key = `${vendorName || 'unassigned'}::${record.itemName}::${record.variationName || ''}`;
       
       if (!itemMap.has(key)) {
         itemMap.set(key, {
           itemName: record.itemName,
           variationName: record.variationName || '',
-          vendor: vendorInfo.vendor,
-          vendorName: vendorInfo.vendorName,
-          deliveryDays: vendorInfo.deliveryDays,
+          vendorName: vendorName,
+          category: record.category,
           totalQty: 0,
           totalRevenue: 0,
           byDayOfWeek: new Array(7).fill(0),
@@ -196,21 +182,22 @@ export async function GET(request: NextRequest) {
     const items = Array.from(itemMap.values()).map(item => {
       const avgPerDay = item.totalQty / totalDays;
       const avgPerWeek = item.totalQty / weeksInPeriod;
-      const daysUntilDelivery = getDaysUntilDelivery(item.deliveryDays);
+      const deliveryDays = getVendorDeliveryDays(item.vendorName);
+      const daysUntilDelivery = getDaysUntilDelivery(deliveryDays);
       
       // Calculate suggested order: (avgPerDay * daysUntilDelivery) + buffer (20%)
       const buffer = 1.2;
       const suggestedQty = Math.ceil(avgPerDay * daysUntilDelivery * buffer);
       
       return {
-        id: `${item.vendor}-${item.itemName}-${item.variationName}`.replace(/[^a-z0-9-]/gi, '-').toLowerCase(),
+        id: `${item.vendorName || 'unassigned'}-${item.itemName}-${item.variationName}`.replace(/[^a-z0-9-]/gi, '-').toLowerCase(),
         itemName: item.itemName,
         variationName: item.variationName,
         displayName: item.variationName ? `${item.itemName} - ${item.variationName}` : item.itemName,
-        vendor: item.vendor,
-        vendorName: item.vendorName,
-        deliveryDays: item.deliveryDays,
-        nextDelivery: getNextDeliveryDate(item.deliveryDays),
+        vendor: (item.vendorName || 'unassigned').toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        vendorName: item.vendorName || 'Unassigned Items',
+        deliveryDays,
+        nextDelivery: getNextDeliveryDate(deliveryDays),
         daysUntilDelivery,
         totalQty: Math.round(item.totalQty * 10) / 10,
         totalRevenue: Math.round(item.totalRevenue * 100) / 100,
@@ -251,11 +238,14 @@ export async function GET(request: NextRequest) {
       };
     });
     
-    // Sort vendors: "Other Cafe Items" at bottom, then by urgency (days until delivery), then by total quantity
+    // Sort vendors: "unassigned" at bottom, then by urgency (days until delivery), then by total quantity
     vendors.sort((a, b) => {
-      // "Other Cafe Items" always last
-      if (a.id === 'other-cafe') return 1;
-      if (b.id === 'other-cafe') return -1;
+      // "Unassigned" always last
+      if (a.id === 'unassigned') return 1;
+      if (b.id === 'unassigned') return -1;
+      // Vendors with delivery schedules before those without
+      if (a.deliveryDays.length > 0 && b.deliveryDays.length === 0) return -1;
+      if (a.deliveryDays.length === 0 && b.deliveryDays.length > 0) return 1;
       // Sort by days until delivery (most urgent first)
       if (a.daysUntilDelivery !== b.daysUntilDelivery) {
         return a.daysUntilDelivery - b.daysUntilDelivery;
