@@ -57,18 +57,31 @@ interface LowStockItem {
   daysLeft?: number;
 }
 
+interface PieOrder {
+  variation: string;
+  avgPerDay: number;
+  suggestedQty: number;
+  boxesNeeded: number;
+}
+
 interface TodayData {
   ordersNeeded: VendorOrder[];
+  pieOrders: PieOrder[];
+  pieOrderDay: boolean; // Is today a pie order day?
   deliveriesExpected: DeliveryExpected[];
   invoicesPending: InvoicePending[];
   lowStock: LowStockItem[];
   summary: {
     ordersToPlace: number;
+    pieBoxes: number;
     deliveriesToday: number;
     invoicesToProcess: number;
     lowStockCount: number;
   };
 }
+
+// Track which vendors have been marked as ordered (localStorage)
+const ORDERED_STORAGE_KEY = 'today-orders-placed';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -76,23 +89,79 @@ export default function TodayPage() {
   const [data, setData] = useState<TodayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [orderedVendors, setOrderedVendors] = useState<Set<string>>(new Set());
+
+  // Load ordered status from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(ORDERED_STORAGE_KEY);
+    if (saved) {
+      try {
+        const { date, vendors } = JSON.parse(saved);
+        // Only use if it's from today
+        const today = new Date().toISOString().split('T')[0];
+        if (date === today && Array.isArray(vendors)) {
+          setOrderedVendors(new Set(vendors));
+        }
+      } catch (e) {
+        console.error('Failed to load ordered status:', e);
+      }
+    }
+  }, []);
+
+  // Mark vendor as ordered
+  const markAsOrdered = (vendorId: string) => {
+    const updated = new Set(orderedVendors);
+    updated.add(vendorId);
+    setOrderedVendors(updated);
+    
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.setItem(ORDERED_STORAGE_KEY, JSON.stringify({
+      date: today,
+      vendors: Array.from(updated),
+    }));
+  };
+
+  // Unmark vendor
+  const unmarkOrdered = (vendorId: string) => {
+    const updated = new Set(orderedVendors);
+    updated.delete(vendorId);
+    setOrderedVendors(updated);
+    
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.setItem(ORDERED_STORAGE_KEY, JSON.stringify({
+      date: today,
+      vendors: Array.from(updated),
+    }));
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      // Get current month for calendar
+      const now = new Date();
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const todayDay = now.getDay(); // 0=Sun, 1=Mon, etc.
+      
+      // Pie order days: Monday (1) and Wednesday (3)
+      const isPieOrderDay = todayDay === 1 || todayDay === 3;
+
       // Fetch all data in parallel
-      const [cafeResponse, dashboardResponse, invoicesResponse] = await Promise.all([
+      const [cafeResponse, dashboardResponse, invoicesResponse, pieResponse, calendarResponse] = await Promise.all([
         fetch('/api/cafe-ordering?weeks=6'),
         fetch('/api/dashboard'),
         fetch('/api/invoices?status=RECEIVED&limit=10'),
+        fetch('/api/square/pie-analysis'),
+        fetch(`/api/calendar/orders?month=${month}`),
       ]);
 
-      const [cafeData, dashboardData, invoicesData] = await Promise.all([
+      const [cafeData, dashboardData, invoicesData, pieData, calendarData] = await Promise.all([
         cafeResponse.json(),
         dashboardResponse.json(),
         invoicesResponse.json(),
+        pieResponse.json().catch(() => ({ success: false })),
+        calendarResponse.json().catch(() => ({ success: false })),
       ]);
 
       // Process cafe ordering data into vendor orders
@@ -128,9 +197,39 @@ export default function TodayPage() {
       const priorityOrder = { urgent: 0, today: 1, soon: 2, normal: 3 };
       ordersNeeded.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
+      // Process pie orders if it's a pie day
+      const pieOrders: PieOrder[] = [];
+      let totalPieBoxes = 0;
+      if (isPieOrderDay && pieData.success && pieData.data?.variations) {
+        for (const v of pieData.data.variations) {
+          if (v.boxesNeeded > 0) {
+            pieOrders.push({
+              variation: v.name || v.variation || 'Unknown',
+              avgPerDay: v.avgPerDay || 0,
+              suggestedQty: v.suggestedQty || 0,
+              boxesNeeded: v.boxesNeeded || 0,
+            });
+            totalPieBoxes += v.boxesNeeded;
+          }
+        }
+      }
+
       // Get deliveries expected today (from calendar)
       const deliveriesExpected: DeliveryExpected[] = [];
-      // TODO: Fetch from calendar/orders endpoint
+      if (calendarData.success && calendarData.data?.orders) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        for (const order of calendarData.data.orders) {
+          const deliveryDate = order.deliveryDate?.split('T')[0];
+          if (deliveryDate === todayStr) {
+            deliveriesExpected.push({
+              id: order.id,
+              vendorName: order.vendor?.name || order.vendorName || 'Unknown',
+              orderDate: order.scheduleDate,
+              status: order.status === 'delivered' ? 'arrived' : 'expected',
+            });
+          }
+        }
+      }
 
       // Get pending invoices
       const invoicesPending: InvoicePending[] = [];
@@ -163,11 +262,14 @@ export default function TodayPage() {
 
       setData({
         ordersNeeded,
+        pieOrders,
+        pieOrderDay: isPieOrderDay,
         deliveriesExpected,
         invoicesPending,
         lowStock,
         summary: {
           ordersToPlace: ordersNeeded.filter(o => o.priority === 'urgent' || o.priority === 'today').length,
+          pieBoxes: totalPieBoxes,
           deliveriesToday: deliveriesExpected.filter(d => d.status === 'expected').length,
           invoicesToProcess: invoicesPending.length,
           lowStockCount: lowStock.length,
@@ -239,7 +341,7 @@ export default function TodayPage() {
 
         {/* Summary Cards */}
         {data && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className={data.summary.ordersToPlace > 0 ? 'border-2 border-orange-300 bg-orange-50' : ''}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -247,8 +349,26 @@ export default function TodayPage() {
                     <ShoppingCartIcon className={`w-5 h-5 ${data.summary.ordersToPlace > 0 ? 'text-orange-600' : 'text-blue-600'}`} />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Orders to Place</p>
+                    <p className="text-sm text-gray-500">Cafe Orders</p>
                     <p className="text-2xl font-bold">{data.summary.ordersToPlace}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Pie Orders - only show on pie days */}
+            <Card className={data.pieOrderDay && data.summary.pieBoxes > 0 ? 'border-2 border-pink-300 bg-pink-50' : ''}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${data.pieOrderDay ? 'bg-pink-200' : 'bg-gray-100'}`}>
+                    <span className="text-xl">🥧</span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Pie Boxes</p>
+                    <p className="text-2xl font-bold">
+                      {data.pieOrderDay ? data.summary.pieBoxes : '-'}
+                    </p>
+                    {!data.pieOrderDay && <p className="text-xs text-gray-400">Not a pie day</p>}
                   </div>
                 </div>
               </CardContent>
@@ -326,38 +446,139 @@ export default function TodayPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {data.ordersNeeded.map(vendor => (
-                      <div 
-                        key={vendor.id}
-                        className={`p-4 rounded-lg border-2 ${getPriorityStyles(vendor.priority)}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold">{vendor.name}</span>
-                              {getPriorityBadge(vendor.priority)}
+                    {data.ordersNeeded.map(vendor => {
+                      const isOrdered = orderedVendors.has(vendor.id);
+                      return (
+                        <div 
+                          key={vendor.id}
+                          className={`p-4 rounded-lg border-2 ${isOrdered ? 'bg-green-50 border-green-300' : getPriorityStyles(vendor.priority)}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                {isOrdered && <CheckCircleIcon className="w-5 h-5 text-green-600" />}
+                                <span className={`font-semibold ${isOrdered ? 'text-green-800' : ''}`}>{vendor.name}</span>
+                                {!isOrdered && getPriorityBadge(vendor.priority)}
+                                {isOrdered && <span className="px-2 py-0.5 bg-green-500 text-white text-xs rounded-full font-medium">Ordered ✓</span>}
+                              </div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                <span>{vendor.itemCount} items</span>
+                                <span className="mx-2">•</span>
+                                <span>~{vendor.totalUnits} units</span>
+                                <span className="mx-2">•</span>
+                                <span>Delivery: {vendor.nextDelivery}</span>
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              <span>{vendor.itemCount} items</span>
-                              <span className="mx-2">•</span>
-                              <span>~{vendor.totalUnits} units</span>
-                              <span className="mx-2">•</span>
-                              <span>Delivery: {vendor.nextDelivery}</span>
+                            <div className="flex items-center gap-2">
+                              {isOrdered ? (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => unmarkOrdered(vendor.id)}
+                                  className="text-gray-600"
+                                >
+                                  Undo
+                                </Button>
+                              ) : (
+                                <>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => markAsOrdered(vendor.id)}
+                                    className="text-green-600 border-green-300 hover:bg-green-50"
+                                  >
+                                    <CheckCircleIcon className="w-4 h-4 mr-1" />
+                                    Done
+                                  </Button>
+                                  <Link href={`/cafe-ordering`}>
+                                    <Button size="sm" variant={vendor.priority === 'urgent' ? 'destructive' : 'default'}>
+                                      Order
+                                      <ChevronRightIcon className="w-4 h-4 ml-1" />
+                                    </Button>
+                                  </Link>
+                                </>
+                              )}
                             </div>
                           </div>
-                          <Link href={`/cafe-ordering`}>
-                            <Button size="sm" variant={vendor.priority === 'urgent' ? 'destructive' : 'default'}>
-                              Order
-                              <ChevronRightIcon className="w-4 h-4 ml-1" />
-                            </Button>
-                          </Link>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Pie Orders - only show on pie days */}
+            {data.pieOrderDay && (
+              <Card className="border-0 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-pink-50 to-rose-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <span className="text-xl">🥧</span>
+                        Pie Orders
+                      </CardTitle>
+                      <CardDescription>
+                        {new Date().getDay() === 1 ? 'Monday order → Tuesday delivery' : 'Wednesday order → Thursday delivery'}
+                      </CardDescription>
+                    </div>
+                    <Link href="/orders/pie-calculator">
+                      <Button variant="outline" size="sm">Calculator</Button>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  {data.pieOrders.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <CheckCircleIcon className="w-12 h-12 mx-auto mb-2 text-green-500" />
+                      <p className="font-medium">Pies stocked!</p>
+                      <p className="text-sm">No pie orders needed based on current stock.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {data.pieOrders.map((pie, idx) => (
+                        <div 
+                          key={idx}
+                          className="flex items-center justify-between p-3 rounded-lg bg-pink-50 border border-pink-200"
+                        >
+                          <div>
+                            <span className="font-medium text-gray-900">{pie.variation}</span>
+                            <div className="text-xs text-gray-500">
+                              Avg {pie.avgPerDay.toFixed(1)}/day
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-pink-600 text-lg">{pie.boxesNeeded}</span>
+                            <span className="text-gray-500 text-sm ml-1">boxes</span>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-2 mt-2 border-t border-pink-200 flex justify-between items-center">
+                        <span className="font-semibold text-gray-700">Total Boxes</span>
+                        <span className="font-bold text-pink-700 text-xl">{data.summary.pieBoxes}</span>
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => markAsOrdered('pies-alive')}
+                          className={orderedVendors.has('pies-alive') ? 'bg-green-50 text-green-700 border-green-300' : 'text-green-600 border-green-300 hover:bg-green-50'}
+                        >
+                          <CheckCircleIcon className="w-4 h-4 mr-1" />
+                          {orderedVendors.has('pies-alive') ? 'Ordered ✓' : 'Mark Ordered'}
+                        </Button>
+                        <Link href="/orders/pie-calculator" className="flex-1">
+                          <Button size="sm" className="w-full bg-pink-600 hover:bg-pink-700">
+                            Open Calculator
+                            <ChevronRightIcon className="w-4 h-4 ml-1" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Invoices to Process */}
             <Card className="border-0 shadow-lg">
@@ -455,6 +676,58 @@ export default function TodayPage() {
                         +{data.lowStock.length - 8} more items
                       </p>
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Deliveries Expected */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <TruckIcon className="w-5 h-5 text-green-600" />
+                      Deliveries Expected
+                    </CardTitle>
+                    <CardDescription>Arriving today</CardDescription>
+                  </div>
+                  <Link href="/ordering/calendar">
+                    <Button variant="outline" size="sm">Calendar</Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4">
+                {data.deliveriesExpected.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <TruckIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p className="font-medium">No deliveries today</p>
+                    <p className="text-sm">Check the calendar for upcoming orders.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {data.deliveriesExpected.map(delivery => (
+                      <div 
+                        key={delivery.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                          delivery.status === 'arrived' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {delivery.status === 'arrived' ? (
+                            <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <ClockIcon className="w-5 h-5 text-yellow-600" />
+                          )}
+                          <span className="font-medium text-gray-900">{delivery.vendorName}</span>
+                        </div>
+                        <span className={`text-sm font-medium ${
+                          delivery.status === 'arrived' ? 'text-green-600' : 'text-yellow-600'
+                        }`}>
+                          {delivery.status === 'arrived' ? 'Delivered ✓' : 'Expected'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
