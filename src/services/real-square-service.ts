@@ -278,66 +278,85 @@ class RealSquareService {
     try {
       const client = this.getClient();
 
-      // Build search query
-      const searchQuery: any = {
-        filter: {
-          // Only get completed orders for sales analysis
-          stateFilter: {
-            states: ['COMPLETED']
-          }
-        }
-      };
-
       // Always use recent date filter to avoid huge datasets causing timeouts
       const defaultStartDate = filters.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000); // Last year by default
       const endDate = filters.endDate || new Date();
-      
-      searchQuery.filter.dateTimeFilter = {
-        createdAt: {
-          startAt: defaultStartDate.toISOString(),
-          endAt: endDate.toISOString()
-        }
-      };
 
       // Get active locations for the request
       const locations = await this.getLocations();
       const activeLocations = locations.filter(loc => loc.status === 'ACTIVE');
-      
-      const requestBody = {
-        locationIds: filters.locationId ? [filters.locationId] : activeLocations.map(loc => loc.id),
-        query: searchQuery,
-        limit: Math.min(filters.limit || 500, 500), // Larger limit for better sync
-        cursor: filters.cursor,
-        // returnEntries: false means we get full order objects, not just order entries
-        returnEntries: false
-      };
+      const locationIds = filters.locationId ? [filters.locationId] : activeLocations.map(loc => loc.id);
 
-      console.log('🔍 Searching Square orders (last year, limit 50) with:', JSON.stringify(requestBody, null, 2));
+      const allOrders: any[] = [];
+      let cursor: string | undefined = filters.cursor;
+      let pageCount = 0;
+      const maxPages = 100; // Safety limit to prevent infinite loops
+
+      console.log(`🔍 Searching Square orders from ${defaultStartDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+
+      do {
+        pageCount++;
+        
+        // Build search query
+        const searchQuery: any = {
+          filter: {
+            stateFilter: {
+              states: ['COMPLETED']
+            },
+            dateTimeFilter: {
+              createdAt: {
+                startAt: defaultStartDate.toISOString(),
+                endAt: endDate.toISOString()
+              }
+            }
+          }
+        };
+
+        const requestBody: any = {
+          locationIds,
+          query: searchQuery,
+          limit: 500, // Max per page
+          returnEntries: false
+        };
+
+        if (cursor) {
+          requestBody.cursor = cursor;
+        }
+
+        console.log(`📄 Fetching orders page ${pageCount}...`);
+        
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
+        );
+        
+        const response = await Promise.race([
+          client.orders.search(requestBody),
+          timeoutPromise
+        ]);
+        
+        // Handle multiple SDK response formats
+        let orders: any[] = [];
+        if (response.result?.orders) {
+          orders = response.result.orders;
+        } else if (response.orders) {
+          orders = response.orders;
+        } else if (response.data?.orders) {
+          orders = response.data.orders;
+        }
+
+        allOrders.push(...orders);
+
+        // Get cursor for next page
+        cursor = response.result?.cursor || response.cursor || undefined;
+        
+        console.log(`  → Got ${orders.length} orders (total: ${allOrders.length})${cursor ? ', more pages available' : ''}`);
+
+      } while (cursor && pageCount < maxPages);
+
+      console.log(`📦 Found ${allOrders.length} total orders from Square API (${pageCount} pages)`);
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout after 15 seconds')), 15000)
-      );
-      
-      const response = await Promise.race([
-        client.orders.search(requestBody),
-        timeoutPromise
-      ]);
-      
-      // Handle multiple SDK response formats
-      let orders: any[] = [];
-      if (response.result?.orders) {
-        orders = response.result.orders;
-      } else if (response.orders) {
-        orders = response.orders;
-      } else if (response.data?.orders) {
-        orders = response.data.orders;
-      }
-      
-      console.log(`📦 Found ${orders.length} orders from Square API`);
-      console.log(`📦 Response keys: ${Object.keys(response || {}).join(', ')}`);
-      
-      return orders.map(order => ({
+      return allOrders.map(order => ({
         id: order.id!,
         locationId: order.locationId!,
         orderSource: {
@@ -451,25 +470,9 @@ class RealSquareService {
   }
 
   // Helper method to get all orders across all pages
+  // Note: searchOrders now handles pagination internally, so this is just a wrapper
   async getAllOrders(filters: SquareSalesFilters = {}): Promise<SquareOrder[]> {
-    const allOrders: SquareOrder[] = [];
-    let cursor: string | undefined = undefined;
-    let pageCount = 0;
-    const maxPages = 50; // Safety limit
-
-    do {
-      const ordersPage = await this.searchOrders({ ...filters, cursor, limit: 500 });
-      allOrders.push(...ordersPage);
-      pageCount++;
-      
-      // In a real implementation, you'd get the cursor from the response
-      // For now, we'll break after first page
-      cursor = undefined;
-      break;
-    } while (cursor && pageCount < maxPages);
-
-    console.log(`📦 Total orders retrieved: ${allOrders.length} (${pageCount} pages)`);
-    return allOrders;
+    return this.searchOrders(filters);
   }
 
   // Helper method to get all payments across all pages  
