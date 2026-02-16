@@ -219,6 +219,10 @@ export async function GET(request: NextRequest) {
     );
 
     const dashboardData = {
+      salesDateRange: {
+        start: weekAgo.toISOString().split('T')[0],
+        end: today.toISOString().split('T')[0],
+      },
       diary: {
         upcoming: upcomingDiary,
         overdue: overdueDiary,

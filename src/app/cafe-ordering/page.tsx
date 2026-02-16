@@ -1,567 +1,590 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
-  PlusIcon, 
   TruckIcon, 
   PackageIcon, 
   CalendarIcon,
-  SaveIcon,
-  Trash2Icon,
-  EditIcon,
   RefreshCwIcon,
-  DownloadCloudIcon
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  PrinterIcon
 } from 'lucide-react';
 
 interface CafeItem {
   id: string;
-  name: string;
+  itemName: string;
+  variationName: string;
+  displayName: string;
   vendor: string;
+  vendorName: string;
+  deliveryDays: number[];
+  nextDelivery: string;
+  daysUntilDelivery: number;
+  totalQty: number;
+  totalRevenue: number;
   avgPerDay: number;
   avgPerWeek: number;
-  currentStock: number;
-  parLevel: number;
-  orderQty: number;
-  deliveryDays: string[];
-  notes: string;
+  suggestedQty: number;
+  byDayOfWeek: number[];
 }
 
 interface Vendor {
   id: string;
   name: string;
-  deliveryDays: string[];
-  contactInfo: string;
+  deliveryDays: number[];
+  nextDelivery: string;
+  daysUntilDelivery: number;
+  itemCount: number;
+  totalQty: number;
+  totalRevenue: number;
+  avgPerDay: number;
+  avgPerWeek: number;
   items: CafeItem[];
 }
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+interface ApiResponse {
+  success: boolean;
+  data: {
+    vendors: Vendor[];
+    allItems: CafeItem[];
+    summary: {
+      totalItems: number;
+      totalQtySold: number;
+      totalRevenue: number;
+    };
+    period: {
+      startDate: string;
+      endDate: string;
+      weeks: number;
+      days: number;
+    };
+  };
+}
 
-const STORAGE_KEY = 'cafe-ordering-data';
+interface StockEntry {
+  [itemId: string]: number;
+}
 
-// Default vendors and items
-const defaultVendors: Vendor[] = [
-  {
-    id: 'yomify',
-    name: 'Yomify',
-    deliveryDays: ['Mon', 'Thu'],
-    contactInfo: '',
-    items: []
-  },
-  {
-    id: 'liz-jackson',
-    name: 'Liz Jackson',
-    deliveryDays: ['Tue', 'Fri'],
-    contactInfo: '',
-    items: []
-  },
-  {
-    id: 'byron-bay-pies',
-    name: 'Byron Bay Pies',
-    deliveryDays: ['Wed'],
-    contactInfo: '',
-    items: []
-  },
-  {
-    id: 'samosas',
-    name: 'Samosas',
-    deliveryDays: ['Mon'],
-    contactInfo: '',
-    items: []
-  },
-  {
-    id: 'love-bites',
-    name: 'Love Bites',
-    deliveryDays: ['Tue'],
-    contactInfo: '',
-    items: []
-  },
-  {
-    id: 'byron-bay-brownies',
-    name: 'Byron Bay Brownies',
-    deliveryDays: ['Wed'],
-    contactInfo: '',
-    items: []
-  },
-  {
-    id: 'house-made',
-    name: 'House Made (Salads & Chia Cups)',
-    deliveryDays: [],
-    contactInfo: 'Made in-house',
-    items: []
-  },
-];
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const STORAGE_KEY = 'cafe-ordering-stock-v2';
 
 export default function CafeOrderingPage() {
-  const [vendors, setVendors] = useState<Vendor[]>(defaultVendors);
-  const [editingItem, setEditingItem] = useState<{ vendorId: string; item: CafeItem } | null>(null);
-  const [newItemVendor, setNewItemVendor] = useState<string | null>(null);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loadingSquare, setLoadingSquare] = useState(false);
-  const [squareData, setSquareData] = useState<any>(null);
+  const [data, setData] = useState<ApiResponse['data'] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [weeks, setWeeks] = useState(6);
+  const [currentStock, setCurrentStock] = useState<StockEntry>({});
+  const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
+  const [buffer, setBuffer] = useState(20); // 20% default buffer
 
-  // Load data from localStorage
+  // Load saved stock from localStorage
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setVendors(parsed.vendors || defaultVendors);
+        setCurrentStock(parsed.stock || {});
       } catch (e) {
-        console.error('Failed to load cafe ordering data:', e);
+        console.error('Failed to load saved stock:', e);
       }
     }
   }, []);
 
-  // Fetch Square sales data
-  const fetchSquareData = async () => {
-    setLoadingSquare(true);
-    try {
-      const response = await fetch('/api/reports/cafe-ordering?weeks=4');
-      const result = await response.json();
-      if (result.success) {
-        setSquareData(result.data);
-        // Auto-populate items from Square data
-        populateFromSquare(result.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch Square data:', error);
-    } finally {
-      setLoadingSquare(false);
+  // Save stock to localStorage whenever it changes
+  useEffect(() => {
+    if (Object.keys(currentStock).length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
+        stock: currentStock, 
+        savedAt: new Date().toISOString() 
+      }));
     }
-  };
+  }, [currentStock]);
 
-  // Populate vendors with Square data
-  const populateFromSquare = (data: any) => {
-    if (!data?.vendors) return;
+  // Fetch data from API
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     
-    setVendors(prev => prev.map(vendor => {
-      const squareVendor = data.vendors.find((v: any) => v.vendor === vendor.id);
-      if (!squareVendor) return vendor;
+    try {
+      const response = await fetch(`/api/cafe-ordering?weeks=${weeks}`);
+      const result = await response.json();
       
-      // Merge Square items with existing items
-      const existingNames = new Set(vendor.items.map(i => i.name.toLowerCase()));
-      const newItems: CafeItem[] = [];
-      
-      for (const sqItem of squareVendor.items) {
-        if (!existingNames.has(sqItem.name.toLowerCase())) {
-          newItems.push({
-            id: `${vendor.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: sqItem.name,
-            vendor: vendor.name,
-            avgPerDay: sqItem.avgPerDay,
-            avgPerWeek: sqItem.avgPerWeek,
-            currentStock: 0,
-            parLevel: Math.ceil(sqItem.avgPerDay * 2),
-            orderQty: 0,
-            deliveryDays: [],
-            notes: `Auto-imported from Square (${sqItem.totalQty} sold in 4 weeks)`
-          });
-        }
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to fetch data');
       }
       
-      // Update existing items with latest averages
-      const updatedItems = vendor.items.map(item => {
-        const sqItem = squareVendor.items.find((s: any) => 
-          s.name.toLowerCase() === item.name.toLowerCase()
-        );
-        if (sqItem) {
-          return {
-            ...item,
-            avgPerDay: sqItem.avgPerDay,
-            avgPerWeek: sqItem.avgPerWeek,
-          };
-        }
-        return item;
+      setData(result.data);
+      
+      // Initialize stock for new items
+      setCurrentStock(prev => {
+        const updated = { ...prev };
+        result.data.allItems.forEach((item: CafeItem) => {
+          if (!(item.id in updated)) {
+            updated[item.id] = 0;
+          }
+        });
+        return updated;
       });
       
-      return {
-        ...vendor,
-        items: [...updatedItems, ...newItems]
-      };
-    }));
-    
-    setHasChanges(true);
-  };
-
-  // Save to localStorage
-  const saveData = () => {
-    setSaving(true);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ vendors, savedAt: new Date().toISOString() }));
-    setHasChanges(false);
-    setTimeout(() => setSaving(false), 500);
-  };
-
-  // Add new item to vendor
-  const addItem = (vendorId: string, item: Omit<CafeItem, 'id'>) => {
-    setVendors(prev => prev.map(v => {
-      if (v.id === vendorId) {
-        return {
-          ...v,
-          items: [...v.items, { ...item, id: `${vendorId}-${Date.now()}` }]
-        };
-      }
-      return v;
-    }));
-    setNewItemVendor(null);
-    setHasChanges(true);
-  };
-
-  // Update item
-  const updateItem = (vendorId: string, itemId: string, updates: Partial<CafeItem>) => {
-    setVendors(prev => prev.map(v => {
-      if (v.id === vendorId) {
-        return {
-          ...v,
-          items: v.items.map(item => 
-            item.id === itemId ? { ...item, ...updates } : item
-          )
-        };
-      }
-      return v;
-    }));
-    setHasChanges(true);
-  };
-
-  // Delete item
-  const deleteItem = (vendorId: string, itemId: string) => {
-    if (!confirm('Delete this item?')) return;
-    setVendors(prev => prev.map(v => {
-      if (v.id === vendorId) {
-        return {
-          ...v,
-          items: v.items.filter(item => item.id !== itemId)
-        };
-      }
-      return v;
-    }));
-    setHasChanges(true);
-  };
-
-  // Update vendor delivery days
-  const updateVendorDays = (vendorId: string, days: string[]) => {
-    setVendors(prev => prev.map(v => 
-      v.id === vendorId ? { ...v, deliveryDays: days } : v
-    ));
-    setHasChanges(true);
-  };
-
-  // Calculate suggested order
-  const calcSuggestedOrder = (item: CafeItem, daysUntilDelivery: number) => {
-    const needed = (item.avgPerDay * daysUntilDelivery) + item.parLevel;
-    return Math.max(0, Math.ceil(needed - item.currentStock));
-  };
-
-  // Get next delivery day for vendor
-  const getNextDelivery = (deliveryDays: string[]) => {
-    if (deliveryDays.length === 0) return 'N/A';
-    const today = new Date().getDay();
-    const dayMap: { [key: string]: number } = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
-    
-    let minDays = 7;
-    for (const day of deliveryDays) {
-      const dayNum = dayMap[day];
-      let diff = dayNum - today;
-      if (diff <= 0) diff += 7;
-      if (diff < minDays) minDays = diff;
+      // Expand vendors with items needing orders
+      const vendorsToExpand = new Set<string>();
+      result.data.vendors.forEach((vendor: Vendor) => {
+        const needsOrder = vendor.items.some((item: CafeItem) => {
+          const stock = currentStock[item.id] || 0;
+          const orderQty = calculateOrderQty(item, stock);
+          return orderQty > 0;
+        });
+        if (needsOrder || vendor.daysUntilDelivery <= 2) {
+          vendorsToExpand.add(vendor.id);
+        }
+      });
+      setExpandedVendors(vendorsToExpand);
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
     }
-    return minDays === 1 ? 'Tomorrow' : minDays === 7 ? 'Today' : `${minDays} days`;
+  }, [weeks]);
+
+  // Calculate order quantity: (avgPerDay * daysUntilDelivery * buffer) - currentStock
+  const calculateOrderQty = useCallback((item: CafeItem, stock: number): number => {
+    const needed = Math.ceil(item.avgPerDay * item.daysUntilDelivery * (1 + buffer / 100));
+    return Math.max(0, needed - stock);
+  }, [buffer]);
+
+  // Update stock for an item
+  const updateStock = (itemId: string, value: number) => {
+    setCurrentStock(prev => ({
+      ...prev,
+      [itemId]: Math.max(0, value)
+    }));
   };
 
-  return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 rounded-2xl p-6 text-white">
-          <div className="relative flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold mb-1">☕ Cafe Ordering Dashboard</h1>
-              <p className="text-orange-100">
-                Manage cafe suppliers, track stock levels, and plan orders
-              </p>
-              {squareData && (
-                <p className="text-orange-200 text-sm mt-1">
-                  📊 Square data: {squareData.period.startDate} to {squareData.period.endDate} • {squareData.summary.totalQtySold} items sold • ${squareData.summary.totalRevenue.toFixed(0)} revenue
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={fetchSquareData}
-                disabled={loadingSquare}
-                className="bg-white/20 hover:bg-white/30 text-white"
-              >
-                <DownloadCloudIcon className={`w-4 h-4 mr-2 ${loadingSquare ? 'animate-spin' : ''}`} />
-                {loadingSquare ? 'Syncing...' : 'Sync from Square'}
-              </Button>
-              <Button 
-                onClick={saveData}
-                disabled={saving}
-                className={`${hasChanges ? 'bg-white text-orange-600 hover:bg-orange-50' : 'bg-white/20 hover:bg-white/30 text-white'}`}
-              >
-                <SaveIcon className="w-4 h-4 mr-2" />
-                {saving ? 'Saving...' : hasChanges ? 'Save Changes' : 'Saved'}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Today's Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <TruckIcon className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Vendors</p>
-                  <p className="text-2xl font-bold">{vendors.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <PackageIcon className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Items</p>
-                  <p className="text-2xl font-bold">{vendors.reduce((sum, v) => sum + v.items.length, 0)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <CalendarIcon className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Deliveries Today</p>
-                  <p className="text-2xl font-bold">
-                    {vendors.filter(v => v.deliveryDays.includes(DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1])).length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 rounded-lg">
-                  <PackageIcon className="w-5 h-5 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Low Stock Items</p>
-                  <p className="text-2xl font-bold">
-                    {vendors.reduce((sum, v) => sum + v.items.filter(i => i.currentStock <= i.parLevel).length, 0)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Vendors and Items */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {vendors.map(vendor => (
-            <Card key={vendor.id} className="overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{vendor.name}</CardTitle>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-gray-500">Deliveries:</span>
-                      <div className="flex gap-1">
-                        {DAYS.map(day => (
-                          <button
-                            key={day}
-                            onClick={() => {
-                              const newDays = vendor.deliveryDays.includes(day)
-                                ? vendor.deliveryDays.filter(d => d !== day)
-                                : [...vendor.deliveryDays, day];
-                              updateVendorDays(vendor.id, newDays);
-                            }}
-                            className={`px-2 py-0.5 text-xs rounded ${
-                              vendor.deliveryDays.includes(day)
-                                ? 'bg-orange-500 text-white'
-                                : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
-                            }`}
-                          >
-                            {day}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {vendor.deliveryDays.length > 0 && (
-                      <p className="text-xs text-orange-600 mt-1">
-                        Next delivery: {getNextDelivery(vendor.deliveryDays)}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setNewItemVendor(vendor.id)}
-                  >
-                    <PlusIcon className="w-4 h-4 mr-1" /> Add Item
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {vendor.items.length === 0 ? (
-                  <div className="p-6 text-center text-gray-400">
-                    No items yet. Click "Add Item" to start.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {vendor.items.map(item => (
-                      <div key={item.id} className="p-3 hover:bg-gray-50">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{item.name}</p>
-                            <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                              <span>Avg: {item.avgPerDay}/day ({item.avgPerWeek}/wk)</span>
-                              <span className={item.currentStock <= item.parLevel ? 'text-red-600 font-medium' : ''}>
-                                Stock: {item.currentStock}
-                              </span>
-                              <span>Par: {item.parLevel}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500">Order</p>
-                              <Input
-                                type="number"
-                                value={item.orderQty}
-                                onChange={(e) => updateItem(vendor.id, item.id, { orderQty: parseInt(e.target.value) || 0 })}
-                                className="w-16 h-8 text-center text-sm"
-                              />
-                            </div>
-                            <button
-                              onClick={() => deleteItem(vendor.id, item.id)}
-                              className="p-1 text-gray-400 hover:text-red-500"
-                            >
-                              <Trash2Icon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Add Item Modal */}
-        {newItemVendor && (
-          <AddItemModal
-            vendorName={vendors.find(v => v.id === newItemVendor)?.name || ''}
-            onAdd={(item) => addItem(newItemVendor, item)}
-            onClose={() => setNewItemVendor(null)}
-          />
-        )}
-      </div>
-    </DashboardLayout>
-  );
-}
-
-// Add Item Modal Component
-function AddItemModal({ 
-  vendorName, 
-  onAdd, 
-  onClose 
-}: { 
-  vendorName: string;
-  onAdd: (item: Omit<CafeItem, 'id'>) => void;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [avgPerDay, setAvgPerDay] = useState(1);
-  const [parLevel, setParLevel] = useState(2);
-  const [currentStock, setCurrentStock] = useState(0);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    
-    onAdd({
-      name: name.trim(),
-      vendor: vendorName,
-      avgPerDay,
-      avgPerWeek: avgPerDay * 7,
-      currentStock,
-      parLevel,
-      orderQty: 0,
-      deliveryDays: [],
-      notes: ''
+  // Toggle vendor expansion
+  const toggleVendor = (vendorId: string) => {
+    setExpandedVendors(prev => {
+      const updated = new Set(prev);
+      if (updated.has(vendorId)) {
+        updated.delete(vendorId);
+      } else {
+        updated.add(vendorId);
+      }
+      return updated;
     });
   };
 
+  // Get vendor priority based on delivery urgency
+  const getVendorPriority = (vendor: Vendor): 'urgent' | 'soon' | 'normal' => {
+    if (vendor.daysUntilDelivery <= 1) return 'urgent';
+    if (vendor.daysUntilDelivery <= 2) return 'soon';
+    return 'normal';
+  };
+
+  // Calculate totals for a vendor
+  const getVendorOrderSummary = useCallback((vendor: Vendor) => {
+    let itemsToOrder = 0;
+    let totalUnits = 0;
+    
+    vendor.items.forEach(item => {
+      const stock = currentStock[item.id] || 0;
+      const orderQty = calculateOrderQty(item, stock);
+      if (orderQty > 0) {
+        itemsToOrder++;
+        totalUnits += orderQty;
+      }
+    });
+    
+    return { itemsToOrder, totalUnits };
+  }, [currentStock, calculateOrderQty]);
+
+  // Handle print
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const todayName = DAYS[new Date().getDay()];
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-        <h2 className="text-lg font-bold mb-4">Add Item to {vendorName}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Item Name</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Blueberry Muffin"
-              autoFocus
+    <DashboardLayout>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @media print {
+            @page { size: A4; margin: 1cm; }
+            body { background: white !important; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .vendor-card { page-break-inside: avoid; margin-bottom: 10pt; }
+            .print-header { display: block !important; text-align: center; margin-bottom: 15pt; }
+            h1 { font-size: 18pt !important; }
+            h2 { font-size: 14pt !important; }
+            table { font-size: 10pt !important; }
+            .bg-gradient-to-r { background: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
+          }
+        `
+      }} />
+
+      <div className="space-y-6">
+        {/* Print Header */}
+        <div className="print-header hidden">
+          <h1 className="text-2xl font-bold">Wild Octave Cafe Orders</h1>
+          <p className="text-gray-600">{new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        </div>
+
+        {/* Header */}
+        <div className="no-print relative overflow-hidden bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 rounded-2xl p-6 text-white">
+          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold mb-1">☕ Cafe Ordering Dashboard</h1>
+              <p className="text-orange-100">
+                Calculate orders based on sales data • {todayName}
+              </p>
+              {data && (
+                <p className="text-orange-200 text-sm mt-1">
+                  📊 {data.period.weeks} weeks of data • {data.summary.totalItems} items • ${data.summary.totalRevenue.toLocaleString()} revenue
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <select
+                value={weeks}
+                onChange={(e) => setWeeks(parseInt(e.target.value))}
+                className="px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 text-sm"
+              >
+                <option value="4" className="text-gray-900">4 weeks</option>
+                <option value="6" className="text-gray-900">6 weeks</option>
+                <option value="8" className="text-gray-900">8 weeks</option>
+                <option value="12" className="text-gray-900">12 weeks</option>
+              </select>
+              <Button 
+                onClick={fetchData}
+                disabled={loading}
+                className="bg-white/20 hover:bg-white/30 text-white border-0"
+              >
+                <RefreshCwIcon className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Loading...' : 'Refresh Data'}
+              </Button>
+              <Button 
+                onClick={handlePrint}
+                className="bg-white text-orange-600 hover:bg-orange-50"
+              >
+                <PrinterIcon className="w-4 h-4 mr-2" />
+                Print Orders
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Buffer Setting */}
+        <div className="no-print bg-white rounded-lg shadow p-4">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium text-gray-700">Safety Buffer:</label>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              value={buffer}
+              onChange={(e) => setBuffer(parseInt(e.target.value))}
+              className="w-32"
             />
+            <span className="text-sm font-semibold text-orange-600 min-w-[3rem]">{buffer}%</span>
+            <span className="text-xs text-gray-500">
+              (Order qty = avg sales × days until delivery × {(1 + buffer/100).toFixed(2)} − current stock)
+            </span>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Avg/Day</label>
-              <Input
-                type="number"
-                value={avgPerDay}
-                onChange={(e) => setAvgPerDay(parseFloat(e.target.value) || 0)}
-                min="0"
-                step="0.5"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Par Level</label>
-              <Input
-                type="number"
-                value={parLevel}
-                onChange={(e) => setParLevel(parseInt(e.target.value) || 0)}
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Current Stock</label>
-              <Input
-                type="number"
-                value={currentStock}
-                onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
-                min="0"
-              />
-            </div>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            <p className="font-medium">Error loading data</p>
+            <p className="text-sm">{error}</p>
           </div>
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1 bg-orange-500 hover:bg-orange-600">
-              Add Item
-            </Button>
+        )}
+
+        {/* Summary Cards */}
+        {data && (
+          <div className="no-print grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <TruckIcon className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Vendors</p>
+                    <p className="text-2xl font-bold">{data.vendors.length}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <PackageIcon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Cafe Items</p>
+                    <p className="text-2xl font-bold">{data.summary.totalItems}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <CalendarIcon className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Avg Daily Sales</p>
+                    <p className="text-2xl font-bold">{Math.round(data.summary.totalQtySold / data.period.days)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <AlertTriangleIcon className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Need to Order</p>
+                    <p className="text-2xl font-bold">
+                      {data.vendors.reduce((sum, v) => sum + getVendorOrderSummary(v).itemsToOrder, 0)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </form>
+        )}
+
+        {/* Vendor Cards */}
+        {data && (
+          <div className="space-y-4">
+            {data.vendors.map(vendor => {
+              const priority = getVendorPriority(vendor);
+              const summary = getVendorOrderSummary(vendor);
+              const isExpanded = expandedVendors.has(vendor.id);
+              
+              const priorityStyles = {
+                urgent: 'border-red-300 bg-red-50',
+                soon: 'border-orange-300 bg-orange-50',
+                normal: 'border-gray-200 bg-white'
+              };
+              
+              const priorityBadge = {
+                urgent: <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full font-medium">Order Today!</span>,
+                soon: <span className="px-2 py-0.5 bg-orange-500 text-white text-xs rounded-full font-medium">Order Soon</span>,
+                normal: null
+              };
+
+              return (
+                <Card key={vendor.id} className={`vendor-card overflow-hidden border-2 ${priorityStyles[priority]}`}>
+                  <CardHeader 
+                    className="pb-2 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                    onClick={() => toggleVendor(vendor.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronDownIcon className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronRightIcon className="w-5 h-5 text-gray-400" />
+                        )}
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            {vendor.name}
+                            {priorityBadge[priority]}
+                          </CardTitle>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <ClockIcon className="w-4 h-4" />
+                              Next: {vendor.nextDelivery} ({vendor.daysUntilDelivery === 1 ? '1 day' : `${vendor.daysUntilDelivery} days`})
+                            </span>
+                            <span>•</span>
+                            <span>{vendor.itemCount} items</span>
+                            <span>•</span>
+                            <span>Avg {vendor.avgPerDay.toFixed(1)}/day</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right no-print">
+                        {summary.itemsToOrder > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <AlertTriangleIcon className="w-5 h-5 text-orange-500" />
+                            <div>
+                              <p className="text-sm font-medium text-orange-600">
+                                {summary.itemsToOrder} item{summary.itemsToOrder !== 1 ? 's' : ''} to order
+                              </p>
+                              <p className="text-xs text-gray-500">{summary.totalUnits} units total</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-green-600">
+                            <CheckCircleIcon className="w-5 h-5" />
+                            <span className="text-sm font-medium">Stock OK</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  
+                  {isExpanded && (
+                    <CardContent className="pt-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-gray-600">
+                              <th className="text-left py-2 px-2 font-medium">Item</th>
+                              <th className="text-center py-2 px-2 font-medium w-20">Avg/Day</th>
+                              <th className="text-center py-2 px-2 font-medium w-20">Days Until</th>
+                              <th className="text-center py-2 px-2 font-medium w-20">Need</th>
+                              <th className="text-center py-2 px-2 font-medium w-24 no-print">Current Stock</th>
+                              <th className="text-center py-2 px-2 font-medium w-20 print-only hidden">Stock</th>
+                              <th className="text-center py-2 px-2 font-medium w-24">Order Qty</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vendor.items.map((item, idx) => {
+                              const stock = currentStock[item.id] || 0;
+                              const needed = Math.ceil(item.avgPerDay * item.daysUntilDelivery * (1 + buffer / 100));
+                              const orderQty = calculateOrderQty(item, stock);
+                              
+                              return (
+                                <tr 
+                                  key={item.id} 
+                                  className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${orderQty > 0 ? 'bg-orange-50' : ''}`}
+                                >
+                                  <td className="py-2 px-2">
+                                    <div>
+                                      <span className="font-medium">{item.itemName}</span>
+                                      {item.variationName && (
+                                        <span className="text-gray-500 ml-1">- {item.variationName}</span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-400">
+                                      {item.totalQty} sold / ${item.totalRevenue.toFixed(0)} revenue
+                                    </div>
+                                  </td>
+                                  <td className="text-center py-2 px-2 font-medium">
+                                    {item.avgPerDay.toFixed(1)}
+                                  </td>
+                                  <td className="text-center py-2 px-2">
+                                    {item.daysUntilDelivery}
+                                  </td>
+                                  <td className="text-center py-2 px-2 text-gray-600">
+                                    {needed}
+                                  </td>
+                                  <td className="text-center py-2 px-2 no-print">
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={stock}
+                                      onChange={(e) => updateStock(item.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 h-8 text-center mx-auto"
+                                    />
+                                  </td>
+                                  <td className="text-center py-2 px-2 print-only hidden">
+                                    {stock}
+                                  </td>
+                                  <td className="text-center py-2 px-2">
+                                    <span className={`font-bold text-lg ${orderQty > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                      {orderQty > 0 ? orderQty : '✓'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          {summary.itemsToOrder > 0 && (
+                            <tfoot>
+                              <tr className="bg-orange-100 font-semibold">
+                                <td className="py-2 px-2" colSpan={5}>Total to Order</td>
+                                <td className="text-center py-2 px-2 text-orange-700 text-lg">
+                                  {summary.totalUnits} units
+                                </td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
+                      
+                      {/* Delivery Schedule */}
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Delivery days:</span>{' '}
+                          {vendor.deliveryDays.length > 0 
+                            ? vendor.deliveryDays.map(d => DAYS[d]).join(', ')
+                            : 'As needed'}
+                        </p>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Quick Order Summary */}
+        {data && (
+          <Card className="border-2 border-orange-300 bg-orange-50">
+            <CardHeader>
+              <CardTitle className="text-lg text-orange-900">📋 Quick Order Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {data.vendors
+                  .map(vendor => ({ vendor, summary: getVendorOrderSummary(vendor) }))
+                  .filter(({ summary }) => summary.itemsToOrder > 0)
+                  .map(({ vendor, summary }) => (
+                    <div key={vendor.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-orange-200">
+                      <div>
+                        <span className="font-semibold text-gray-900">{vendor.name}</span>
+                        <span className="text-gray-500 ml-2 text-sm">
+                          (delivery {vendor.nextDelivery})
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-orange-600 text-lg">{summary.totalUnits} units</span>
+                        <span className="text-gray-500 text-sm ml-1">
+                          ({summary.itemsToOrder} item{summary.itemsToOrder !== 1 ? 's' : ''})
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                {data.vendors.every(v => getVendorOrderSummary(v).itemsToOrder === 0) && (
+                  <div className="text-center py-4 text-green-600 font-medium">
+                    <CheckCircleIcon className="w-8 h-8 mx-auto mb-2" />
+                    All stock levels are sufficient!
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Print Footer */}
+        <div className="print-only hidden text-center text-xs text-gray-500 mt-8 pt-4 border-t">
+          Generated: {new Date().toLocaleString('en-AU')} | Buffer: {buffer}%
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -235,6 +235,11 @@ export default function Dashboard() {
                   <p className="text-emerald-100 text-xs mt-1">
                     {isLoadingOps ? '' : `${operationalData?.sales.weekQuantity || 0} items`}
                   </p>
+                  {operationalData?.salesDateRange && (
+                    <p className="text-emerald-100 text-xs mt-1">
+                      {new Date(operationalData.salesDateRange.start).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} - {new Date(operationalData.salesDateRange.end).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                    </p>
+                  )}
                 </div>
                 <div className="text-3xl opacity-80">💰</div>
               </div>
