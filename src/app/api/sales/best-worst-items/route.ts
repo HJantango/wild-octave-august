@@ -45,24 +45,59 @@ export async function GET(request: NextRequest) {
       where.date = { gte: threeMonthsAgo };
     }
 
-    // Get aggregated data for all items
-    const itemsData = await prisma.salesAggregate.groupBy({
-      by: ['itemName'],
-      where,
-      _sum: {
-        quantity: true,
-        revenue: true,
-      },
-      _count: {
-        _all: true,
-      },
-      orderBy: {
+    // Check if Square data exists
+    const squareDataCount = await prisma.squareDailySales.count({ where });
+    const useSquareData = squareDataCount > 0;
+
+    let itemsData: any[];
+
+    if (useSquareData) {
+      // Use Square API data
+      const squareItems = await prisma.squareDailySales.groupBy({
+        by: ['itemName'],
+        where,
         _sum: {
-          [sortBy]: 'desc'
-        }
-      },
-      take: limit,
-    });
+          quantitySold: true,
+          netSalesCents: true,
+        },
+        _count: {
+          _all: true,
+        },
+        orderBy: {
+          _sum: sortBy === 'revenue' ? { netSalesCents: 'desc' } : { quantitySold: 'desc' }
+        },
+        take: limit,
+      });
+      
+      // Convert to standard format
+      itemsData = squareItems.map(item => ({
+        itemName: item.itemName,
+        _sum: {
+          quantity: item._sum.quantitySold,
+          revenue: (item._sum.netSalesCents || 0) / 100, // Convert cents to dollars
+        },
+        _count: { _all: item._count._all },
+      }));
+    } else {
+      // Fallback to CSV data
+      itemsData = await prisma.salesAggregate.groupBy({
+        by: ['itemName'],
+        where,
+        _sum: {
+          quantity: true,
+          revenue: true,
+        },
+        _count: {
+          _all: true,
+        },
+        orderBy: {
+          _sum: {
+            [sortBy]: 'desc'
+          }
+        },
+        take: limit,
+      });
+    }
 
     console.log(`📊 Found ${itemsData.length} items for best/worst analysis (before filtering)`);
     
@@ -191,6 +226,21 @@ export async function GET(request: NextRequest) {
 
 async function calculateDateRange(where: any) {
   try {
+    // Try Square data first
+    const squareCount = await prisma.squareDailySales.count({ where });
+    if (squareCount > 0) {
+      const dateStats = await prisma.squareDailySales.aggregate({
+        where,
+        _min: { date: true },
+        _max: { date: true },
+      });
+      return {
+        start: dateStats._min.date ? dateStats._min.date.getTime() : null,
+        end: dateStats._max.date ? dateStats._max.date.getTime() : null,
+      };
+    }
+    
+    // Fallback to SalesAggregate
     const dateStats = await prisma.salesAggregate.aggregate({
       where,
       _min: { date: true },

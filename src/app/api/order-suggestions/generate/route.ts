@@ -56,34 +56,65 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Get sales data for analysis period
-    const salesData = await prisma.salesAggregate.findMany({
+    // Get sales data from Square API sync (primary) or fallback to old aggregates
+    const itemNames = inventoryItems.map(inv => inv.item.name)
+    
+    // Try SquareDailySales first (from Square API sync)
+    let salesData = await prisma.squareDailySales.findMany({
       where: {
         date: {
           gte: analysisStartDate
         },
         itemName: {
-          in: inventoryItems.map(inv => inv.item.name)
+          in: itemNames
         }
       }
     })
+    
+    // If no Square data, fallback to old SalesAggregate
+    let usingSquareData = salesData.length > 0
+    if (!usingSquareData) {
+      const legacySales = await prisma.salesAggregate.findMany({
+        where: {
+          date: {
+            gte: analysisStartDate
+          },
+          itemName: {
+            in: itemNames
+          }
+        }
+      })
+      // Convert legacy format to match
+      salesData = legacySales.map(sale => ({
+        itemName: sale.itemName || '',
+        quantitySold: sale.quantity,
+        category: sale.category,
+        date: sale.date,
+      })) as any
+    }
 
     // Process sales data by item
     const salesByItem: Record<string, SalesData> = {}
     
-    salesData.forEach(sale => {
-      if (!sale.itemName) return
+    salesData.forEach((sale: any) => {
+      const itemName = sale.itemName
+      if (!itemName) return
       
-      if (!salesByItem[sale.itemName]) {
-        salesByItem[sale.itemName] = {
-          itemName: sale.itemName,
+      if (!salesByItem[itemName]) {
+        salesByItem[itemName] = {
+          itemName: itemName,
           totalQuantity: 0,
           avgDailyQuantity: 0,
           category: sale.category || 'Unknown'
         }
       }
       
-      salesByItem[sale.itemName].totalQuantity += sale.quantity.toNumber()
+      // Handle both SquareDailySales (quantitySold) and SalesAggregate (quantity) formats
+      const qty = typeof sale.quantitySold !== 'undefined' 
+        ? (typeof sale.quantitySold === 'object' ? sale.quantitySold.toNumber() : Number(sale.quantitySold))
+        : (typeof sale.quantity === 'object' ? sale.quantity.toNumber() : Number(sale.quantity || 0))
+      
+      salesByItem[itemName].totalQuantity += qty
     })
 
     // Calculate average daily quantities

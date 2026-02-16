@@ -3,26 +3,60 @@ import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-ut
 
 export async function GET(request: NextRequest) {
   try {
-    // Get unique item names with their sales totals
-    const itemsData = await prisma.salesAggregate.groupBy({
-      by: ['itemName'],
-      where: {
-        itemName: { not: null },
-      },
-      _sum: {
-        quantity: true,
-        revenue: true,
-      },
-      _count: {
-        id: true,
-      },
-      orderBy: {
-        _sum: {
-          quantity: 'desc',
+    // Check if Square data exists
+    const squareDataCount = await prisma.squareDailySales.count();
+    const useSquareData = squareDataCount > 0;
+
+    let itemsData: any[];
+
+    if (useSquareData) {
+      // Use Square API data
+      const squareItems = await prisma.squareDailySales.groupBy({
+        by: ['itemName'],
+        where: {
+          itemName: { not: null },
         },
-      },
-      take: 500, // Get all items before filtering generics
-    });
+        _sum: {
+          quantitySold: true,
+          netSalesCents: true,
+        },
+        _count: {
+          _all: true,
+        },
+        orderBy: {
+          _sum: { quantitySold: 'desc' },
+        },
+        take: 500,
+      });
+
+      itemsData = squareItems.map(item => ({
+        itemName: item.itemName,
+        _sum: {
+          quantity: item._sum.quantitySold,
+          revenue: (item._sum.netSalesCents || 0) / 100,
+        },
+        _count: { id: item._count._all },
+      }));
+    } else {
+      // Fallback to CSV data
+      itemsData = await prisma.salesAggregate.groupBy({
+        by: ['itemName'],
+        where: {
+          itemName: { not: null },
+        },
+        _sum: {
+          quantity: true,
+          revenue: true,
+        },
+        _count: {
+          id: true,
+        },
+        orderBy: {
+          _sum: { quantity: 'desc' },
+        },
+        take: 500,
+      });
+    }
 
     // Filter out generic parent items to show only specific variations
     const genericItems = [

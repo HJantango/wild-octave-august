@@ -32,36 +32,68 @@ export async function GET(request: NextRequest) {
       category: { not: 'Shelf Labels' }
     };
 
+    // Check if Square data exists
+    const squareDataCount = await prisma.squareDailySales.count({ where: baseWhere });
+    const useSquareData = squareDataCount > 0;
+
     if (type === 'category') {
-      // Get unique categories with their totals
-      const categories = await prisma.salesAggregate.groupBy({
-        by: ['category'],
-        where: baseWhere,
-        _sum: {
-          quantity: true,
-          revenue: true,
-        },
-        _count: {
-          _all: true,
-        },
-        orderBy: {
+      let categoriesData: Array<{ name: string; totalQuantity: number; totalRevenue: number; recordCount: number }>;
+
+      if (useSquareData) {
+        // Use Square API data
+        const categories = await prisma.squareDailySales.groupBy({
+          by: ['category'],
+          where: baseWhere,
           _sum: {
-            revenue: 'desc'
-          }
-        },
-        take: limit,
-      });
+            quantitySold: true,
+            netSalesCents: true,
+          },
+          _count: {
+            _all: true,
+          },
+          orderBy: {
+            _sum: { netSalesCents: 'desc' }
+          },
+          take: limit,
+        });
 
-      const categoriesData = categories
-        .filter(cat => cat.category) // Remove null categories
-        .map(cat => ({
-          name: cat.category!,
-          totalQuantity: Number(cat._sum.quantity || 0),
-          totalRevenue: Number(cat._sum.revenue || 0),
-          recordCount: cat._count._all,
-        }));
+        categoriesData = categories
+          .filter(cat => cat.category)
+          .map(cat => ({
+            name: cat.category!,
+            totalQuantity: Number(cat._sum.quantitySold || 0),
+            totalRevenue: (cat._sum.netSalesCents || 0) / 100,
+            recordCount: cat._count._all,
+          }));
+      } else {
+        // Fallback to CSV data
+        const categories = await prisma.salesAggregate.groupBy({
+          by: ['category'],
+          where: baseWhere,
+          _sum: {
+            quantity: true,
+            revenue: true,
+          },
+          _count: {
+            _all: true,
+          },
+          orderBy: {
+            _sum: { revenue: 'desc' }
+          },
+          take: limit,
+        });
 
-      console.log(`🔍 Found ${categoriesData.length} categories (excluding Shelf Labels)`);
+        categoriesData = categories
+          .filter(cat => cat.category)
+          .map(cat => ({
+            name: cat.category!,
+            totalQuantity: Number(cat._sum.quantity || 0),
+            totalRevenue: Number(cat._sum.revenue || 0),
+            recordCount: cat._count._all,
+          }));
+      }
+
+      console.log(`🔍 Found ${categoriesData.length} categories (excluding Shelf Labels, source: ${useSquareData ? 'Square' : 'CSV'})`);
 
       return createSuccessResponse({
         type: 'category',
@@ -69,27 +101,58 @@ export async function GET(request: NextRequest) {
         count: categoriesData.length,
       });
     } else {
-      // Get unique items with their totals
-      const items = await prisma.salesAggregate.groupBy({
-        by: ['itemName'],
-        where: {
-          ...baseWhere,
-          itemName: { not: null }
-        },
-        _sum: {
-          quantity: true,
-          revenue: true,
-        },
-        _count: {
-          _all: true,
-        },
-        orderBy: {
+      let items: any[];
+
+      if (useSquareData) {
+        // Use Square API data
+        const squareItems = await prisma.squareDailySales.groupBy({
+          by: ['itemName'],
+          where: {
+            ...baseWhere,
+            itemName: { not: null }
+          },
           _sum: {
-            revenue: 'desc'
-          }
-        },
-        take: limit,
-      });
+            quantitySold: true,
+            netSalesCents: true,
+          },
+          _count: {
+            _all: true,
+          },
+          orderBy: {
+            _sum: { netSalesCents: 'desc' }
+          },
+          take: limit,
+        });
+
+        items = squareItems.map(item => ({
+          itemName: item.itemName,
+          _sum: {
+            quantity: item._sum.quantitySold,
+            revenue: (item._sum.netSalesCents || 0) / 100,
+          },
+          _count: { _all: item._count._all },
+        }));
+      } else {
+        // Fallback to CSV data
+        items = await prisma.salesAggregate.groupBy({
+          by: ['itemName'],
+          where: {
+            ...baseWhere,
+            itemName: { not: null }
+          },
+          _sum: {
+            quantity: true,
+            revenue: true,
+          },
+          _count: {
+            _all: true,
+          },
+          orderBy: {
+            _sum: { revenue: 'desc' }
+          },
+          take: limit,
+        });
+      }
 
       // Filter out generic parent items to show only specific variations
       const genericItems = [
@@ -128,7 +191,7 @@ export async function GET(request: NextRequest) {
           recordCount: item._count._all,
         }));
 
-      console.log(`🔍 Found ${itemsData.length} items (excluding Shelf Labels category)`);
+      console.log(`🔍 Found ${itemsData.length} items (excluding Shelf Labels, source: ${useSquareData ? 'Square' : 'CSV'})`);
 
       return createSuccessResponse({
         type: 'item',

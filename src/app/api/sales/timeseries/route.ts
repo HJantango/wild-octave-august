@@ -76,40 +76,79 @@ export async function GET(request: NextRequest) {
     // If filtering by category, also get category breakdown by day
     let categoryBreakdown: any[] = [];
     if (!category) {
-      const categoryDaily = await prisma.salesAggregate.groupBy({
-        by: ['date', 'category'],
-        where: {
-          ...where,
-          category: { not: null },
-        },
-        _sum: {
-          revenue: true,
-          quantity: true,
-        },
-        orderBy: [
-          { date: 'asc' },
-          { _sum: { revenue: 'desc' } },
-        ],
-      });
-
-      // Group by date and format
-      const categoryByDate = new Map<string, any[]>();
-      categoryDaily.forEach(entry => {
-        const dateKey = entry.date.toISOString().split('T')[0];
-        if (!categoryByDate.has(dateKey)) {
-          categoryByDate.set(dateKey, []);
-        }
-        categoryByDate.get(dateKey)!.push({
-          category: entry.category,
-          revenue: entry._sum.revenue || 0,
-          quantity: entry._sum.quantity || 0,
+      if (useSquareData) {
+        // Use Square data for category breakdown
+        const categoryDaily = await prisma.squareDailySales.groupBy({
+          by: ['date', 'category'],
+          where: {
+            ...where,
+            category: { not: null },
+          },
+          _sum: {
+            netSalesCents: true,
+            quantitySold: true,
+          },
+          orderBy: [
+            { date: 'asc' },
+          ],
         });
-      });
 
-      categoryBreakdown = Array.from(categoryByDate.entries()).map(([date, categories]) => ({
-        date,
-        categories: categories.slice(0, 5), // Top 5 categories per day
-      }));
+        // Group by date and format
+        const categoryByDate = new Map<string, any[]>();
+        categoryDaily.forEach(entry => {
+          const dateKey = entry.date.toISOString().split('T')[0];
+          if (!categoryByDate.has(dateKey)) {
+            categoryByDate.set(dateKey, []);
+          }
+          categoryByDate.get(dateKey)!.push({
+            category: entry.category,
+            revenue: (entry._sum.netSalesCents || 0) / 100,
+            quantity: Number(entry._sum.quantitySold) || 0,
+          });
+        });
+
+        // Sort categories by revenue within each date
+        categoryBreakdown = Array.from(categoryByDate.entries()).map(([date, categories]) => ({
+          date,
+          categories: categories.sort((a, b) => b.revenue - a.revenue).slice(0, 5),
+        }));
+      } else {
+        // Fallback to CSV data for category breakdown
+        const categoryDaily = await prisma.salesAggregate.groupBy({
+          by: ['date', 'category'],
+          where: {
+            ...where,
+            category: { not: null },
+          },
+          _sum: {
+            revenue: true,
+            quantity: true,
+          },
+          orderBy: [
+            { date: 'asc' },
+            { _sum: { revenue: 'desc' } },
+          ],
+        });
+
+        // Group by date and format
+        const categoryByDate = new Map<string, any[]>();
+        categoryDaily.forEach(entry => {
+          const dateKey = entry.date.toISOString().split('T')[0];
+          if (!categoryByDate.has(dateKey)) {
+            categoryByDate.set(dateKey, []);
+          }
+          categoryByDate.get(dateKey)!.push({
+            category: entry.category,
+            revenue: entry._sum.revenue || 0,
+            quantity: entry._sum.quantity || 0,
+          });
+        });
+
+        categoryBreakdown = Array.from(categoryByDate.entries()).map(([date, categories]) => ({
+          date,
+          categories: categories.slice(0, 5), // Top 5 categories per day
+        }));
+      }
     }
 
     return createSuccessResponse({

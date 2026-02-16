@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
-import { FileUpload } from '@/components/ui/file-upload';
 import { RevenueChart } from '@/components/charts/revenue-chart';
 import { CategoryChart } from '@/components/charts/category-chart';
-import { useSalesSummary, useSalesTimeSeries, useUploadSalesReport, SalesFilters } from '@/hooks/useSales';
+import { useSalesSummary, useSalesTimeSeries, SalesFilters } from '@/hooks/useSales';
 import { formatCurrency, formatDate } from '@/lib/format';
 
 const CHART_TYPES = [
@@ -32,9 +31,7 @@ const CATEGORIES = [
 export default function SalesAnalyticsPage() {
   const [filters, setFilters] = useState<SalesFilters>({});
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
-  const [showUpload, setShowUpload] = useState(false);
 
-  const uploadMutation = useUploadSalesReport();
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useSalesSummary(filters);
   const { data: timeSeries, isLoading: timeSeriesLoading } = useSalesTimeSeries(filters);
 
@@ -44,15 +41,6 @@ export default function SalesAnalyticsPage() {
 
   const clearFilters = () => {
     setFilters({});
-  };
-
-  const handleFileUpload = async (file: File) => {
-    try {
-      await uploadMutation.mutateAsync(file);
-      setShowUpload(false);
-    } catch (error) {
-      console.error('Upload failed:', error);
-    }
   };
 
   const hasFilters = Object.values(filters).some(value => value !== undefined && value !== '');
@@ -78,88 +66,40 @@ export default function SalesAnalyticsPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Sales Analytics</h1>
-            <p className="text-gray-600">Real-time Square POS integration - uploaded data cleared</p>
+            <p className="text-gray-600">Connected to Square POS • Auto-syncs daily at 5 AM</p>
             {summary && summary.overview.totalRevenue > 0 && (
               <div className="mt-2 flex items-center space-x-4 text-sm">
                 <span className="flex items-center space-x-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  <span className="text-green-600">Live Square Data</span>
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-green-600 font-medium">Live Square Data</span>
                 </span>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-600">
-                  Updates every 30 seconds
+                  {formatCurrency(summary.overview.totalRevenue)} total revenue
                 </span>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-600">
-                  ${summary.overview.totalRevenue.toFixed(2)} total revenue
+                  {summary.overview.reportCount.toLocaleString()} records
                 </span>
               </div>
             )}
             {summary && summary.overview.totalRevenue === 0 && (
               <div className="mt-2 flex items-center space-x-4 text-sm">
                 <span className="flex items-center space-x-1">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <span className="text-blue-600">Database Clean</span>
+                  <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                  <span className="text-yellow-600">No data in selected range</span>
                 </span>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-600">
-                  Only live Square data will be used
+                  Try adjusting your date filters
                 </span>
               </div>
             )}
           </div>
-          <div className="flex items-center space-x-3">
-            <Button onClick={() => setShowUpload(!showUpload)} variant="outline">
-              📤 {showUpload ? 'Cancel Upload' : 'Upload CSV'}
-            </Button>
-          </div>
+          {/* CSV upload hidden - Square is primary data source */}
         </div>
 
-        {/* Upload Section */}
-        {showUpload && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload Square Sales Report</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <FileUpload
-                  onFileSelect={handleFileUpload}
-                  accept=".csv"
-                  maxSize={150}
-                  disabled={uploadMutation.isPending}
-                >
-                  <div className="space-y-4">
-                    <div className="text-4xl">📄</div>
-                    <div>
-                      <p className="text-lg font-medium text-gray-900">
-                        Drop your Square "Item Sales Detail" CSV here
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Export from Square Dashboard → Analytics → Items → Export
-                      </p>
-                    </div>
-                    <Button variant="secondary" disabled={uploadMutation.isPending}>
-                      {uploadMutation.isPending ? 'Uploading...' : 'Choose CSV File'}
-                    </Button>
-                  </div>
-                </FileUpload>
-
-                {uploadMutation.isError && (
-                  <div className="text-red-600 text-sm bg-red-50 p-3 rounded-md">
-                    Upload failed: {uploadMutation.error?.message}
-                  </div>
-                )}
-
-                {uploadMutation.isSuccess && (
-                  <div className="text-green-600 text-sm bg-green-50 p-3 rounded-md">
-                    Sales report uploaded successfully! Data will appear in charts below.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Upload Section - Kept for backwards compatibility but hidden */}
 
         {/* Filters */}
         <Card>
