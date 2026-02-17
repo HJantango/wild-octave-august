@@ -56,14 +56,20 @@ export async function GET(request: NextRequest) {
           const costInDollars = costAmount / 100;
 
           const updateData: any = {};
+          const sellExGst = priceInDollars / 1.1;
+          
           if (priceInDollars > 0 && Number(existingItem.currentSellIncGst) === 0) {
             updateData.currentSellIncGst = priceInDollars;
-            updateData.currentSellExGst = priceInDollars / 1.1;
+            updateData.currentSellExGst = sellExGst;
           }
-          if (costInDollars > 0) {
-            updateData.currentCostExGst = costInDollars;
-            if (priceInDollars > 0) {
-              updateData.currentMarkup = (priceInDollars / 1.1) / costInDollars;
+          
+          // Only update cost if it passes sanity check (Square vendor costs are often case prices)
+          // Reasonable retail margin should be 10-80%
+          if (costInDollars > 0 && priceInDollars > 0) {
+            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
+            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
+              updateData.currentCostExGst = costInDollars;
+              updateData.currentMarkup = sellExGst / costInDollars;
             }
           }
           if (defaultVariation?.sku && !existingItem.sku) {
@@ -83,7 +89,17 @@ export async function GET(request: NextRequest) {
           const costAmount = defaultVariation?.costMoney?.amount || 0;
           const costInDollars = costAmount / 100;
           const sellExGst = priceInDollars / 1.1;
-          const markup = costInDollars > 0 ? sellExGst / costInDollars : 0;
+          
+          // Only use cost if it passes sanity check (10-80% margin)
+          let finalCost = 0;
+          let markup = 0;
+          if (costInDollars > 0 && priceInDollars > 0) {
+            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
+            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
+              finalCost = costInDollars;
+              markup = sellExGst / costInDollars;
+            }
+          }
 
           await prisma.item.create({
             data: {
@@ -91,7 +107,7 @@ export async function GET(request: NextRequest) {
               category: catalogItem.category?.name || 'Uncategorized',
               currentSellIncGst: priceInDollars,
               currentSellExGst: sellExGst,
-              currentCostExGst: costInDollars,
+              currentCostExGst: finalCost,
               currentMarkup: markup,
               sku: defaultVariation?.sku || undefined,
             },

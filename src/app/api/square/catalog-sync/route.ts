@@ -82,13 +82,21 @@ export async function POST(request: NextRequest) {
             updateActions.push('sell_price');
           }
 
-          // Update cost if we have one from Square
-          if (costInDollars > 0) {
-            updateData.currentCostExGst = costInDollars;
-            updateActions.push('cost');
-            if (priceInDollars > 0) {
-              const sellExGst = priceInDollars / 1.1;
+          // Update cost if we have one from Square - BUT only if it makes sense
+          // Square's vendor costMoney is often the CASE/PACK cost, not per-unit
+          // Sanity check: cost should be less than sell price and reasonable margin (10-80%)
+          if (costInDollars > 0 && priceInDollars > 0) {
+            const sellExGst = priceInDollars / 1.1;
+            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
+            
+            // Only trust cost if margin is between 10% and 80% (reasonable retail margins)
+            // If cost > sell price or margin is crazy, it's probably a case price - skip it
+            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
+              updateData.currentCostExGst = costInDollars;
               updateData.currentMarkup = sellExGst / costInDollars;
+              updateActions.push('cost');
+            } else {
+              console.log(`⚠️ Skipping unrealistic cost for ${catalogItem.name}: $${costInDollars} (sell: $${priceInDollars}, margin: ${marginPercent.toFixed(1)}%)`);
             }
           }
 
@@ -129,7 +137,19 @@ export async function POST(request: NextRequest) {
           const costAmount = defaultVariation?.costMoney?.amount || 0;
           const costInDollars = costAmount / 100;
           const sellExGst = priceInDollars / 1.1;
-          const markup = costInDollars > 0 ? sellExGst / costInDollars : 0;
+          
+          // Only use cost if it passes sanity check (10-80% margin)
+          let finalCost = 0;
+          let markup = 0;
+          if (costInDollars > 0 && priceInDollars > 0) {
+            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
+            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
+              finalCost = costInDollars;
+              markup = sellExGst / costInDollars;
+            } else {
+              console.log(`⚠️ New item ${catalogItem.name}: skipping unrealistic cost $${costInDollars} (sell: $${priceInDollars})`);
+            }
+          }
 
           await prisma.item.create({
             data: {
@@ -137,7 +157,7 @@ export async function POST(request: NextRequest) {
               category: catalogItem.category?.name || 'Uncategorized',
               currentSellIncGst: priceInDollars,
               currentSellExGst: sellExGst,
-              currentCostExGst: costInDollars,
+              currentCostExGst: finalCost,
               currentMarkup: markup,
               sku: defaultVariation?.sku || undefined,
               vendorId: dbVendorId || undefined,
@@ -147,7 +167,7 @@ export async function POST(request: NextRequest) {
           createdItems.push({
             name: catalogItem.name,
             price: priceInDollars,
-            cost: costInDollars > 0 ? costInDollars : undefined,
+            cost: finalCost > 0 ? finalCost : undefined,
             category: catalogItem.category?.name,
             vendor: catalogItem.vendorName,
           });
