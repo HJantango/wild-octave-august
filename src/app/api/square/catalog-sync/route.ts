@@ -2,28 +2,36 @@ import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 import { realSquareService } from '@/services/real-square-service';
 
+/**
+ * Square Catalog Sync - Mirrors Square catalog to local database
+ * 
+ * Key principles:
+ * - Square is the source of truth
+ * - Items are linked by Square catalog ID (not name matching)
+ * - Prices are stored exactly as Square provides them (no transforms)
+ * - Cost data from Square vendor info is stored as-is
+ */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
-    // 1. First sync vendors from Square
-    console.log('📦 Syncing vendors from Square...');
+    // 1. Sync vendors from Square
+    console.log('📦 Starting Square catalog sync...');
     const squareVendors = await realSquareService.getVendors();
     const vendorMap = new Map<string, string>(); // squareVendorId -> dbVendorId
     let vendorsCreated = 0;
     let vendorsExisting = 0;
 
     for (const squareVendor of squareVendors) {
-      // Check if vendor exists by name
       let dbVendor = await prisma.vendor.findFirst({
         where: { name: { equals: squareVendor.name, mode: 'insensitive' } },
       });
 
       if (!dbVendor) {
-        // Create new vendor
         dbVendor = await prisma.vendor.create({
           data: { name: squareVendor.name },
         });
         vendorsCreated++;
-        console.log(`✅ Created vendor: ${squareVendor.name}`);
       } else {
         vendorsExisting++;
       }
@@ -32,8 +40,9 @@ export async function POST(request: NextRequest) {
     }
     console.log(`📦 Vendors: ${vendorsCreated} created, ${vendorsExisting} existing`);
 
-    // 2. Fetch catalog items from Square API (now includes vendor info)
+    // 2. Fetch catalog items from Square
     const catalogItems = await realSquareService.getCatalogItems();
+    console.log(`📦 Found ${catalogItems.length} items in Square catalog`);
 
     if (catalogItems.length === 0) {
       return createSuccessResponse({
@@ -42,6 +51,7 @@ export async function POST(request: NextRequest) {
           vendorsCreated, vendorsExisting,
         },
         details: { created: [], updated: [], skipped: [], errors: [] },
+        tookMs: Date.now() - startTime,
       });
     }
 
@@ -56,48 +66,57 @@ export async function POST(request: NextRequest) {
 
     for (const catalogItem of catalogItems) {
       try {
-        // Get vendor DB ID if item has a vendor in Square
+        const squareCatalogId = catalogItem.id;
+        const defaultVariation = catalogItem.variations[0];
+        const squareVariationId = defaultVariation?.id;
+        
+        // Get pricing from Square (stored exactly as Square provides)
+        const priceAmount = defaultVariation?.priceMoney?.amount || 0;
+        const sellIncGst = priceAmount / 100; // Square stores in cents
+        const sellExGst = sellIncGst / 1.1;
+        
+        // Get cost from Square vendor info (stored exactly as Square provides)
+        const costAmount = defaultVariation?.costMoney?.amount || 0;
+        const costExGst = costAmount / 100;
+        
+        // Calculate markup if we have both
+        const markup = costExGst > 0 && sellExGst > 0 ? sellExGst / costExGst : 0;
+        
+        // Get vendor
         const dbVendorId = catalogItem.vendorId ? vendorMap.get(catalogItem.vendorId) : undefined;
-
-        // Check if item already exists by name
-        const existingItem = await prisma.item.findFirst({
-          where: { name: { equals: catalogItem.name, mode: 'insensitive' } },
+        
+        // Try to find existing item by Square catalog ID first, then by name
+        let existingItem = await prisma.item.findFirst({
+          where: { squareCatalogId },
         });
+        
+        if (!existingItem) {
+          // Fall back to name matching for legacy items
+          existingItem = await prisma.item.findFirst({
+            where: { name: { equals: catalogItem.name, mode: 'insensitive' } },
+          });
+        }
 
         if (existingItem) {
-          // Item already exists - update pricing/cost/vendor if available
-          const defaultVariation = catalogItem.variations[0];
-          const priceAmount = defaultVariation?.priceMoney?.amount || 0;
-          const priceInDollars = priceAmount / 100;
-          const costAmount = defaultVariation?.costMoney?.amount || 0;
-          const costInDollars = costAmount / 100;
+          // Update existing item with Square data
+          const updateData: any = {
+            squareCatalogId, // Always set the Square ID
+            squareVariationId,
+          };
+          let updateActions: string[] = ['square_ids'];
 
-          const updateData: any = {};
-          let updateActions: string[] = [];
-
-          // Update sell price if we have one and existing is 0
-          if (priceInDollars > 0 && Number(existingItem.currentSellIncGst) === 0) {
-            updateData.currentSellIncGst = priceInDollars;
-            updateData.currentSellExGst = priceInDollars / 1.1;
+          // Update sell price from Square
+          if (sellIncGst > 0) {
+            updateData.currentSellIncGst = sellIncGst;
+            updateData.currentSellExGst = sellExGst;
             updateActions.push('sell_price');
           }
 
-          // Update cost if we have one from Square - BUT only if it makes sense
-          // Square's vendor costMoney is often the CASE/PACK cost, not per-unit
-          // Sanity check: cost should be less than sell price and reasonable margin (10-80%)
-          if (costInDollars > 0 && priceInDollars > 0) {
-            const sellExGst = priceInDollars / 1.1;
-            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
-            
-            // Only trust cost if margin is between 10% and 80% (reasonable retail margins)
-            // If cost > sell price or margin is crazy, it's probably a case price - skip it
-            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
-              updateData.currentCostExGst = costInDollars;
-              updateData.currentMarkup = sellExGst / costInDollars;
-              updateActions.push('cost');
-            } else {
-              console.log(`⚠️ Skipping unrealistic cost for ${catalogItem.name}: $${costInDollars} (sell: $${priceInDollars}, margin: ${marginPercent.toFixed(1)}%)`);
-            }
+          // Update cost from Square (store exactly what Square says)
+          if (costExGst > 0) {
+            updateData.currentCostExGst = costExGst;
+            updateData.currentMarkup = markup;
+            updateActions.push('cost');
           }
 
           // Update SKU if available
@@ -106,79 +125,59 @@ export async function POST(request: NextRequest) {
             updateActions.push('sku');
           }
 
-          // Update vendor if we have one and item doesn't have one
-          if (dbVendorId && !existingItem.vendorId) {
+          // Update vendor if we have one
+          if (dbVendorId) {
             updateData.vendorId = dbVendorId;
             updateActions.push('vendor');
           }
 
-          if (Object.keys(updateData).length > 0) {
-            await prisma.item.update({
-              where: { id: existingItem.id },
-              data: updateData,
-            });
-            updated++;
-            updatedItems.push({ 
-              name: catalogItem.name, 
-              action: updateActions.join('+'),
-              vendor: catalogItem.vendorName,
-              cost: costInDollars > 0 ? costInDollars : undefined,
-              price: priceInDollars > 0 ? priceInDollars : undefined,
-            });
-          } else {
-            skipped++;
-            skippedItems.push({ name: catalogItem.name, reason: 'no_changes' });
-          }
-        } else {
-          // Create new item
-          const defaultVariation = catalogItem.variations[0];
-          const priceAmount = defaultVariation?.priceMoney?.amount || 0;
-          const priceInDollars = priceAmount / 100;
-          const costAmount = defaultVariation?.costMoney?.amount || 0;
-          const costInDollars = costAmount / 100;
-          const sellExGst = priceInDollars / 1.1;
+          await prisma.item.update({
+            where: { id: existingItem.id },
+            data: updateData,
+          });
           
-          // Only use cost if it passes sanity check (10-80% margin)
-          let finalCost = 0;
-          let markup = 0;
-          if (costInDollars > 0 && priceInDollars > 0) {
-            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
-            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
-              finalCost = costInDollars;
-              markup = sellExGst / costInDollars;
-            } else {
-              console.log(`⚠️ New item ${catalogItem.name}: skipping unrealistic cost $${costInDollars} (sell: $${priceInDollars})`);
-            }
-          }
-
+          updated++;
+          updatedItems.push({ 
+            name: catalogItem.name, 
+            squareId: squareCatalogId,
+            action: updateActions.join('+'),
+            sellIncGst,
+            costExGst: costExGst > 0 ? costExGst : undefined,
+          });
+        } else {
+          // Create new item linked to Square
           await prisma.item.create({
             data: {
+              squareCatalogId,
+              squareVariationId,
               name: catalogItem.name,
               category: catalogItem.category?.name || 'Uncategorized',
-              currentSellIncGst: priceInDollars,
+              currentSellIncGst: sellIncGst,
               currentSellExGst: sellExGst,
-              currentCostExGst: finalCost,
+              currentCostExGst: costExGst,
               currentMarkup: markup,
               sku: defaultVariation?.sku || undefined,
               vendorId: dbVendorId || undefined,
             },
           });
+          
           created++;
           createdItems.push({
             name: catalogItem.name,
-            price: priceInDollars,
-            cost: finalCost > 0 ? finalCost : undefined,
+            squareId: squareCatalogId,
+            sellIncGst,
+            costExGst: costExGst > 0 ? costExGst : undefined,
             category: catalogItem.category?.name,
-            vendor: catalogItem.vendorName,
           });
         }
       } catch (err: any) {
         errors++;
         errorItems.push({ name: catalogItem.name, error: err.message });
+        console.error(`❌ Error syncing ${catalogItem.name}:`, err.message);
       }
     }
 
-    return createSuccessResponse({
+    const result = {
       summary: {
         total: catalogItems.length,
         created,
@@ -187,23 +186,27 @@ export async function POST(request: NextRequest) {
         errors,
         vendorsCreated,
         vendorsExisting,
-        squareVendors: squareVendors.length,
       },
       details: {
-        created: createdItems,
-        updated: updatedItems,
-        skipped: skippedItems.slice(0, 10), // Limit skipped to first 10
+        created: createdItems.slice(0, 50),
+        updated: updatedItems.slice(0, 50),
+        skipped: skippedItems.slice(0, 20),
         errors: errorItems,
       },
-    });
+      tookMs: Date.now() - startTime,
+    };
+
+    console.log(`✅ Catalog sync complete: ${created} created, ${updated} updated, ${errors} errors`);
+    return createSuccessResponse(result);
   } catch (error: any) {
-    console.error('❌ Catalog sync error:', error);
-    return createErrorResponse(
-      'CATALOG_SYNC_ERROR',
-      `Failed to sync catalog: ${error.message}`,
-      500
-    );
+    console.error('❌ Catalog sync failed:', error);
+    return createErrorResponse('SYNC_ERROR', error.message, 500);
   }
+}
+
+export async function GET() {
+  // GET triggers a sync
+  return POST(new Request('http://localhost') as NextRequest);
 }
 
 export const dynamic = 'force-dynamic';

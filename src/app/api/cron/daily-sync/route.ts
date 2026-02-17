@@ -33,81 +33,80 @@ export async function GET(request: NextRequest) {
     errors: [],
   };
 
-  // Create prisma client at runtime (dynamic import to avoid build-time issues)
   const prisma = await getPrisma();
 
   try {
-    // 1. Sync catalog items
+    // ========================================
+    // 1. CATALOG SYNC - Mirror Square catalog
+    // ========================================
     console.log('🔄 Starting catalog sync...');
     const catalogItems = await realSquareService.getCatalogItems();
     let catalogCreated = 0, catalogUpdated = 0, catalogSkipped = 0;
 
     for (const catalogItem of catalogItems) {
       try {
-        const existingItem = await prisma.item.findFirst({
-          where: { name: { equals: catalogItem.name, mode: 'insensitive' } },
+        const squareCatalogId = catalogItem.id;
+        const defaultVariation = catalogItem.variations[0];
+        const squareVariationId = defaultVariation?.id;
+        
+        // Get pricing from Square (exactly as Square provides)
+        const priceAmount = defaultVariation?.priceMoney?.amount || 0;
+        const sellIncGst = priceAmount / 100;
+        const sellExGst = sellIncGst / 1.1;
+        
+        // Get cost from Square (exactly as Square provides)
+        const costAmount = defaultVariation?.costMoney?.amount || 0;
+        const costExGst = costAmount / 100;
+        const markup = costExGst > 0 && sellExGst > 0 ? sellExGst / costExGst : 0;
+
+        // Find existing item by Square ID first, then by name
+        let existingItem = await prisma.item.findFirst({
+          where: { squareCatalogId },
         });
+        
+        if (!existingItem) {
+          existingItem = await prisma.item.findFirst({
+            where: { name: { equals: catalogItem.name, mode: 'insensitive' } },
+          });
+        }
 
         if (existingItem) {
-          const defaultVariation = catalogItem.variations[0];
-          const priceAmount = defaultVariation?.priceMoney?.amount || 0;
-          const priceInDollars = priceAmount / 100;
-          const costAmount = defaultVariation?.costMoney?.amount || 0;
-          const costInDollars = costAmount / 100;
+          // Update existing item with Square data
+          const updateData: any = {
+            squareCatalogId,
+            squareVariationId,
+          };
 
-          const updateData: any = {};
-          const sellExGst = priceInDollars / 1.1;
-          
-          if (priceInDollars > 0 && Number(existingItem.currentSellIncGst) === 0) {
-            updateData.currentSellIncGst = priceInDollars;
+          if (sellIncGst > 0) {
+            updateData.currentSellIncGst = sellIncGst;
             updateData.currentSellExGst = sellExGst;
           }
           
-          // Only update cost if it passes sanity check (Square vendor costs are often case prices)
-          // Reasonable retail margin should be 10-80%
-          if (costInDollars > 0 && priceInDollars > 0) {
-            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
-            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
-              updateData.currentCostExGst = costInDollars;
-              updateData.currentMarkup = sellExGst / costInDollars;
-            }
+          if (costExGst > 0) {
+            updateData.currentCostExGst = costExGst;
+            updateData.currentMarkup = markup;
           }
+          
           if (defaultVariation?.sku && !existingItem.sku) {
             updateData.sku = defaultVariation.sku;
           }
 
-          if (Object.keys(updateData).length > 0) {
-            await prisma.item.update({ where: { id: existingItem.id }, data: updateData });
-            catalogUpdated++;
-          } else {
-            catalogSkipped++;
-          }
+          await prisma.item.update({ 
+            where: { id: existingItem.id }, 
+            data: updateData 
+          });
+          catalogUpdated++;
         } else {
-          const defaultVariation = catalogItem.variations[0];
-          const priceAmount = defaultVariation?.priceMoney?.amount || 0;
-          const priceInDollars = priceAmount / 100;
-          const costAmount = defaultVariation?.costMoney?.amount || 0;
-          const costInDollars = costAmount / 100;
-          const sellExGst = priceInDollars / 1.1;
-          
-          // Only use cost if it passes sanity check (10-80% margin)
-          let finalCost = 0;
-          let markup = 0;
-          if (costInDollars > 0 && priceInDollars > 0) {
-            const marginPercent = ((sellExGst - costInDollars) / sellExGst) * 100;
-            if (costInDollars < sellExGst && marginPercent >= 10 && marginPercent <= 80) {
-              finalCost = costInDollars;
-              markup = sellExGst / costInDollars;
-            }
-          }
-
+          // Create new item linked to Square
           await prisma.item.create({
             data: {
+              squareCatalogId,
+              squareVariationId,
               name: catalogItem.name,
               category: catalogItem.category?.name || 'Uncategorized',
-              currentSellIncGst: priceInDollars,
+              currentSellIncGst: sellIncGst,
               currentSellExGst: sellExGst,
-              currentCostExGst: finalCost,
+              currentCostExGst: costExGst,
               currentMarkup: markup,
               sku: defaultVariation?.sku || undefined,
             },
@@ -125,147 +124,130 @@ export async function GET(request: NextRequest) {
       updated: catalogUpdated,
       skipped: catalogSkipped,
     };
-    console.log(`✅ Catalog sync: ${catalogCreated} created, ${catalogUpdated} updated, ${catalogSkipped} skipped`);
+    console.log(`✅ Catalog: ${catalogCreated} created, ${catalogUpdated} updated`);
 
-    // 2. Sync sales data with category enrichment
-    // Use weeks param for historical sync, default to 1 week for daily cron
-    const weeksBack = parseInt(request.nextUrl.searchParams.get('weeks') || '1');
-    console.log(`🔄 Starting sales sync (${weeksBack} weeks back)...`);
+    // ========================================
+    // 2. SALES SYNC - Sync daily sales from Square orders
+    // ========================================
+    console.log('🔄 Starting sales sync...');
+    
+    // Sync last 7 days to catch any missed days
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - weeksBack * 7);
-
-    // Build category lookup from catalog items (already fetched above)
-    const categoryLookup = new Map<string, string>();
-    for (const item of catalogItems) {
-      if (item.category?.name) {
-        // Map item name to category
-        categoryLookup.set(item.name.toLowerCase().trim(), item.category.name);
-        // Also map variations
-        for (const variation of item.variations || []) {
-          if (variation.name) {
-            categoryLookup.set(variation.name.toLowerCase().trim(), item.category.name);
-          }
-        }
-      }
-    }
-    console.log(`📚 Loaded ${categoryLookup.size} category mappings`);
+    startDate.setDate(startDate.getDate() - 7);
 
     const orders = await realSquareService.searchOrders({
       startDate,
       endDate,
     });
 
-    // Get vendor lookup from items
-    const dbItems = await prisma.item.findMany({
-      select: { name: true, category: true, vendor: { select: { name: true } } },
-    });
-    const vendorLookup = new Map<string, string>();
-    const dbCategoryLookup = new Map<string, string>();
-    for (const dbItem of dbItems) {
-      if (dbItem.vendor?.name) {
-        vendorLookup.set(dbItem.name.toLowerCase().trim(), dbItem.vendor.name);
-      }
-      if (dbItem.category) {
-        dbCategoryLookup.set(dbItem.name.toLowerCase().trim(), dbItem.category);
-      }
-    }
+    console.log(`📊 Found ${orders.length} orders in last 7 days`);
 
-    // Aggregate by day/item
-    const aggregated = new Map<string, any>();
+    // Build daily aggregates from orders
+    const dailyAggregates = new Map<string, {
+      date: Date;
+      itemName: string;
+      variationName: string;
+      category: string | null;
+      vendorName: string | null;
+      quantitySold: number;
+      grossSalesCents: number;
+      netSalesCents: number;
+      squareCatalogId: string | null;
+    }>();
+
     for (const order of orders) {
       if (!order.lineItems) continue;
+      
       const orderDate = new Date(order.createdAt);
-      const dateStr = orderDate.toISOString().split('T')[0];
-
-      for (const item of order.lineItems) {
-        const itemName = item.name || 'Unknown Item';
-        const variationName = item.variationName || '';
-        const key = `${dateStr}|${itemName}|${variationName}`;
-
-        const quantity = parseFloat(item.quantity || '0');
-        const grossCents = Number(item.totalMoney?.amount || 0);
-        const taxCents = Number(item.totalTaxMoney?.amount || 0);
-
-        // Try to find category from Square catalog, then fall back to DB
-        const itemKey = itemName.toLowerCase().trim();
-        const category = categoryLookup.get(itemKey) || dbCategoryLookup.get(itemKey) || null;
-
-        if (aggregated.has(key)) {
-          const existing = aggregated.get(key);
-          existing.quantitySold += quantity;
-          existing.grossSalesCents += grossCents;
-          existing.netSalesCents += (grossCents - taxCents);
-          // Keep first category found
-          if (!existing.category && category) {
-            existing.category = category;
-          }
-        } else {
-          aggregated.set(key, {
-            date: new Date(dateStr + 'T00:00:00.000Z'),
-            itemName,
-            variationName,
-            category,
-            quantitySold: quantity,
-            grossSalesCents: grossCents,
-            netSalesCents: grossCents - taxCents,
-          });
-        }
+      const dateKey = orderDate.toISOString().split('T')[0];
+      
+      for (const lineItem of order.lineItems) {
+        const itemName = lineItem.name || 'Unknown Item';
+        const variationName = lineItem.variationName || '';
+        const key = `${dateKey}::${itemName}::${variationName}`;
+        
+        const existing = dailyAggregates.get(key) || {
+          date: new Date(dateKey),
+          itemName,
+          variationName,
+          category: lineItem.categoryName || null,
+          vendorName: null, // Would need to lookup
+          quantitySold: 0,
+          grossSalesCents: 0,
+          netSalesCents: 0,
+          squareCatalogId: lineItem.catalogObjectId || null,
+        };
+        
+        existing.quantitySold += Number(lineItem.quantity) || 0;
+        existing.grossSalesCents += Number(lineItem.grossSalesMoney?.amount) || 0;
+        existing.netSalesCents += Number(lineItem.netSalesMoney?.amount) || 0;
+        
+        dailyAggregates.set(key, existing);
       }
     }
 
-    // Upsert sales records
-    let salesUpserted = 0;
-    for (const entry of aggregated.values()) {
-      const vendorName = vendorLookup.get(entry.itemName.toLowerCase().trim()) || null;
-      await prisma.squareDailySales.upsert({
-        where: {
-          unique_daily_item_variation: {
-            date: entry.date,
-            itemName: entry.itemName,
-            variationName: entry.variationName,
+    console.log(`📊 Aggregated into ${dailyAggregates.size} daily records`);
+
+    // Upsert daily sales records
+    let salesCreated = 0, salesUpdated = 0;
+
+    for (const record of dailyAggregates.values()) {
+      try {
+        await prisma.squareDailySales.upsert({
+          where: {
+            unique_daily_item_variation: {
+              date: record.date,
+              itemName: record.itemName,
+              variationName: record.variationName,
+            },
           },
-        },
-        update: {
-          category: entry.category,
-          vendorName,
-          quantitySold: entry.quantitySold,
-          grossSalesCents: entry.grossSalesCents,
-          netSalesCents: entry.netSalesCents,
-        },
-        create: {
-          date: entry.date,
-          itemName: entry.itemName,
-          variationName: entry.variationName,
-          category: entry.category,
-          vendorName,
-          quantitySold: entry.quantitySold,
-          grossSalesCents: entry.grossSalesCents,
-          netSalesCents: entry.netSalesCents,
-        },
-      });
-      salesUpserted++;
+          create: {
+            date: record.date,
+            itemName: record.itemName,
+            variationName: record.variationName,
+            category: record.category,
+            vendorName: record.vendorName,
+            quantitySold: record.quantitySold,
+            grossSalesCents: record.grossSalesCents,
+            netSalesCents: record.netSalesCents,
+            squareCatalogId: record.squareCatalogId,
+          },
+          update: {
+            category: record.category,
+            quantitySold: record.quantitySold,
+            grossSalesCents: record.grossSalesCents,
+            netSalesCents: record.netSalesCents,
+            squareCatalogId: record.squareCatalogId,
+          },
+        });
+        salesCreated++; // Upsert counts as created for simplicity
+      } catch (err: any) {
+        results.errors.push({ phase: 'sales', item: record.itemName, error: err.message });
+      }
     }
 
     results.salesSync = {
       ordersProcessed: orders.length,
-      recordsUpserted: salesUpserted,
-      dateRange: { from: startDate.toISOString().split('T')[0], to: endDate.toISOString().split('T')[0] },
+      dailyRecords: dailyAggregates.size,
+      upserted: salesCreated,
     };
-    console.log(`✅ Sales sync: ${orders.length} orders → ${salesUpserted} daily records`);
+    console.log(`✅ Sales: ${salesCreated} records upserted`);
 
-    await prisma.$disconnect();
+    // Final result
     return NextResponse.json({
       success: true,
       ...results,
     });
+
   } catch (error: any) {
     console.error('❌ Daily sync failed:', error);
-    results.errors.push({ phase: 'general', error: error.message });
-    await prisma.$disconnect();
     return NextResponse.json({
       success: false,
+      error: error.message,
       ...results,
     }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }

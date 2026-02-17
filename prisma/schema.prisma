@@ -54,6 +54,8 @@ model Vendor {
 
 model Item {
   id                 String   @id @default(cuid())
+  squareCatalogId    String?  @unique @map("square_catalog_id") // Links to Square's catalog object ID
+  squareVariationId  String?  @map("square_variation_id") // Links to specific variation
   name               String
   vendorId           String?  @map("vendor_id")
   category           String
