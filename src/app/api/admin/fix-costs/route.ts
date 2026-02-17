@@ -49,13 +49,17 @@ export async function POST(request: NextRequest) {
       } else if (marginPercent < 10) {
         issue = `Margin only ${marginPercent.toFixed(1)}% - suspiciously low`;
         isBad = true;
-      } else if (cost > 25 && marginPercent < 50) {
-        // High absolute cost with low margin = probably case price
-        issue = `High cost ($${cost.toFixed(2)}) with only ${marginPercent.toFixed(1)}% margin - likely case price`;
+      } else if (cost > 15 && marginPercent < 50) {
+        // High cost with moderate margin = probably case price
+        issue = `High cost ($${cost.toFixed(2)}) with ${marginPercent.toFixed(1)}% margin - likely case price`;
         isBad = true;
-      } else if (cost > 35) {
-        // Very high cost is suspicious for most retail items
-        issue = `Very high cost ($${cost.toFixed(2)}) - review if this is per-unit`;
+      } else if (cost > 20) {
+        // Most retail items shouldn't cost > $20 per unit (except bulk/specialty)
+        issue = `High cost ($${cost.toFixed(2)}) - review if this is per-unit`;
+        isBad = true;
+      } else if (sellIncGst > 50 && cost > 10) {
+        // Very high sell price + high cost = probably both are case prices
+        issue = `High sell ($${sellIncGst.toFixed(2)}) + cost ($${cost.toFixed(2)}) - both may be case prices`;
         isBad = true;
       }
 
