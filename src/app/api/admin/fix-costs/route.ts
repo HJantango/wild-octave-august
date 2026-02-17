@@ -41,16 +41,25 @@ export async function POST(request: NextRequest) {
 
       const marginPercent = ((sellExGst - cost) / sellExGst) * 100;
       let issue = '';
+      let isBad = false;
 
       if (cost >= sellExGst) {
         issue = `Cost ($${cost.toFixed(2)}) >= Sell ($${sellExGst.toFixed(2)}) - likely case price`;
+        isBad = true;
       } else if (marginPercent < 10) {
         issue = `Margin only ${marginPercent.toFixed(1)}% - suspiciously low`;
-      } else if (marginPercent > 80) {
-        issue = `Margin ${marginPercent.toFixed(1)}% - unusually high but might be ok`;
+        isBad = true;
+      } else if (cost > 25 && marginPercent < 50) {
+        // High absolute cost with low margin = probably case price
+        issue = `High cost ($${cost.toFixed(2)}) with only ${marginPercent.toFixed(1)}% margin - likely case price`;
+        isBad = true;
+      } else if (cost > 35) {
+        // Very high cost is suspicious for most retail items
+        issue = `Very high cost ($${cost.toFixed(2)}) - review if this is per-unit`;
+        isBad = true;
       }
 
-      if (cost >= sellExGst || marginPercent < 10) {
+      if (isBad) {
         badItems.push({
           id: item.id,
           name: item.name,
@@ -68,10 +77,8 @@ export async function POST(request: NextRequest) {
 
     let fixed = 0;
     if (!dryRun && badItems.length > 0) {
-      // Reset bad costs to 0
-      const badIds = badItems.filter(i => i.cost >= i.sellExGst || 
-        (((i.sellExGst - i.cost) / i.sellExGst) * 100) < 10
-      ).map(i => i.id);
+      // Reset all flagged bad costs to 0
+      const badIds = badItems.map(i => i.id);
 
       const result = await prisma.item.updateMany({
         where: { id: { in: badIds } },
