@@ -237,15 +237,27 @@ export async function GET(request: NextRequest) {
     // Build result
     const result: ProductRationalizationItem[] = items.map(item => {
       const sales = findSalesForItem(item.name);
-      const cost = Number(item.currentCostExGst) || 0;
-      const sell = Number(item.currentSellIncGst) || 0;
+      const itemCost = Number(item.currentCostExGst) || 0;
+      const itemSell = Number(item.currentSellIncGst) || 0;
+      
+      // IMPORTANT: Use actual sell price from sales data if available (more accurate than Item table)
+      // Sales revenue / units = actual average sell price (inc GST)
+      const actualSellFromSales = sales.units > 0 ? sales.revenue / sales.units : 0;
+      
+      // Use actual sell price if we have sales, otherwise fall back to Item table
+      const sell = actualSellFromSales > 0 ? actualSellFromSales : itemSell;
       const sellExGst = sell / 1.1;
+      
+      // IMPORTANT: Only trust cost if it's reasonable (< $20 per unit)
+      // Higher costs are likely case/pack prices stored incorrectly
+      const cost = itemCost > 0 && itemCost < 20 ? itemCost : 0;
+      
       const marginPercent = sell > 0 && cost > 0 
         ? ((sellExGst - cost) / sellExGst) * 100 
         : 0;
       
       // Calculate profit: (sell ex GST - cost) * units sold
-      const profitPerUnit = sellExGst - cost;
+      const profitPerUnit = cost > 0 ? (sellExGst - cost) : 0;
       const totalProfit = profitPerUnit * sales.units;
       const avgWeeklyProfit = totalProfit / weeksInPeriod;
 
@@ -256,8 +268,8 @@ export async function GET(request: NextRequest) {
         shelfLabel: item.subcategory || null,
         vendorName: item.vendor?.name || null,
         sku: item.sku || null,
-        costExGst: cost,
-        sellIncGst: sell,
+        costExGst: cost, // Will be 0 if unreasonable cost was detected
+        sellIncGst: Math.round(sell * 100) / 100, // From actual sales when available
         marginPercent: Math.round(marginPercent * 10) / 10,
         totalUnitsSold: sales.units,
         totalRevenue: Math.round(sales.revenue * 100) / 100,
