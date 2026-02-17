@@ -23,6 +23,46 @@ interface ProductRationalizationItem {
   decision?: 'keep' | 'remove' | 'staple' | null;
 }
 
+// Normalize item names for matching (handles "200g" vs "200 grams" etc)
+function normalizeItemName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    // Normalize weight units
+    .replace(/(\d+)\s*grams?\b/gi, '$1g')
+    .replace(/(\d+)\s*gm\b/gi, '$1g')
+    .replace(/(\d+)\s*kilograms?\b/gi, '$1kg')
+    .replace(/(\d+)\s*kgs?\b/gi, '$1kg')
+    .replace(/(\d+)\s*mls?\b/gi, '$1ml')
+    .replace(/(\d+)\s*millilitres?\b/gi, '$1ml')
+    .replace(/(\d+)\s*litres?\b/gi, '$1l')
+    .replace(/(\d+)\s*l\b/gi, '$1l')
+    // Normalize common abbreviations
+    .replace(/\borg\.?\b/gi, 'organic')
+    .replace(/\bnat\.?\b/gi, 'natural')
+    .replace(/\bgf\b/gi, 'gluten free')
+    // Remove extra whitespace
+    .replace(/\s+/g, ' ')
+    // Remove special chars except alphanumeric and spaces
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
+
+// Generate multiple matching keys for an item
+function getMatchKeys(name: string): string[] {
+  const normalized = normalizeItemName(name);
+  const keys = [normalized];
+  
+  // Also try without common prefixes/suffixes that might differ
+  const withoutOrganic = normalized.replace(/\borganic\s*/g, '').trim();
+  if (withoutOrganic !== normalized) keys.push(withoutOrganic);
+  
+  const withoutRaw = normalized.replace(/\braw\s*/g, '').trim();
+  if (withoutRaw !== normalized) keys.push(withoutRaw);
+  
+  return keys;
+}
+
 // Extract keywords for similarity matching
 function extractKeywords(name: string): string[] {
   const stopWords = ['the', 'and', 'or', 'a', 'an', 'of', 'in', 'for', 'with', 'organic', 'natural', 'raw', 'vegan', 'gluten', 'free'];
@@ -118,11 +158,32 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Build sales lookup
-    const salesLookup = new Map<string, { units: number; revenue: number; weeks: number }>();
+    // Build sales lookup with normalized names for better matching
+    const salesLookup = new Map<string, { units: number; revenue: number; weeks: number; originalName: string }>();
     for (const sale of salesData) {
-      salesLookup.set(sale.itemName.toLowerCase(), {
-        units: sale._sum.quantitySold || 0,
+      const normalizedKey = normalizeItemName(sale.itemName);
+      const existing = salesLookup.get(normalizedKey);
+      
+      // Aggregate if same normalized name (handles variations)
+      if (existing) {
+        existing.units += Number(sale._sum.quantitySold) || 0;
+        existing.revenue += ((sale._sum.netSalesCents || 0) / 100);
+        existing.weeks += sale._count.date || 0;
+      } else {
+        salesLookup.set(normalizedKey, {
+          units: Number(sale._sum.quantitySold) || 0,
+          revenue: (sale._sum.netSalesCents || 0) / 100,
+          weeks: sale._count.date || 0,
+          originalName: sale.itemName,
+        });
+      }
+    }
+    
+    // Also create direct name lookup for exact matches
+    const directLookup = new Map<string, { units: number; revenue: number; weeks: number }>();
+    for (const sale of salesData) {
+      directLookup.set(sale.itemName.toLowerCase().trim(), {
+        units: Number(sale._sum.quantitySold) || 0,
         revenue: (sale._sum.netSalesCents || 0) / 100,
         weeks: sale._count.date || 0,
       });
@@ -144,9 +205,38 @@ export async function GET(request: NextRequest) {
     // Calculate weeks in period
     const weeksInPeriod = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
 
+    // Helper to find sales for an item (tries multiple matching strategies)
+    function findSalesForItem(itemName: string): { units: number; revenue: number; weeks: number } {
+      // 1. Try direct exact match first
+      const direct = directLookup.get(itemName.toLowerCase().trim());
+      if (direct && direct.units > 0) return direct;
+      
+      // 2. Try normalized match
+      const normalizedKey = normalizeItemName(itemName);
+      const normalized = salesLookup.get(normalizedKey);
+      if (normalized && normalized.units > 0) return normalized;
+      
+      // 3. Try partial matching - find Square item that contains our item name
+      const itemLower = itemName.toLowerCase();
+      for (const [squareName, data] of directLookup.entries()) {
+        if (squareName.includes(itemLower) || itemLower.includes(squareName)) {
+          if (data.units > 0) return data;
+        }
+      }
+      
+      // 4. Try fuzzy matching via match keys
+      const keys = getMatchKeys(itemName);
+      for (const key of keys) {
+        const match = salesLookup.get(key);
+        if (match && match.units > 0) return match;
+      }
+      
+      return { units: 0, revenue: 0, weeks: 0 };
+    }
+
     // Build result
     const result: ProductRationalizationItem[] = items.map(item => {
-      const sales = salesLookup.get(item.name.toLowerCase()) || { units: 0, revenue: 0, weeks: 0 };
+      const sales = findSalesForItem(item.name);
       const cost = Number(item.currentCostExGst) || 0;
       const sell = Number(item.currentSellIncGst) || 0;
       const sellExGst = sell / 1.1;
