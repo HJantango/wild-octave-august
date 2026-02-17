@@ -64,15 +64,27 @@ export async function GET(request: NextRequest) {
       } else {
         // Try iterating if it's a paginated response
         const items: any[] = [];
+        const itemsWithCost: any[] = [];
         let count = 0;
         if (catalogResponse[Symbol.asyncIterator]) {
           for await (const item of catalogResponse) {
             if (count < 5) items.push(item.itemData?.name);
+            // Check for vendor cost info
+            const variation = item.itemData?.variations?.[0];
+            const vendorInfo = variation?.itemVariationData?.itemVariationVendorInfos?.[0];
+            if (vendorInfo?.priceMoney && itemsWithCost.length < 5) {
+              itemsWithCost.push({
+                name: item.itemData?.name,
+                vendorId: vendorInfo.vendorId,
+                costCents: vendorInfo.priceMoney.amount,
+              });
+            }
             count++;
           }
           catalogRawResult = {
             objectCount: count,
             firstFiveNames: items,
+            itemsWithCostData: itemsWithCost,
             note: 'Iterated through async response',
           };
         } else {
