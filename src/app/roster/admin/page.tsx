@@ -16,6 +16,7 @@ interface Staff {
   id: string;
   name: string;
   role: string;
+  canDoBarista?: boolean;
   baseHourlyRate: number;
   saturdayHourlyRate?: number;
   sundayHourlyRate?: number;
@@ -322,26 +323,81 @@ export default function AdminPage() {
                 <span>Sales & Wage Targets</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* Weekly Sales Target with Slider */}
               <div>
                 <Label htmlFor="weeklySales">Weekly Sales Target</Label>
-                <Input
-                  id="weeklySales"
-                  type="number"
-                  value={settings.weeklySalesTarget}
-                  onChange={(e) => setSettings(s => ({ ...s, weeklySalesTarget: parseFloat(e.target.value) || 0 }))}
-                />
+                <div className="flex items-center gap-4 mt-2">
+                  <input
+                    type="range"
+                    min="10000"
+                    max="50000"
+                    step="500"
+                    value={settings.weeklySalesTarget}
+                    onChange={(e) => setSettings(s => ({ ...s, weeklySalesTarget: parseFloat(e.target.value) }))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <Input
+                    id="weeklySales"
+                    type="number"
+                    value={settings.weeklySalesTarget}
+                    onChange={(e) => setSettings(s => ({ ...s, weeklySalesTarget: parseFloat(e.target.value) || 0 }))}
+                    className="w-28"
+                  />
+                </div>
+                <p className="text-lg font-semibold text-blue-600 mt-2">
+                  {formatCurrency(settings.weeklySalesTarget)} / week
+                </p>
               </div>
+
+              {/* Calculate from Daily Average */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <Label className="text-blue-800">Calculate from Daily Average</Label>
+                <p className="text-xs text-blue-600 mb-2">Enter your daily average and we'll calculate weekly (×7)</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">$</span>
+                  <Input
+                    type="number"
+                    step="100"
+                    placeholder="e.g. 3200"
+                    className="w-32"
+                    onChange={(e) => {
+                      const daily = parseFloat(e.target.value);
+                      if (daily > 0) {
+                        setSettings(s => ({ ...s, weeklySalesTarget: Math.round(daily * 7) }));
+                      }
+                    }}
+                  />
+                  <span className="text-gray-500">/ day</span>
+                  <span className="text-gray-400 mx-2">→</span>
+                  <span className="font-semibold text-blue-700">{formatCurrency(settings.weeklySalesTarget)} / week</span>
+                </div>
+              </div>
+
+              {/* Target Wage Percentage */}
               <div>
                 <Label htmlFor="wagePercentage">Target Wage Percentage</Label>
-                <Input
-                  id="wagePercentage"
-                  type="number"
-                  value={settings.targetWagePercentage}
-                  onChange={(e) => setSettings(s => ({ ...s, targetWagePercentage: parseFloat(e.target.value) || 0 }))}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Target: {settings.targetWagePercentage}% of weekly sales ({formatCurrency(settings.weeklySalesTarget * settings.targetWagePercentage / 100)})
+                <div className="flex items-center gap-4 mt-2">
+                  <input
+                    type="range"
+                    min="15"
+                    max="45"
+                    step="1"
+                    value={settings.targetWagePercentage}
+                    onChange={(e) => setSettings(s => ({ ...s, targetWagePercentage: parseFloat(e.target.value) }))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                  />
+                  <Input
+                    id="wagePercentage"
+                    type="number"
+                    value={settings.targetWagePercentage}
+                    onChange={(e) => setSettings(s => ({ ...s, targetWagePercentage: parseFloat(e.target.value) || 0 }))}
+                    className="w-20"
+                  />
+                  <span className="text-gray-500">%</span>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Target wage budget: <span className="font-semibold text-green-600">{formatCurrency(settings.weeklySalesTarget * settings.targetWagePercentage / 100)}</span> / week
                 </p>
               </div>
             </CardContent>
@@ -505,6 +561,18 @@ export default function AdminPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {/* Can Do Barista Toggle */}
+                      {!person.role.toLowerCase().includes('barista') && (
+                        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={person.canDoBarista || false}
+                            onChange={(e) => updateStaff(person.id, 'canDoBarista', e.target.checked)}
+                            className="w-4 h-4 text-blue-600 rounded"
+                          />
+                          <span className="text-xs text-gray-600">Can cover barista shifts</span>
+                        </label>
+                      )}
                     </div>
                     <div className="flex items-end">
                       <Button
