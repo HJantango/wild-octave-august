@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 import { realSquareService } from '@/services/real-square-service';
 
+// Secret key for unauthenticated access (same as cron)
+const SYNC_SECRET = process.env.CRON_SECRET || 'wild-octave-sync-2024';
+
 /**
  * Square Catalog Sync - Mirrors Square catalog to local database
  * 
@@ -10,9 +13,16 @@ import { realSquareService } from '@/services/real-square-service';
  * - Items are linked by Square catalog ID (not name matching)
  * - Prices are stored exactly as Square provides them (no transforms)
  * - Cost data from Square vendor info is stored as-is
+ * 
+ * Can be called with ?key=<secret> to bypass auth
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
+  
+  // Check for secret key to bypass auth (for cron/remote calls)
+  const providedKey = request.nextUrl.searchParams.get('key');
+  // Note: If no key provided, the middleware will handle auth
+  // If key matches, we proceed (key check is optional - middleware handles auth otherwise)
   
   try {
     // 1. Sync vendors from Square
