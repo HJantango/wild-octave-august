@@ -15,6 +15,8 @@ interface Staff {
   id: string;
   name: string;
   role: string;
+  salaryType: 'hourly' | 'salaried';
+  weeklySalary?: number | null;
   baseHourlyRate: number;
   saturdayHourlyRate?: number;
   sundayHourlyRate?: number;
@@ -465,6 +467,15 @@ export default function RosterPage() {
   const calculateStaffWeeklyCost = (staffId: string) => {
     if (!roster) return 0;
 
+    // Find the staff member
+    const staffMember = staff.find(s => s.id === staffId);
+    
+    // If salaried, return their fixed weekly salary
+    if (staffMember?.salaryType === 'salaried' && staffMember.weeklySalary) {
+      return staffMember.weeklySalary;
+    }
+
+    // Otherwise calculate from shifts
     return roster.shifts
       .filter(s => s.staffId === staffId)
       .reduce((total, shift) => {
@@ -787,36 +798,38 @@ export default function RosterPage() {
     let totalTax = 0;
     let totalSuper = 0;
     
-    // Group shifts by staff and calculate their costs
-    const staffCosts = new Map<string, { gross: number; staffMember: Staff | undefined }>();
+    // Get unique staff IDs who have shifts this week
+    const staffIdsWithShifts = new Set(roster.shifts.map(s => s.staffId));
     
-    roster.shifts.forEach(shift => {
-      const shiftDate = new Date(currentWeek);
-      const dayIndex = shift.dayOfWeek === 0 ? 6 : shift.dayOfWeek - 1;
-      shiftDate.setDate(shiftDate.getDate() + dayIndex);
-      const cost = calculateShiftCost(shift, shiftDate);
+    // Calculate for each staff member
+    staffIdsWithShifts.forEach(staffId => {
+      const staffMember = staff.find(s => s.id === staffId);
+      if (!staffMember) return;
       
-      const existing = staffCosts.get(shift.staffId);
-      const staffMember = staff.find(s => s.id === shift.staffId);
-      if (existing) {
-        existing.gross += cost;
+      // Get gross pay (either weekly salary or calculated from shifts)
+      let gross: number;
+      if (staffMember.salaryType === 'salaried' && staffMember.weeklySalary) {
+        gross = staffMember.weeklySalary;
       } else {
-        staffCosts.set(shift.staffId, { gross: cost, staffMember });
+        // Calculate from shifts
+        gross = roster.shifts
+          .filter(s => s.staffId === staffId)
+          .reduce((total, shift) => {
+            const shiftDate = new Date(currentWeek);
+            const dayIndex = shift.dayOfWeek === 0 ? 6 : shift.dayOfWeek - 1;
+            shiftDate.setDate(shiftDate.getDate() + dayIndex);
+            return total + calculateShiftCost(shift, shiftDate);
+          }, 0);
       }
-    });
-    
-    // Calculate tax and super for each staff member based on their rates
-    staffCosts.forEach(({ gross, staffMember }) => {
-      if (staffMember) {
-        // Tax calculation: use individual taxRate (defaults to 30% if undefined)
-        const taxRate = (staffMember.taxRate ?? 30) / 100;
-        totalTax += gross * taxRate;
-        
-        // Super calculation: use individual superRate (null = no super, e.g., juniors)
-        if (staffMember.superRate !== null && staffMember.superRate !== undefined) {
-          const superRate = staffMember.superRate / 100;
-          totalSuper += gross * superRate;
-        }
+      
+      // Tax calculation: use individual taxRate (defaults to 30% if undefined)
+      const taxRate = (staffMember.taxRate ?? 30) / 100;
+      totalTax += gross * taxRate;
+      
+      // Super calculation: use individual superRate (null = no super, e.g., juniors)
+      if (staffMember.superRate !== null && staffMember.superRate !== undefined) {
+        const superRate = staffMember.superRate / 100;
+        totalSuper += gross * superRate;
       }
     });
     

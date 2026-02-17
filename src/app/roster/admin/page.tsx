@@ -17,6 +17,8 @@ interface Staff {
   name: string;
   role: string;
   canDoBarista?: boolean;
+  salaryType: 'hourly' | 'salaried';
+  weeklySalary?: number | null;
   baseHourlyRate: number;
   saturdayHourlyRate?: number;
   sundayHourlyRate?: number;
@@ -200,6 +202,8 @@ export default function AdminPage() {
       id: `temp-${Date.now()}`,
       name: newStaffName,
       role: newStaffRole,
+      salaryType: 'hourly',
+      weeklySalary: null,
       baseHourlyRate: parseFloat(newStaffRate),
       taxRate: 30, // Default 30%
       superRate: isJunior ? null : 11.5, // No super for juniors by default
@@ -610,10 +614,61 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Hourly Rates */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
+                  {/* Pay Type Toggle */}
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center gap-4 mb-4">
+                      <Label className="text-sm font-medium">Pay Type:</Label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateStaff(person.id, 'salaryType', 'hourly')}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            person.salaryType === 'hourly' 
+                              ? 'bg-blue-600 text-white' 
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          💵 Hourly
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateStaff(person.id, 'salaryType', 'salaried')}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            person.salaryType === 'salaried' 
+                              ? 'bg-green-600 text-white' 
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          📋 Salaried (Fixed Weekly)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Salaried: Weekly Salary Input */}
+                    {person.salaryType === 'salaried' && (
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200 mb-4">
+                        <Label className="text-green-800">Weekly Salary (Fixed)</Label>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-gray-500">$</span>
+                          <Input
+                            type="number"
+                            step="10"
+                            value={person.weeklySalary || ''}
+                            placeholder="e.g. 1200"
+                            className="w-40"
+                            onChange={(e) => updateStaff(person.id, 'weeklySalary', parseFloat(e.target.value) || null)}
+                          />
+                          <span className="text-gray-500">/ week</span>
+                        </div>
+                        <p className="text-xs text-green-600 mt-2">This fixed amount will be used instead of calculating from hours × rate</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hourly Rates (show for hourly staff, or as reference for salaried) */}
+                  <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 ${person.salaryType === 'salaried' ? 'opacity-50' : ''}`}>
                     <div>
-                      <Label>Base Hourly Rate ($)</Label>
+                      <Label>Base Hourly Rate ($){person.salaryType === 'salaried' && ' (for reference)'}</Label>
                       <Input
                         type="number"
                         step="0.50"
@@ -629,6 +684,7 @@ export default function AdminPage() {
                         value={person.saturdayHourlyRate || ''}
                         placeholder={`Default: ${person.baseHourlyRate}`}
                         onChange={(e) => updateStaff(person.id, 'saturdayHourlyRate', parseFloat(e.target.value) || null)}
+                        disabled={person.salaryType === 'salaried'}
                       />
                     </div>
                     <div>
@@ -639,6 +695,7 @@ export default function AdminPage() {
                         value={person.sundayHourlyRate || ''}
                         placeholder={`Default: ${person.baseHourlyRate}`}
                         onChange={(e) => updateStaff(person.id, 'sundayHourlyRate', parseFloat(e.target.value) || null)}
+                        disabled={person.salaryType === 'salaried'}
                       />
                     </div>
                     <div>
@@ -649,6 +706,7 @@ export default function AdminPage() {
                         value={person.publicHolidayHourlyRate || ''}
                         placeholder={`Default: ${person.baseHourlyRate}`}
                         onChange={(e) => updateStaff(person.id, 'publicHolidayHourlyRate', parseFloat(e.target.value) || null)}
+                        disabled={person.salaryType === 'salaried'}
                       />
                     </div>
                   </div>

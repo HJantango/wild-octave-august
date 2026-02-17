@@ -13,6 +13,8 @@ export async function GET() {
         name: true,
         role: true,
         canDoBarista: true,
+        salaryType: true,
+        weeklySalary: true,
         baseHourlyRate: true,
         saturdayHourlyRate: true,
         sundayHourlyRate: true,
@@ -28,6 +30,7 @@ export async function GET() {
     // Convert Decimal to number for JSON serialization
     const formattedStaff = staff.map(person => ({
       ...person,
+      weeklySalary: person.weeklySalary ? Number(person.weeklySalary) : null,
       baseHourlyRate: Number(person.baseHourlyRate),
       saturdayHourlyRate: person.saturdayHourlyRate ? Number(person.saturdayHourlyRate) : null,
       sundayHourlyRate: person.sundayHourlyRate ? Number(person.sundayHourlyRate) : null,
@@ -56,7 +59,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, role, canDoBarista = false, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive = true } = body;
+    const { name, role, canDoBarista = false, salaryType = 'hourly', weeklySalary, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive = true } = body;
 
     if (!name || !role || baseHourlyRate === undefined) {
       return NextResponse.json(
@@ -79,6 +82,8 @@ export async function POST(request: NextRequest) {
         name,
         role,
         canDoBarista,
+        salaryType,
+        weeklySalary,
         baseHourlyRate,
         saturdayHourlyRate,
         sundayHourlyRate,
@@ -95,6 +100,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         ...newStaff,
+        weeklySalary: newStaff.weeklySalary ? Number(newStaff.weeklySalary) : null,
         baseHourlyRate: Number(newStaff.baseHourlyRate),
         saturdayHourlyRate: newStaff.saturdayHourlyRate ? Number(newStaff.saturdayHourlyRate) : null,
         sundayHourlyRate: newStaff.sundayHourlyRate ? Number(newStaff.sundayHourlyRate) : null,
@@ -130,7 +136,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, role, canDoBarista, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive } = body;
+    const { id, name, role, canDoBarista, salaryType, weeklySalary, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -148,6 +154,8 @@ export async function PUT(request: NextRequest) {
         ...(name !== undefined && { name }),
         ...(role !== undefined && { role }),
         ...(canDoBarista !== undefined && { canDoBarista }),
+        ...(salaryType !== undefined && { salaryType }),
+        ...(weeklySalary !== undefined && { weeklySalary }),
         ...(baseHourlyRate !== undefined && { baseHourlyRate }),
         ...(saturdayHourlyRate !== undefined && { saturdayHourlyRate }),
         ...(sundayHourlyRate !== undefined && { sundayHourlyRate }),
@@ -164,6 +172,7 @@ export async function PUT(request: NextRequest) {
       success: true,
       data: {
         ...updatedStaff,
+        weeklySalary: updatedStaff.weeklySalary ? Number(updatedStaff.weeklySalary) : null,
         baseHourlyRate: Number(updatedStaff.baseHourlyRate),
         saturdayHourlyRate: updatedStaff.saturdayHourlyRate ? Number(updatedStaff.saturdayHourlyRate) : null,
         sundayHourlyRate: updatedStaff.sundayHourlyRate ? Number(updatedStaff.sundayHourlyRate) : null,
