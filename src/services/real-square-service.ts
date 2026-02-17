@@ -190,7 +190,15 @@ class RealSquareService {
         }
       });
       
-      const vendors = response.result?.vendors || [];
+      // Handle both direct result and async iterator patterns
+      let vendors: any[] = [];
+      if (response.result?.vendors) {
+        vendors = response.result.vendors;
+      } else if ((response as any)[Symbol.asyncIterator]) {
+        for await (const vendor of response as any) {
+          vendors.push(vendor);
+        }
+      }
       console.log(`📦 Found ${vendors.length} vendors in Square`);
       
       return vendors.map(vendor => ({
@@ -220,8 +228,17 @@ class RealSquareService {
         types: filters?.types?.join(',') || 'ITEM'
       });
       
-      // Handle both old and new SDK response formats
-      const objects = response.result?.objects || response.objects || [];
+      // Square SDK v43 returns an async iterator - collect all items
+      const objects: any[] = [];
+      if (response[Symbol.asyncIterator]) {
+        for await (const item of response) {
+          objects.push(item);
+        }
+      } else if (response.result?.objects) {
+        objects.push(...response.result.objects);
+      } else if ((response as any).objects) {
+        objects.push(...(response as any).objects);
+      }
       console.log(`📦 Catalog response: ${objects.length} objects`);
       
       return objects.filter(obj => obj.type === 'ITEM').map(obj => {
