@@ -47,7 +47,7 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
       ${label.organic ? `
         <p style="
           font-family: 'Dancing Script', cursive;
-          font-size: 7mm;
+          font-size: 11mm;
           color: ${DARK_GREEN};
           margin: 0 0 1mm 0;
           line-height: 1.1;
@@ -57,26 +57,26 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
       <h2 style="
         font-family: 'Playfair Display', Georgia, serif;
         font-weight: 800;
-        font-size: 8mm;
+        font-size: 12mm;
         color: ${DARK_GREEN};
         text-transform: uppercase;
         line-height: 1.1;
-        margin: 1mm 0 2mm 0;
+        margin: 1mm 0 3mm 0;
         letter-spacing: 0.02em;
         max-width: 90mm;
         word-break: break-word;
       ">${label.name || 'Item Name'}</h2>
       
       ${hasDietaryTags ? `
-        <div style="display: flex; gap: 2mm; margin-bottom: 2mm;">
+        <div style="display: flex; gap: 3mm; margin-bottom: 3mm;">
           ${badges.map(badge => `
             <span style="
               background-color: ${DARK_GREEN};
               color: #fff;
               font-family: Arial, sans-serif;
-              font-size: 3mm;
+              font-size: 4.5mm;
               font-weight: 700;
-              padding: 1mm 3mm;
+              padding: 1.5mm 4mm;
               border-radius: 999px;
               letter-spacing: 0.08em;
               text-transform: uppercase;
@@ -88,7 +88,7 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
       ${label.ingredients ? `
         <p style="
           font-family: Arial, sans-serif;
-          font-size: 2.5mm;
+          font-size: 3.5mm;
           color: ${DARK_GREEN};
           text-transform: uppercase;
           letter-spacing: 0.06em;
@@ -104,9 +104,9 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
           background-color: ${DARK_GREEN};
           color: #fff;
           font-family: Arial, sans-serif;
-          font-size: 5mm;
+          font-size: 8mm;
           font-weight: 800;
-          padding: 1.5mm 5mm;
+          padding: 2mm 6mm;
           border-radius: 999px;
           margin-top: 3mm;
         ">$${parseFloat(label.price).toFixed(2)}</span>
