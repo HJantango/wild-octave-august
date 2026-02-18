@@ -81,6 +81,9 @@ export default function ShelfPriceCheckerPage() {
   const [labelNeeds, setLabelNeeds] = useState<LabelState>({});
   const [compactMode, setCompactMode] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [barcodeResult, setBarcodeResult] = useState<ShelfItem | null>(null);
+  const [barcodeNotFound, setBarcodeNotFound] = useState(false);
   
   // DYMO printing state
   const [dymoAvailable, setDymoAvailable] = useState<boolean | null>(null);
@@ -367,6 +370,48 @@ export default function ShelfPriceCheckerPage() {
     }
   };
 
+  // Barcode lookup function
+  const handleBarcodeLookup = useCallback((barcode: string) => {
+    const trimmed = barcode.trim();
+    if (!trimmed) {
+      setBarcodeResult(null);
+      setBarcodeNotFound(false);
+      return;
+    }
+    
+    // Search all items for matching SKU (case-insensitive)
+    const allItems = shelfGroups.flatMap(g => g.items);
+    const found = allItems.find(item => 
+      item.sku?.toLowerCase() === trimmed.toLowerCase()
+    );
+    
+    if (found) {
+      setBarcodeResult(found);
+      setBarcodeNotFound(false);
+      // Auto-clear after 8 seconds for next scan
+      setTimeout(() => {
+        setBarcodeInput('');
+        setBarcodeResult(null);
+      }, 8000);
+    } else {
+      setBarcodeResult(null);
+      setBarcodeNotFound(true);
+      // Clear "not found" after 3 seconds
+      setTimeout(() => {
+        setBarcodeNotFound(false);
+        setBarcodeInput('');
+      }, 3000);
+    }
+  }, [shelfGroups]);
+
+  // Handle barcode input (scanner usually sends Enter at end)
+  const handleBarcodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleBarcodeLookup(barcodeInput);
+    }
+  };
+
   // Filter groups by search query
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return shelfGroups;
@@ -596,6 +641,74 @@ export default function ShelfPriceCheckerPage() {
             {error}
           </div>
         )}
+
+        {/* Barcode Scanner Section */}
+        <Card className="print:hidden border-2 border-dashed border-blue-200 bg-blue-50/50">
+          <CardContent className="py-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex items-center gap-2 min-w-fit">
+                <span className="text-2xl">📦</span>
+                <span className="font-semibold text-gray-700">Barcode Lookup</span>
+              </div>
+              <div className="flex-1 max-w-md">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Scan or type barcode..."
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={handleBarcodeKeyDown}
+                    className="text-lg h-12 font-mono pr-20"
+                    autoComplete="off"
+                  />
+                  <Button
+                    onClick={() => handleBarcodeLookup(barcodeInput)}
+                    disabled={!barcodeInput.trim()}
+                    className="absolute right-1 top-1 h-10"
+                    size="sm"
+                  >
+                    Look Up
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Result Display */}
+              {barcodeResult && (
+                <div className="flex-1 bg-green-100 border border-green-300 rounded-lg p-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-green-900 text-lg">{barcodeResult.name}</div>
+                      <div className="text-green-700 text-sm">
+                        Shelf: <span className="font-medium">{barcodeResult.categoryName}</span>
+                        {barcodeResult.sku && <span className="ml-2 text-green-600">• SKU: {barcodeResult.sku}</span>}
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-green-800 whitespace-nowrap">
+                      {formatCurrency(barcodeResult.price)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Not Found */}
+              {barcodeNotFound && (
+                <div className="flex-1 bg-red-100 border border-red-300 rounded-lg p-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <span className="text-xl">❌</span>
+                    <span className="font-medium">Barcode not found: {barcodeInput}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Idle hint */}
+              {!barcodeResult && !barcodeNotFound && !barcodeInput && (
+                <div className="flex-1 text-gray-500 text-sm">
+                  Scan a barcode or type SKU and press Enter
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Search results indicator */}
         {isFiltered && (
