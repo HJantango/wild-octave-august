@@ -104,9 +104,9 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
           background-color: ${DARK_GREEN};
           color: #fff;
           font-family: Arial, sans-serif;
-          font-size: 2.5mm;
+          font-size: 5mm;
           font-weight: 800;
-          padding: 1mm 3mm;
+          padding: 1.5mm 5mm;
           border-radius: 999px;
           margin-top: 2mm;
         ">$${parseFloat(label.price).toFixed(2)}</span>
