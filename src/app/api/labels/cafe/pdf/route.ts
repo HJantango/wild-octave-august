@@ -41,7 +41,7 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 5mm;
+      padding: 10mm;
       box-sizing: border-box;
     ">
       ${label.organic ? `
@@ -57,13 +57,13 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
       <h2 style="
         font-family: 'Playfair Display', Georgia, serif;
         font-weight: 800;
-        font-size: 12mm;
+        font-size: 8mm;
         color: ${DARK_GREEN};
         text-transform: uppercase;
         line-height: 1.1;
         margin: 1mm 0 3mm 0;
         letter-spacing: 0.02em;
-        max-width: 90mm;
+        max-width: 80mm;
         word-break: break-word;
       ">${label.name || 'Item Name'}</h2>
       
@@ -93,7 +93,7 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
           text-transform: uppercase;
           letter-spacing: 0.06em;
           line-height: 1.3;
-          max-width: 90mm;
+          max-width: 80mm;
           margin: 0;
           opacity: 0.85;
         ">${label.ingredients}</p>
