@@ -180,21 +180,32 @@ export async function POST(request: NextRequest) {
 
     const html = generatePageHtml(labels);
 
-    // Launch Puppeteer
+    // Launch Puppeteer (use system Chromium on Railway)
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--font-render-hinting=none',
+      ],
     });
 
     const page = await browser.newPage();
     
     // Set content and wait for fonts to load
     await page.setContent(html, { 
-      waitUntil: ['networkidle0', 'domcontentloaded'] 
+      waitUntil: ['networkidle0', 'domcontentloaded'],
+      timeout: 30000,
     });
     
     // Extra wait for fonts
     await page.evaluateHandle('document.fonts.ready');
+    
+    // Small extra delay for font rendering
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Generate PDF
     const pdfBuffer = await page.pdf({

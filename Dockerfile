@@ -34,14 +34,27 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Install system dependencies for OCR and PDF conversion
+# Install system dependencies for OCR, PDF conversion, and Puppeteer
 RUN apk add --no-cache \
     tesseract-ocr \
     tesseract-ocr-data-eng \
     imagemagick \
     graphicsmagick \
     poppler-utils \
-    ghostscript
+    ghostscript \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    font-noto \
+    font-noto-emoji
+
+# Tell Puppeteer to use system Chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
