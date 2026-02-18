@@ -190,28 +190,39 @@ export async function POST(request: NextRequest) {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--font-render-hinting=none',
+        '--single-process',
+        '--no-zygote',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
       ],
     });
 
     const page = await browser.newPage();
     
-    // Set content and wait for fonts to load
+    // Set viewport for consistent rendering
+    await page.setViewport({ width: 794, height: 1123 }); // A4 at 96dpi
+    
+    // Set content with shorter timeout, use networkidle2 for faster load
     await page.setContent(html, { 
-      waitUntil: ['networkidle0', 'domcontentloaded'],
-      timeout: 30000,
+      waitUntil: ['networkidle2', 'domcontentloaded'],
+      timeout: 15000,
     });
     
-    // Extra wait for fonts
-    await page.evaluateHandle('document.fonts.ready');
-    
-    // Small extra delay for font rendering
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Brief wait for fonts (don't wait forever)
+    await Promise.race([
+      page.evaluateHandle('document.fonts.ready'),
+      new Promise(resolve => setTimeout(resolve, 3000))
+    ]);
     
     // Generate PDF
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      timeout: 10000,
     });
 
     await browser.close();
@@ -231,3 +242,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Increase route timeout for PDF generation
+export const maxDuration = 30;
