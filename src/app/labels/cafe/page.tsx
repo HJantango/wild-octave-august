@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Printer, Plus, Trash2, Download, X, Save, Search, FolderOpen } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CafeLabel {
@@ -263,37 +265,91 @@ export default function CafeLabelsPage() {
     window.print();
   };
 
-  // Generate PDF server-side with Puppeteer
+  // Generate PDF - try server-side first, fall back to client-side
   const generatePDF = async () => {
-    if (labels.length === 0) return;
+    if (labels.length === 0 || !printRef.current) return;
     
     setGeneratingPdf(true);
     try {
+      // Try server-side first (better quality)
       const response = await fetch('/api/labels/cafe/pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ labels }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate PDF');
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cafe-labels.pdf';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        return;
       }
-
-      // Download the PDF
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'cafe-labels.pdf';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      
+      // Fall back to client-side PDF generation
+      console.log('Server PDF failed, using client-side generation');
+      await generatePDFClientSide();
     } catch (err) {
-      console.error('Failed to generate PDF:', err);
-      alert('Failed to generate PDF. Please try again.');
+      console.error('Server PDF error, trying client-side:', err);
+      try {
+        await generatePDFClientSide();
+      } catch (clientErr) {
+        console.error('Client PDF also failed:', clientErr);
+        alert('Failed to generate PDF. Please try the Print button instead.');
+      }
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  // Client-side PDF generation fallback using html2canvas + jsPDF
+  const generatePDFClientSide = async () => {
+    if (!printRef.current) return;
+    
+    // Temporarily show the print sheet for capture
+    const printSheet = printRef.current;
+    const originalDisplay = printSheet.style.display;
+    printSheet.style.display = 'block';
+    printSheet.style.position = 'fixed';
+    printSheet.style.left = '0';
+    printSheet.style.top = '0';
+    printSheet.style.zIndex = '-9999';
+    
+    try {
+      // Wait for fonts to load
+      await document.fonts.ready;
+      
+      const canvas = await html2canvas(printSheet, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: 794, // A4 width at 96dpi
+        height: 1123, // A4 height at 96dpi
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+      
+      // A4 is 210mm x 297mm
+      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+      pdf.save('cafe-labels.pdf');
+    } finally {
+      // Restore print sheet visibility
+      printSheet.style.display = originalDisplay;
+      printSheet.style.position = '';
+      printSheet.style.left = '';
+      printSheet.style.top = '';
+      printSheet.style.zIndex = '';
     }
   };
 
