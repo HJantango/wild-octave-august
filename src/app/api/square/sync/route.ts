@@ -66,6 +66,9 @@ async function syncCatalogItems() {
 
     for (const squareItem of squareItems) {
       for (const variation of squareItem.variations) {
+        // Use actual SKU from Square if available, otherwise fall back to Square ID
+        const actualSku = variation.sku || `SQ_${variation.id}`;
+        
         const itemData = {
           name: `${squareItem.name} - ${variation.name}`,
           category: squareItem.category?.name || 'Uncategorized',
@@ -73,7 +76,9 @@ async function syncCatalogItems() {
           currentMarkup: 1.0, // Default markup
           currentSellExGst: variation.priceMoney.amount / 100,
           currentSellIncGst: (variation.priceMoney.amount / 100) * 1.1, // Assume 10% GST
-          sku: `SQ_${variation.id}`,
+          sku: actualSku,
+          // If there's a proper SKU from Square, also set it as barcode for scanner lookup
+          barcode: variation.sku || null,
         };
 
         const existingItem = await prisma.item.findUnique({

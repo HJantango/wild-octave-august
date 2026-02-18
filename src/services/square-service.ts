@@ -280,6 +280,7 @@ class SquareService {
         variations: obj.item_data?.variations?.map((v: any) => ({
           id: v.id,
           name: v.item_variation_data?.name || 'Default',
+          sku: v.item_variation_data?.sku || null,
           priceMoney: v.item_variation_data?.price_money || { amount: 0, currency: 'AUD' }
         })) || [],
         updatedAt: obj.updated_at,
