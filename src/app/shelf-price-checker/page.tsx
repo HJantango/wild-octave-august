@@ -1,12 +1,48 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
-import { PrinterIcon, CheckCircleIcon, RefreshCwIcon, TagIcon, SaveIcon, DownloadIcon, UploadIcon, PackageIcon } from 'lucide-react';
+import { PrinterIcon, CheckCircleIcon, RefreshCwIcon, TagIcon, SaveIcon, DownloadIcon, UploadIcon, PackageIcon, SearchIcon, XIcon } from 'lucide-react';
+
+// Fuzzy word-initial matching (like Square's search)
+// "o m" matches "Organic Milk", "pb" matches "Peanut Butter"
+const fuzzyMatch = (query: string, text: string): boolean => {
+  if (!query.trim()) return true;
+  
+  const queryLower = query.toLowerCase();
+  const textLower = text.toLowerCase();
+  
+  // First: simple includes check (if they type part of a word)
+  if (textLower.includes(queryLower)) return true;
+  
+  // Second: word-initial matching
+  // Split query into tokens (by space or treat as continuous initials)
+  const tokens = queryLower.split(/\s+/).filter(Boolean);
+  const words = textLower.split(/\s+/);
+  
+  if (tokens.length === 0) return true;
+  
+  // Try to match each token to the start of a word (in order)
+  let wordIndex = 0;
+  for (const token of tokens) {
+    let found = false;
+    while (wordIndex < words.length) {
+      if (words[wordIndex].startsWith(token)) {
+        found = true;
+        wordIndex++;
+        break;
+      }
+      wordIndex++;
+    }
+    if (!found) return false;
+  }
+  return true;
+};
 import { checkDymoService, printLabels, formatPriceForLabel, type ShelfLabel } from '@/lib/dymo';
 
 interface ShelfItem {
@@ -44,6 +80,7 @@ export default function ShelfPriceCheckerPage() {
   const [checkedItems, setCheckedItems] = useState<CheckedState>({});
   const [labelNeeds, setLabelNeeds] = useState<LabelState>({});
   const [compactMode, setCompactMode] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // DYMO printing state
   const [dymoAvailable, setDymoAvailable] = useState<boolean | null>(null);
@@ -330,10 +367,27 @@ export default function ShelfPriceCheckerPage() {
     }
   };
 
-  // Calculate progress
+  // Filter groups by search query
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return shelfGroups;
+    
+    return shelfGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => fuzzyMatch(searchQuery, item.name)),
+        itemCount: group.items.filter(item => fuzzyMatch(searchQuery, item.name)).length
+      }))
+      .filter(group => group.items.length > 0);
+  }, [shelfGroups, searchQuery]);
+
+  // Calculate progress (based on all items, not filtered)
   const allItems = shelfGroups.flatMap(g => g.items);
   const checkedCount = allItems.filter(item => checkedItems[item.id]).length;
   const progressPercent = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
+  
+  // Calculate filtered stats
+  const filteredItemCount = filteredGroups.flatMap(g => g.items).length;
+  const isFiltered = searchQuery.trim().length > 0;
   
   // Calculate label needs
   const missingLabelCount = Object.values(labelNeeds).filter(v => v === 'missing').length;
@@ -395,6 +449,25 @@ export default function ShelfPriceCheckerPage() {
                   </div>
                 </div>
                 <div className="mt-4 lg:mt-0 flex flex-wrap items-center gap-2">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
+                    <Input
+                      type="text"
+                      placeholder="Search products..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-48 pl-8 pr-8 bg-white/20 border-white/20 text-white placeholder:text-white/60 focus:bg-white/30"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                   <Select value={shelfFilter} onValueChange={setShelfFilter}>
                     <SelectTrigger className="w-48 bg-white/20 border-white/20 text-white">
                       <SelectValue placeholder="Select Shelf" />
@@ -524,9 +597,25 @@ export default function ShelfPriceCheckerPage() {
           </div>
         )}
 
+        {/* Search results indicator */}
+        {isFiltered && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg flex items-center justify-between print:hidden">
+            <span>
+              <SearchIcon className="w-4 h-4 inline mr-2" />
+              Showing {filteredItemCount} of {totalItems} items matching "{searchQuery}"
+            </span>
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="text-blue-600 hover:text-blue-800 text-sm underline"
+            >
+              Clear search
+            </button>
+          </div>
+        )}
+
         {/* Compact Print Layout */}
         <div className="space-y-3 print:space-y-2">
-          {shelfGroups.map((group) => {
+          {filteredGroups.map((group) => {
             const groupChecked = group.items.filter(i => checkedItems[i.id]).length;
             const groupComplete = groupChecked === group.items.length;
             
@@ -616,10 +705,22 @@ export default function ShelfPriceCheckerPage() {
         </div>
 
         {/* Empty state */}
-        {shelfGroups.length === 0 && !loading && (
+        {filteredGroups.length === 0 && !loading && (
           <div className="text-center py-12 text-gray-500">
-            <div className="text-4xl mb-2">📋</div>
-            <p>No items found for the selected shelf.</p>
+            <div className="text-4xl mb-2">{isFiltered ? '🔍' : '📋'}</div>
+            {isFiltered ? (
+              <>
+                <p>No items match "{searchQuery}"</p>
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="mt-2 text-blue-600 hover:text-blue-800 underline"
+                >
+                  Clear search
+                </button>
+              </>
+            ) : (
+              <p>No items found for the selected shelf.</p>
+            )}
           </div>
         )}
       </div>
