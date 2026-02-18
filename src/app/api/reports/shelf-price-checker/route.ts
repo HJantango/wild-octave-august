@@ -7,6 +7,7 @@ interface ShelfItem {
   id: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
   price: number;
   categoryName: string;
 }
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
       id: item.id,
       name: item.name,
       sku: item.sku || null,
+      barcode: item.barcode || null,
       price: Number(item.currentSellIncGst), // Use selling price inc GST
       categoryName: item.category || 'Uncategorized',
     }));

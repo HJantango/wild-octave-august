@@ -49,6 +49,7 @@ interface ShelfItem {
   id: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
   price: number;
   categoryName: string;
 }
@@ -379,9 +380,10 @@ export default function ShelfPriceCheckerPage() {
       return;
     }
     
-    // Search all items for matching SKU (case-insensitive)
+    // Search all items for matching barcode OR SKU (case-insensitive)
     const allItems = shelfGroups.flatMap(g => g.items);
     const found = allItems.find(item => 
+      item.barcode?.toLowerCase() === trimmed.toLowerCase() ||
       item.sku?.toLowerCase() === trimmed.toLowerCase()
     );
     
@@ -680,7 +682,8 @@ export default function ShelfPriceCheckerPage() {
                       <div className="font-semibold text-green-900 text-lg">{barcodeResult.name}</div>
                       <div className="text-green-700 text-sm">
                         Shelf: <span className="font-medium">{barcodeResult.categoryName}</span>
-                        {barcodeResult.sku && <span className="ml-2 text-green-600">• SKU: {barcodeResult.sku}</span>}
+                        {barcodeResult.barcode && <span className="ml-2 text-green-600">• Barcode: {barcodeResult.barcode}</span>}
+                        {barcodeResult.sku && !barcodeResult.barcode && <span className="ml-2 text-green-600">• SKU: {barcodeResult.sku}</span>}
                       </div>
                     </div>
                     <div className="text-2xl font-bold text-green-800 whitespace-nowrap">
