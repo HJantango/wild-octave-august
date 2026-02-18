@@ -47,7 +47,7 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
       ${label.organic ? `
         <p style="
           font-family: 'Dancing Script', cursive;
-          font-size: 11mm;
+          font-size: 8mm;
           color: ${DARK_GREEN};
           margin: 0 0 1mm 0;
           line-height: 1.1;
@@ -68,15 +68,15 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
       ">${label.name || 'Item Name'}</h2>
       
       ${hasDietaryTags ? `
-        <div style="display: flex; gap: 3mm; margin-bottom: 3mm;">
+        <div style="display: flex; gap: 2mm; margin-bottom: 2mm;">
           ${badges.map(badge => `
             <span style="
               background-color: ${DARK_GREEN};
               color: #fff;
               font-family: Arial, sans-serif;
-              font-size: 4.5mm;
+              font-size: 2.25mm;
               font-weight: 700;
-              padding: 1.5mm 4mm;
+              padding: 1mm 2.5mm;
               border-radius: 999px;
               letter-spacing: 0.08em;
               text-transform: uppercase;
@@ -104,11 +104,11 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
           background-color: ${DARK_GREEN};
           color: #fff;
           font-family: Arial, sans-serif;
-          font-size: 8mm;
+          font-size: 2.5mm;
           font-weight: 800;
-          padding: 2mm 6mm;
+          padding: 1mm 3mm;
           border-radius: 999px;
-          margin-top: 3mm;
+          margin-top: 2mm;
         ">$${parseFloat(label.price).toFixed(2)}</span>
       ` : ''}
     </div>
