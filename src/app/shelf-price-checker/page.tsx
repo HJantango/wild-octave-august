@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
-import { PrinterIcon, CheckCircleIcon, RefreshCwIcon, TagIcon, SaveIcon, DownloadIcon, UploadIcon } from 'lucide-react';
+import { PrinterIcon, CheckCircleIcon, RefreshCwIcon, TagIcon, SaveIcon, DownloadIcon, UploadIcon, PackageIcon } from 'lucide-react';
 import { checkDymoService, printLabels, formatPriceForLabel, type ShelfLabel } from '@/lib/dymo';
 
 interface ShelfItem {
@@ -57,6 +57,10 @@ export default function ShelfPriceCheckerPage() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Catalog sync state
+  const [syncingCatalog, setSyncingCatalog] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   // Load state - try server first, then localStorage
   useEffect(() => {
@@ -134,6 +138,32 @@ export default function ShelfPriceCheckerPage() {
       alert('❌ Failed to save to server');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Sync catalog from Square (updates prices)
+  const handleCatalogSync = async () => {
+    setSyncingCatalog(true);
+    setSyncMessage(null);
+    try {
+      const response = await fetch('/api/square/catalog-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await response.json();
+      if (response.ok) {
+        const summary = result.data?.summary || result.summary;
+        setSyncMessage(`✅ Catalog synced: ${summary?.updated || 0} updated, ${summary?.created || 0} created`);
+        // Refresh the price data
+        fetchData();
+      } else {
+        setSyncMessage(`❌ ${result.error?.message || 'Catalog sync failed'}`);
+      }
+    } catch (err) {
+      setSyncMessage('❌ Failed to sync catalog');
+    } finally {
+      setSyncingCatalog(false);
+      setTimeout(() => setSyncMessage(null), 8000);
     }
   };
 
@@ -357,6 +387,11 @@ export default function ShelfPriceCheckerPage() {
                         💾 Saved: {new Date(lastSaved).toLocaleString()}
                       </div>
                     )}
+                    {syncMessage && (
+                      <div className={`rounded-full px-3 py-1 text-sm ${syncMessage.startsWith('✅') ? 'bg-green-500/80' : 'bg-red-500/80'}`}>
+                        {syncMessage}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4 lg:mt-0 flex flex-wrap items-center gap-2">
@@ -387,6 +422,15 @@ export default function ShelfPriceCheckerPage() {
                     title="Download backup file"
                   >
                     <DownloadIcon className="w-4 h-4 mr-1" /> Export
+                  </Button>
+                  <Button 
+                    onClick={handleCatalogSync}
+                    disabled={syncingCatalog}
+                    className="bg-purple-500 hover:bg-purple-600 text-white"
+                    title="Pull latest prices from Square"
+                  >
+                    <PackageIcon className="w-4 h-4 mr-1" />
+                    {syncingCatalog ? '🔄 Syncing...' : '📦 Sync Prices'}
                   </Button>
                   <Button 
                     onClick={fetchData}
