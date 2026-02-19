@@ -140,30 +140,38 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
           {label.vegan && (
             <span style={{
               backgroundColor: DARK_GREEN,
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 700,
               padding: '4px 16px',
               borderRadius: 999,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase' as const,
-              position: 'relative' as const,
-              top: -2,
-            }}>Vegan</span>
+              display: 'inline-block',
+            }}>
+              <span style={{
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase' as const,
+                display: 'inline-block',
+                transform: 'translateY(-3px)',
+              }}>Vegan</span>
+            </span>
           )}
           {label.glutenFree && (
             <span style={{
               backgroundColor: DARK_GREEN,
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 700,
               padding: '4px 16px',
               borderRadius: 999,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase' as const,
-              position: 'relative' as const,
-              top: -2,
-            }}>GF</span>
+              display: 'inline-block',
+            }}>
+              <span style={{
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase' as const,
+                display: 'inline-block',
+                transform: 'translateY(-3px)',
+              }}>GF</span>
+            </span>
           )}
         </div>
       )}
@@ -184,15 +192,19 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       {label.price && (
         <span style={{
           backgroundColor: DARK_GREEN,
-          color: '#fff',
-          fontSize: 22,
-          fontWeight: 800,
           padding: '6px 24px',
           borderRadius: 999,
           marginTop: 14,
-          position: 'relative' as const,
-          top: -3,
-        }}>${parseFloat(label.price).toFixed(2)}</span>
+          display: 'inline-block',
+        }}>
+          <span style={{
+            color: '#fff',
+            fontSize: 22,
+            fontWeight: 800,
+            display: 'inline-block',
+            transform: 'translateY(-4px)',
+          }}>${parseFloat(label.price).toFixed(2)}</span>
+        </span>
       )}
     </div>
   );
