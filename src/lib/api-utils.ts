@@ -38,37 +38,68 @@ const createPrismaClient = () => {
   });
 };
 
-// Lazy initialization - only create client when first accessed at runtime
-const getPrismaClient = (): PrismaClient => {
+// Lazy initialization - create client on first use at runtime
+let _prisma: PrismaClient | null = null;
+
+const getPrisma = (): PrismaClient => {
+  // Return cached instance
+  if (_prisma) return _prisma;
   if (globalThis.__prisma) {
-    return globalThis.__prisma;
+    _prisma = globalThis.__prisma;
+    return _prisma;
   }
   
-  const client = createPrismaClient();
-  if (client && process.env.NODE_ENV !== 'production') {
-    globalThis.__prisma = client;
-  } else if (client) {
-    globalThis.__prisma = client;
+  // Create new instance at runtime
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL not set at runtime');
+    throw new Error('Database not available');
   }
   
-  return client;
+  _prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+    log: ['error'],
+  });
+  
+  globalThis.__prisma = _prisma;
+  return _prisma;
 };
 
-// Export a proxy that lazily initializes prisma on first access
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_, prop) {
-    const client = getPrismaClient();
-    if (!client) {
-      throw new Error('Database not available - DATABASE_URL not set');
-    }
-    return (client as any)[prop];
-  },
-});
+// Export getter - all code should use prisma.xxx which triggers getPrisma()
+export const prisma = {
+  get item() { return getPrisma().item; },
+  get vendor() { return getPrisma().vendor; },
+  get invoice() { return getPrisma().invoice; },
+  get invoiceLineItem() { return getPrisma().invoiceLineItem; },
+  get itemPriceHistory() { return getPrisma().itemPriceHistory; },
+  get salesAggregate() { return getPrisma().salesAggregate; },
+  get inventoryItem() { return getPrisma().inventoryItem; },
+  get purchaseOrder() { return getPrisma().purchaseOrder; },
+  get purchaseOrderLineItem() { return getPrisma().purchaseOrderLineItem; },
+  get wastageRecord() { return getPrisma().wastageRecord; },
+  get discountRecord() { return getPrisma().discountRecord; },
+  get productDecision() { return getPrisma().productDecision; },
+  get rosterStaff() { return getPrisma().rosterStaff; },
+  get rosterShift() { return getPrisma().rosterShift; },
+  get weeklyRoster() { return getPrisma().weeklyRoster; },
+  get cafeLabelTemplate() { return getPrisma().cafeLabelTemplate; },
+  get publicHoliday() { return getPrisma().publicHoliday; },
+  get shopOpsTask() { return getPrisma().shopOpsTask; },
+  get shopOpsSchedule() { return getPrisma().shopOpsSchedule; },
+  get shopOpsCompletion() { return getPrisma().shopOpsCompletion; },
+  $queryRaw: (...args: any[]) => getPrisma().$queryRaw(...args),
+  $executeRaw: (...args: any[]) => getPrisma().$executeRaw(...args),
+  $transaction: (...args: any[]) => (getPrisma().$transaction as any)(...args),
+  $disconnect: () => getPrisma().$disconnect(),
+} as unknown as PrismaClient;
 
 // Gracefully disconnect Prisma on process exit
 const shutdown = async () => {
-  if (globalThis.__prisma) {
-    await globalThis.__prisma.$disconnect();
+  if (_prisma) {
+    await _prisma.$disconnect();
   }
 };
 
