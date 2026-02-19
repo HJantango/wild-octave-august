@@ -136,31 +136,29 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       }}>{label.name || 'Item Name'}</h2>
       
       {hasDietaryTags && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
           {label.vegan && (
             <span style={{
               backgroundColor: DARK_GREEN,
               color: '#fff',
-              fontSize: '8px',
+              fontSize: 13,
               fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: '999px',
+              padding: '4px 16px',
+              borderRadius: 999,
               letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              display: 'inline-block',
+              textTransform: 'uppercase' as const,
             }}>Vegan</span>
           )}
           {label.glutenFree && (
             <span style={{
               backgroundColor: DARK_GREEN,
               color: '#fff',
-              fontSize: '8px',
+              fontSize: 13,
               fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: '999px',
+              padding: '4px 16px',
+              borderRadius: 999,
               letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              display: 'inline-block',
+              textTransform: 'uppercase' as const,
             }}>GF</span>
           )}
         </div>
@@ -183,12 +181,11 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         <span style={{
           backgroundColor: DARK_GREEN,
           color: '#fff',
-          fontSize: '19px',
+          fontSize: 22,
           fontWeight: 800,
-          padding: '6px 19px',
-          borderRadius: '999px',
-          marginTop: '8px',
-          display: 'inline-block',
+          padding: '6px 24px',
+          borderRadius: 999,
+          marginTop: 14,
         }}>${parseFloat(label.price).toFixed(2)}</span>
       )}
     </div>
