@@ -1,97 +1,104 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/api-utils';
+import { NextRequest } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
-// GET - Load saved state
+// Use direct PrismaClient to avoid build-time issues
+const prisma = new PrismaClient();
+
+export const dynamic = 'force-dynamic';
+
+const SHELF_CHECKER_KEY = 'shelf-checker-state';
+
+interface ShelfCheckerState {
+  checkedItems: { [itemId: string]: boolean };
+  labelNeeds: { [itemId: string]: 'missing' | 'update' | null };
+  savedAt: string;
+}
+
 export async function GET() {
   try {
-    // Get the most recent shelf checker state
-    const state = await prisma.setting.findUnique({
-      where: { key: 'shelf_checker_state' }
+    console.log('📋 Loading shelf checker state from database...');
+    
+    const setting = await prisma.settings.findUnique({
+      where: { key: SHELF_CHECKER_KEY }
     });
 
-    if (!state) {
-      return NextResponse.json({ 
-        success: true, 
-        data: { checkedItems: {}, labelNeeds: {}, savedAt: null } 
+    if (setting) {
+      const state = setting.value as ShelfCheckerState;
+      console.log(`✅ Loaded shelf checker state from ${state.savedAt}`);
+      return createSuccessResponse({ 
+        ...state,
+        success: true 
+      });
+    } else {
+      // No saved state yet
+      return createSuccessResponse({ 
+        checkedItems: {}, 
+        labelNeeds: {}, 
+        savedAt: null,
+        success: false 
       });
     }
-
-    const parsed = JSON.parse(state.value);
-    return NextResponse.json({ 
-      success: true, 
-      data: {
-        ...parsed,
-        savedAt: state.updatedAt
-      }
-    });
-  } catch (error) {
-    console.error('Failed to load shelf checker state:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to load state' 
-    }, { status: 500 });
+  } catch (error: any) {
+    console.error('❌ Error loading shelf checker state:', error);
+    return createErrorResponse('SHELF_STATE_LOAD_ERROR', error.message, 500);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-// POST - Save state
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { checkedItems, labelNeeds } = body;
 
-    // Count stats for the backup
-    const checkedCount = Object.keys(checkedItems || {}).filter(k => checkedItems[k]).length;
-    const missingCount = Object.values(labelNeeds || {}).filter(v => v === 'missing').length;
-    const updateCount = Object.values(labelNeeds || {}).filter(v => v === 'update').length;
-
-    const stateData = JSON.stringify({
-      checkedItems: checkedItems || {},
-      labelNeeds: labelNeeds || {},
-      stats: {
-        checkedCount,
-        missingLabels: missingCount,
-        needsUpdate: updateCount,
-      },
-      savedAt: new Date().toISOString(),
-      savedBy: 'manual'
-    });
-
-    // Upsert the state
-    await prisma.setting.upsert({
-      where: { key: 'shelf_checker_state' },
-      update: { value: stateData },
-      create: { key: 'shelf_checker_state', value: stateData }
-    });
-
-    // Also save a backup with timestamp (keep last 10)
-    const backupKey = `shelf_checker_backup_${Date.now()}`;
-    await prisma.setting.create({
-      data: { key: backupKey, value: stateData }
-    });
-
-    // Clean up old backups (keep last 10)
-    const backups = await prisma.setting.findMany({
-      where: { key: { startsWith: 'shelf_checker_backup_' } },
-      orderBy: { key: 'desc' },
-      skip: 10
-    });
-    
-    if (backups.length > 0) {
-      await prisma.setting.deleteMany({
-        where: { key: { in: backups.map(b => b.key) } }
-      });
+    if (!checkedItems || !labelNeeds) {
+      return createErrorResponse('INVALID_DATA', 'Missing checkedItems or labelNeeds', 400);
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Saved! ${checkedCount} items checked, ${missingCount} missing labels, ${updateCount} need updates`,
-      savedAt: new Date().toISOString()
+    console.log('💾 Saving shelf checker state to database...');
+    
+    const now = new Date().toISOString();
+    const state: ShelfCheckerState = {
+      checkedItems,
+      labelNeeds,
+      savedAt: now
+    };
+
+    // Upsert the setting
+    await prisma.settings.upsert({
+      where: { key: SHELF_CHECKER_KEY },
+      create: {
+        key: SHELF_CHECKER_KEY,
+        value: state,
+        description: 'Shelf price checker progress state'
+      },
+      update: {
+        value: state,
+        updatedAt: new Date()
+      }
     });
-  } catch (error) {
-    console.error('Failed to save shelf checker state:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to save state' 
-    }, { status: 500 });
+
+    const checkedCount = Object.values(checkedItems).filter(Boolean).length;
+    const missingLabels = Object.values(labelNeeds).filter(v => v === 'missing').length;
+    const updateLabels = Object.values(labelNeeds).filter(v => v === 'update').length;
+
+    console.log(`✅ Saved shelf checker state: ${checkedCount} checked, ${missingLabels} missing labels, ${updateLabels} updates`);
+    
+    return createSuccessResponse({ 
+      message: `Saved successfully at ${new Date(now).toLocaleString()}`, 
+      savedAt: now,
+      stats: {
+        checkedCount,
+        missingLabels,
+        updateLabels
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error saving shelf checker state:', error);
+    return createErrorResponse('SHELF_STATE_SAVE_ERROR', error.message, 500);
+  } finally {
+    await prisma.$disconnect();
   }
 }
