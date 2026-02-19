@@ -129,10 +129,17 @@ export async function POST(request: NextRequest) {
             updateActions.push('cost');
           }
 
-          // Update SKU if available
-          if (defaultVariation?.sku && !existingItem.sku) {
-            updateData.sku = defaultVariation.sku;
-            updateActions.push('sku');
+          // Update SKU and barcode if available
+          if (defaultVariation?.sku) {
+            if (!existingItem.sku) {
+              updateData.sku = defaultVariation.sku;
+              updateActions.push('sku');
+            }
+            // Also set barcode for scanner lookup
+            if (!existingItem.barcode) {
+              updateData.barcode = defaultVariation.sku;
+              updateActions.push('barcode');
+            }
           }
 
           // Update vendor if we have one
@@ -167,6 +174,7 @@ export async function POST(request: NextRequest) {
               currentCostExGst: costExGst,
               currentMarkup: markup,
               sku: defaultVariation?.sku || undefined,
+              barcode: defaultVariation?.sku || undefined, // Use SKU as barcode for scanner lookup
               vendorId: dbVendorId || undefined,
             },
           });
