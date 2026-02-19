@@ -80,6 +80,10 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
               border-radius: 999px;
               letter-spacing: 0.08em;
               text-transform: uppercase;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              line-height: 1;
             ">${badge}</span>
           `).join('')}
         </div>
@@ -109,6 +113,10 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
           padding: 1.5mm 5mm;
           border-radius: 999px;
           margin-top: 2mm;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
         ">$${parseFloat(label.price).toFixed(2)}</span>
       ` : ''}
     </div>
