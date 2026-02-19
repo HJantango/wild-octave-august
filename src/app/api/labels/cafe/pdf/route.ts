@@ -76,14 +76,14 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
               font-family: Arial, sans-serif;
               font-size: 2.25mm;
               font-weight: 700;
-              padding: 1mm 2.5mm;
+              padding: 0 2.5mm;
+              height: 4mm;
+              line-height: 4mm;
               border-radius: 999px;
               letter-spacing: 0.08em;
               text-transform: uppercase;
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              line-height: 1;
+              display: inline-block;
+              vertical-align: middle;
             ">${badge}</span>
           `).join('')}
         </div>
@@ -110,13 +110,13 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
           font-family: Arial, sans-serif;
           font-size: 5mm;
           font-weight: 800;
-          padding: 1.5mm 5mm;
+          padding: 0 5mm;
+          height: 8mm;
+          line-height: 8mm;
           border-radius: 999px;
           margin-top: 2mm;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          line-height: 1;
+          display: inline-block;
+          vertical-align: middle;
         ">$${parseFloat(label.price).toFixed(2)}</span>
       ` : ''}
     </div>
