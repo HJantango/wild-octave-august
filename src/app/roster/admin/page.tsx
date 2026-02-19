@@ -205,7 +205,7 @@ export default function AdminPage() {
       salaryType: 'hourly',
       weeklySalary: null,
       baseHourlyRate: parseFloat(newStaffRate),
-      taxRate: 30, // Default 30%
+      taxRate: isJunior ? 0 : 30, // 0% for juniors (under tax-free threshold), 30% default for others
       superRate: isJunior ? null : 11.5, // No super for juniors by default
       email: newStaffEmail || undefined,
       phone: newStaffPhone || undefined,
@@ -718,11 +718,13 @@ export default function AdminPage() {
                       <Input
                         type="number"
                         step="0.5"
+                        min="0"
+                        max="100"
                         value={person.taxRate}
-                        placeholder="30"
-                        onChange={(e) => updateStaff(person.id, 'taxRate', parseFloat(e.target.value) || 30)}
+                        placeholder={person.role.toLowerCase().includes('junior') ? '0' : '30'}
+                        onChange={(e) => updateStaff(person.id, 'taxRate', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                       />
-                      <p className="text-xs text-gray-500 mt-1">Withholding tax percentage (e.g., 30 = 30%)</p>
+                      <p className="text-xs text-gray-500 mt-1">Withholding tax % (0 for juniors under tax-free threshold)</p>
                     </div>
                     <div>
                       <Label>Super Rate (%)</Label>
