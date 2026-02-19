@@ -138,28 +138,44 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       {hasDietaryTags && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
           {label.vegan && (
-            <span style={{
+            <div style={{
               backgroundColor: DARK_GREEN,
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 700,
-              padding: '2px 16px 6px 16px',
               borderRadius: 999,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase' as const,
-            }}>Vegan</span>
+              padding: '4px 16px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 22,
+            }}>
+              <span style={{
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase' as const,
+                lineHeight: 1,
+              }}>Vegan</span>
+            </div>
           )}
           {label.glutenFree && (
-            <span style={{
+            <div style={{
               backgroundColor: DARK_GREEN,
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 700,
-              padding: '2px 16px 6px 16px',
               borderRadius: 999,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase' as const,
-            }}>GF</span>
+              padding: '4px 16px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 22,
+            }}>
+              <span style={{
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase' as const,
+                lineHeight: 1,
+              }}>GF</span>
+            </div>
           )}
         </div>
       )}
@@ -178,15 +194,24 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       )}
       
       {label.price && (
-        <span style={{
+        <div style={{
           backgroundColor: DARK_GREEN,
-          color: '#fff',
-          fontSize: 22,
-          fontWeight: 800,
-          padding: '2px 24px 10px 24px',
           borderRadius: 999,
           marginTop: 14,
-        }}>${parseFloat(label.price).toFixed(2)}</span>
+          padding: '6px 24px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 34,
+        }}>
+          <span style={{
+            color: '#fff',
+            fontSize: 22,
+            fontWeight: 800,
+            lineHeight: 1,
+            display: 'block',
+          }}>${parseFloat(label.price).toFixed(2)}</span>
+        </div>
       )}
     </div>
   );
