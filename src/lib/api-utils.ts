@@ -7,100 +7,16 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-const createPrismaClient = () => {
-  // Skip during build when DATABASE_URL isn't available
-  if (!process.env.DATABASE_URL) {
-    return null as unknown as PrismaClient;
-  }
-  
-  // 🛡️ SAFEGUARD: Prevent connecting to production database in development mode
-  const isDevMode = process.env.NODE_ENV === 'development';
-  const isProdDb = process.env.DATABASE_URL?.includes('railway') || 
-                   process.env.DATABASE_URL?.includes('proxy.rlwy.net');
-  
-  if (isDevMode && isProdDb) {
-    console.error('\n🚨 ═══════════════════════════════════════════════════════════════');
-    console.error('🚨 DANGER: Attempting to connect to PRODUCTION database in dev mode!');
-    console.error('🚨 ═══════════════════════════════════════════════════════════════');
-    console.error('🚨 Your .env.local should use the LOCAL database URL:');
-    console.error('🚨 DATABASE_URL="postgresql://localdev:localdev123@localhost:5433/wildoctave_dev"');
-    console.error('🚨 ═══════════════════════════════════════════════════════════════\n');
-    throw new Error('Production database connection blocked in development mode. Check your .env.local');
-  }
-  
-  return new PrismaClient({
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  });
-};
+// Simple prisma client - rely on Railway setting DATABASE_URL at runtime
+export const prisma = globalThis.__prisma ?? new PrismaClient();
 
-// Lazy initialization - create client on first use at runtime
-let _prisma: PrismaClient | null = null;
-
-const getPrisma = (): PrismaClient => {
-  // Return cached instance
-  if (_prisma) return _prisma;
-  if (globalThis.__prisma) {
-    _prisma = globalThis.__prisma;
-    return _prisma;
-  }
-  
-  // Create new instance at runtime
-  if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL not set at runtime');
-    throw new Error('Database not available');
-  }
-  
-  _prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
-    log: ['error'],
-  });
-  
-  globalThis.__prisma = _prisma;
-  return _prisma;
-};
-
-// Export getter - all code should use prisma.xxx which triggers getPrisma()
-export const prisma = {
-  get item() { return getPrisma().item; },
-  get vendor() { return getPrisma().vendor; },
-  get invoice() { return getPrisma().invoice; },
-  get invoiceLineItem() { return getPrisma().invoiceLineItem; },
-  get itemPriceHistory() { return getPrisma().itemPriceHistory; },
-  get salesAggregate() { return getPrisma().salesAggregate; },
-  get inventoryItem() { return getPrisma().inventoryItem; },
-  get purchaseOrder() { return getPrisma().purchaseOrder; },
-  get purchaseOrderLineItem() { return getPrisma().purchaseOrderLineItem; },
-  get wastageRecord() { return getPrisma().wastageRecord; },
-  get discountRecord() { return getPrisma().discountRecord; },
-  get productDecision() { return getPrisma().productDecision; },
-  get rosterStaff() { return getPrisma().rosterStaff; },
-  get rosterShift() { return getPrisma().rosterShift; },
-  get weeklyRoster() { return getPrisma().weeklyRoster; },
-  get cafeLabelTemplate() { return getPrisma().cafeLabelTemplate; },
-  get publicHoliday() { return getPrisma().publicHoliday; },
-  get shopOpsTask() { return getPrisma().shopOpsTask; },
-  get shopOpsSchedule() { return getPrisma().shopOpsSchedule; },
-  get shopOpsCompletion() { return getPrisma().shopOpsCompletion; },
-  $queryRaw: (...args: any[]) => getPrisma().$queryRaw(...args),
-  $executeRaw: (...args: any[]) => getPrisma().$executeRaw(...args),
-  $transaction: (...args: any[]) => (getPrisma().$transaction as any)(...args),
-  $disconnect: () => getPrisma().$disconnect(),
-} as unknown as PrismaClient;
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.__prisma = prisma;
+}
 
 // Gracefully disconnect Prisma on process exit
 const shutdown = async () => {
-  if (_prisma) {
-    await _prisma.$disconnect();
-  }
+  await prisma.$disconnect();
 };
 
 process.on('SIGINT', shutdown);
