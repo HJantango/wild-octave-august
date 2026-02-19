@@ -401,10 +401,36 @@ export default function RosterPage() {
     }
   };
 
-  const isPublicHoliday = async (date: Date): Promise<boolean> => {
-    // For now, return false - we could implement this by checking the public_holidays table
-    // or add a simple array of known public holidays
-    return false;
+  // Cache for public holidays to avoid repeated API calls
+  const [publicHolidaysCache, setPublicHolidaysCache] = useState<Set<string>>(new Set());
+  const [holidaysLoaded, setHolidaysLoaded] = useState(false);
+
+  // Load public holidays for the current week on mount
+  useEffect(() => {
+    const loadPublicHolidays = async () => {
+      try {
+        const weekStart = new Date(currentWeek);
+        const weekEnd = new Date(currentWeek);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        const response = await fetch(`/api/roster/public-holidays?start=${weekStart.toISOString()}&end=${weekEnd.toISOString()}`);
+        if (response.ok) {
+          const holidays = await response.json();
+          const holidayDates = new Set<string>(holidays.map((h: { date: string }) => h.date.split('T')[0]));
+          setPublicHolidaysCache(holidayDates);
+        }
+      } catch (error) {
+        console.error('Failed to load public holidays:', error);
+      } finally {
+        setHolidaysLoaded(true);
+      }
+    };
+    loadPublicHolidays();
+  }, [currentWeek]);
+
+  const isPublicHoliday = (date: Date): boolean => {
+    const dateStr = date.toISOString().split('T')[0];
+    return publicHolidaysCache.has(dateStr);
   };
 
   const calculateShiftCost = (shift: RosterShift, date: Date) => {
@@ -416,17 +442,19 @@ export default function RosterPage() {
 
     let rate = shift.staff.baseHourlyRate;
 
-    // Apply employee-specific penalty rates
-    const dayOfWeek = date.getDay();
+    // Check for public holiday first (highest priority)
+    if (isPublicHoliday(date)) {
+      rate = shift.staff.publicHolidayHourlyRate || shift.staff.baseHourlyRate * 2.5; // Default 2.5x if not set
+    } else {
+      // Apply employee-specific penalty rates for weekends
+      const dayOfWeek = date.getDay();
 
-    if (dayOfWeek === 6) { // Saturday
-      rate = shift.staff.saturdayHourlyRate || shift.staff.baseHourlyRate;
-    } else if (dayOfWeek === 0) { // Sunday
-      rate = shift.staff.sundayHourlyRate || shift.staff.baseHourlyRate;
+      if (dayOfWeek === 6) { // Saturday
+        rate = shift.staff.saturdayHourlyRate || shift.staff.baseHourlyRate;
+      } else if (dayOfWeek === 0) { // Sunday
+        rate = shift.staff.sundayHourlyRate || shift.staff.baseHourlyRate;
+      }
     }
-
-    // TODO: Check for public holidays and apply publicHolidayHourlyRate
-    // This would require an async check against the public_holidays table
 
     return rate * workedHours;
   };
