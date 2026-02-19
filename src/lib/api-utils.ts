@@ -38,16 +38,38 @@ const createPrismaClient = () => {
   });
 };
 
-// Initialize Prisma client with proper connection pooling (lazy for build)
-export const prisma = globalThis.__prisma ?? createPrismaClient();
+// Lazy initialization - only create client when first accessed at runtime
+const getPrismaClient = (): PrismaClient => {
+  if (globalThis.__prisma) {
+    return globalThis.__prisma;
+  }
+  
+  const client = createPrismaClient();
+  if (client && process.env.NODE_ENV !== 'production') {
+    globalThis.__prisma = client;
+  } else if (client) {
+    globalThis.__prisma = client;
+  }
+  
+  return client;
+};
 
-if (process.env.NODE_ENV === 'development' && prisma) {
-  globalThis.__prisma = prisma;
-}
+// Export a proxy that lazily initializes prisma on first access
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    const client = getPrismaClient();
+    if (!client) {
+      throw new Error('Database not available - DATABASE_URL not set');
+    }
+    return (client as any)[prop];
+  },
+});
 
 // Gracefully disconnect Prisma on process exit
 const shutdown = async () => {
-  await prisma.$disconnect();
+  if (globalThis.__prisma) {
+    await globalThis.__prisma.$disconnect();
+  }
 };
 
 process.on('SIGINT', shutdown);
