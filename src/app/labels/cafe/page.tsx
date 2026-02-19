@@ -106,7 +106,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
-        padding: '5mm',
+        padding: '10mm',
         boxSizing: 'border-box',
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
@@ -115,7 +115,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       {label.organic && (
         <p style={{
           fontFamily: "'Dancing Script', cursive",
-          fontSize: '7mm',
+          fontSize: '8mm',
           color: DARK_GREEN,
           margin: '0 0 1mm 0',
           lineHeight: 1.1,
@@ -129,9 +129,9 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         color: DARK_GREEN,
         textTransform: 'uppercase',
         lineHeight: 1.1,
-        margin: '1mm 0 2mm 0',
+        margin: '1mm 0 3mm 0',
         letterSpacing: '0.02em',
-        maxWidth: '90mm',
+        maxWidth: '80mm',
         wordBreak: 'break-word',
       }}>{label.name || 'Item Name'}</h2>
       
@@ -141,9 +141,9 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
             <span style={{
               backgroundColor: DARK_GREEN,
               color: '#fff',
-              fontSize: '3mm',
+              fontSize: '2.25mm',
               fontWeight: 700,
-              padding: '1mm 3mm',
+              padding: '1mm 2.5mm',
               borderRadius: '999px',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -153,9 +153,9 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
             <span style={{
               backgroundColor: DARK_GREEN,
               color: '#fff',
-              fontSize: '3mm',
+              fontSize: '2.25mm',
               fontWeight: 700,
-              padding: '1mm 3mm',
+              padding: '1mm 2.5mm',
               borderRadius: '999px',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -166,12 +166,12 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       
       {label.ingredients && (
         <p style={{
-          fontSize: '2.5mm',
+          fontSize: '3.5mm',
           color: DARK_GREEN,
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
           lineHeight: 1.3,
-          maxWidth: '90mm',
+          maxWidth: '80mm',
           margin: 0,
           opacity: 0.85,
         }}>{label.ingredients}</p>
@@ -185,7 +185,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
           fontWeight: 800,
           padding: '1.5mm 5mm',
           borderRadius: '999px',
-          marginTop: '3mm',
+          marginTop: '2mm',
         }}>${parseFloat(label.price).toFixed(2)}</span>
       )}
     </div>
