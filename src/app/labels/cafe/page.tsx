@@ -147,11 +147,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
               borderRadius: '999px',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '4mm',
-              lineHeight: 1,
+              lineHeight: '2.25mm',
             }}>Vegan</span>
           )}
           {label.glutenFree && (
@@ -164,11 +160,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
               borderRadius: '999px',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '4mm',
-              lineHeight: 1,
+              lineHeight: '2.25mm',
             }}>GF</span>
           )}
         </div>
@@ -196,11 +188,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
           padding: '1.5mm 5mm',
           borderRadius: '999px',
           marginTop: '2mm',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '8mm',
-          lineHeight: 1,
+          lineHeight: '5mm',
         }}>${parseFloat(label.price).toFixed(2)}</span>
       )}
     </div>
