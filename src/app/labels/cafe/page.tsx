@@ -129,7 +129,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         color: DARK_GREEN,
         textTransform: 'uppercase',
         lineHeight: 1.1,
-        margin: '1mm 0 3mm 0',
+        margin: '1mm 0 5mm 0',
         letterSpacing: '0.02em',
         maxWidth: '80mm',
         wordBreak: 'break-word',
@@ -151,7 +151,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase' as const,
                 display: 'inline-block',
-                transform: 'translateY(-3px)',
+                transform: 'translateY(-4px)',
               }}>Vegan</span>
             </span>
           )}
@@ -169,7 +169,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase' as const,
                 display: 'inline-block',
-                transform: 'translateY(-3px)',
+                transform: 'translateY(-4px)',
               }}>GF</span>
             </span>
           )}
