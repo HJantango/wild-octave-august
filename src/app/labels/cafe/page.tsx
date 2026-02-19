@@ -183,7 +183,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
           color: '#fff',
           fontSize: 22,
           fontWeight: 800,
-          padding: '3px 24px 9px 24px',
+          padding: '2px 24px 10px 24px',
           borderRadius: 999,
           marginTop: 14,
         }}>${parseFloat(label.price).toFixed(2)}</span>
