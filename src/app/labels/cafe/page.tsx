@@ -136,31 +136,31 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       }}>{label.name || 'Item Name'}</h2>
       
       {hasDietaryTags && (
-        <div style={{ display: 'flex', gap: '2mm', marginBottom: '2mm' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
           {label.vegan && (
             <span style={{
               backgroundColor: DARK_GREEN,
               color: '#fff',
-              fontSize: '2.25mm',
+              fontSize: '8px',
               fontWeight: 700,
-              padding: '1mm 2.5mm',
+              padding: '4px 10px',
               borderRadius: '999px',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              lineHeight: '2.25mm',
+              display: 'inline-block',
             }}>Vegan</span>
           )}
           {label.glutenFree && (
             <span style={{
               backgroundColor: DARK_GREEN,
               color: '#fff',
-              fontSize: '2.25mm',
+              fontSize: '8px',
               fontWeight: 700,
-              padding: '1mm 2.5mm',
+              padding: '4px 10px',
               borderRadius: '999px',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              lineHeight: '2.25mm',
+              display: 'inline-block',
             }}>GF</span>
           )}
         </div>
@@ -183,12 +183,12 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         <span style={{
           backgroundColor: DARK_GREEN,
           color: '#fff',
-          fontSize: '5mm',
+          fontSize: '19px',
           fontWeight: 800,
-          padding: '1.5mm 5mm',
+          padding: '6px 19px',
           borderRadius: '999px',
-          marginTop: '2mm',
-          lineHeight: '5mm',
+          marginTop: '8px',
+          display: 'inline-block',
         }}>${parseFloat(label.price).toFixed(2)}</span>
       )}
     </div>
