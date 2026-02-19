@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/api-utils';
 
 // One-time migration endpoint to create cafe_label_templates table
 export async function POST() {
-  const prisma = new PrismaClient();
-  
   try {
+    if (!prisma) {
+      return NextResponse.json(
+        { success: false, error: 'Database not available' },
+        { status: 503 }
+      );
+    }
+    
     // Check if table already exists
     const tableExists = await prisma.$queryRaw<{ exists: boolean }[]>`
       SELECT EXISTS (
@@ -16,7 +21,6 @@ export async function POST() {
     `;
 
     if (tableExists[0]?.exists) {
-      await prisma.$disconnect();
       return NextResponse.json({ 
         success: true, 
         message: 'Table cafe_label_templates already exists' 
@@ -54,8 +58,6 @@ export async function POST() {
       { success: false, error: String(error) },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
