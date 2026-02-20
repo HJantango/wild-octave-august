@@ -61,28 +61,31 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
         color: ${DARK_GREEN};
         text-transform: uppercase;
         line-height: 1.1;
-        margin: 1mm 0 3mm 0;
+        margin: 1mm 0 8mm 0;
         letter-spacing: 0.02em;
         max-width: 80mm;
         word-break: break-word;
       ">${label.name || 'Item Name'}</h2>
       
       ${hasDietaryTags ? `
-        <div style="display: flex; gap: 2mm; margin-bottom: 2mm;">
+        <div style="display: flex; gap: 2mm; margin-bottom: 3mm;">
           ${badges.map(badge => `
             <span style="
               background-color: ${DARK_GREEN};
               color: #fff;
               font-family: Arial, sans-serif;
-              font-size: 2.25mm;
+              font-size: 2.5mm;
               font-weight: 700;
-              padding: 1mm 2.5mm;
+              padding: 0.5mm 3mm;
               border-radius: 999px;
               letter-spacing: 0.08em;
               text-transform: uppercase;
-              display: inline-table;
-              height: 4mm;
-            "><span style="display: table-cell; vertical-align: middle;">${badge}</span></span>
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              height: 3.5mm;
+              min-height: 3.5mm;
+            ">${badge}</span>
           `).join('')}
         </div>
       ` : ''}
@@ -106,14 +109,17 @@ function generateLabelHtml(label: CafeLabel, index: number): string {
           background-color: ${DARK_GREEN};
           color: #fff;
           font-family: Arial, sans-serif;
-          font-size: 5mm;
+          font-size: 4.5mm;
           font-weight: 800;
-          padding: 1.5mm 5mm;
+          padding: 0.5mm 4mm;
           border-radius: 999px;
-          margin-top: 2mm;
-          display: inline-table;
-          height: 8mm;
-        "><span style="display: table-cell; vertical-align: middle;">$${parseFloat(label.price).toFixed(2)}</span></span>
+          margin-top: 3mm;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          height: 5.5mm;
+          min-height: 5.5mm;
+        ">$${parseFloat(label.price).toFixed(2)}</span>
       ` : ''}
     </div>
   `;
