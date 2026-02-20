@@ -129,43 +129,40 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         color: DARK_GREEN,
         textTransform: 'uppercase',
         lineHeight: 0.95,
-        margin: '1mm 0 12mm 0', // MASSIVE gap below title for testing
+        margin: '1mm 0 6mm 0', // Perfect spacing - not too much, not too little
         letterSpacing: '0.02em',
         maxWidth: '80mm',
         wordBreak: 'break-word',
-        border: '1px solid red', // DEBUG: Red border to see if styles are taking effect
       }}>{label.name || 'Item Name'}</h2>
       
       {hasDietaryTags && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2mm', marginBottom: '3mm' }}>
           {label.vegan && (
             <span style={{
-              backgroundColor: 'orange', // DEBUG: Orange background to see if styles work
-              border: '2px solid blue', // DEBUG: Blue border  
-              padding: '0.5mm 3mm',
+              backgroundColor: DARK_GREEN,
+              padding: '0 3mm', // No vertical padding - let height/flexbox handle it
               borderRadius: '999px',
-              height: '2mm', // DEBUG: Super slim to test
-              minHeight: '2mm',
+              height: '3.5mm', // Slim but readable
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
               <span style={{
                 color: '#fff',
-                fontSize: '2.5mm', // Match PDF route font size
+                fontSize: '2.8mm', // Readable but proportional
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase' as const,
+                lineHeight: 1, // Tight line height for centering
               }}>Vegan</span>
             </span>
           )}
           {label.glutenFree && (
             <span style={{
               backgroundColor: DARK_GREEN,
-              padding: '0.5mm 3mm', // Match PDF route - tighter padding
+              padding: '0 3mm', // No vertical padding - let height/flexbox handle it
               borderRadius: '999px',
-              height: '3.5mm', // Match PDF route - slimmer
-              minHeight: '3.5mm',
+              height: '3.5mm', // Slim but readable
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
