@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed Cafe Label Badges Test</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Playfair+Display:wght@700;800;900&display=swap"
+    />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        
+        .test-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+        }
+        
+        /* UPDATED STYLES FROM THE REACT COMPONENT */
+        .label-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          overflow: hidden;
+          padding: 36px 32px;
+          border-radius: 14px;
+          min-height: 320px;
+          width: 300px;
+          box-sizing: border-box;
+          background-color: #E2E3F0; /* Lavender */
+        }
+        .label-organic {
+          font-family: 'Dancing Script', cursive;
+          font-size: 34px;
+          color: #054921;
+          margin-bottom: 4px;
+          line-height: 1.1;
+        }
+        .label-title {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-weight: 800;
+          font-size: 38px;
+          color: #054921;
+          text-transform: uppercase;
+          line-height: 1.15;
+          margin: 8px 0 12px;
+          letter-spacing: 0.02em;
+          max-width: 100%;
+          word-break: break-word;
+        }
+        .label-badges {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        
+        /* FIXED BADGE STYLES */
+        .label-badge {
+          background-color: #054921;
+          color: #fff;
+          font-size: 13px;
+          font-weight: 700;
+          padding: 2px 16px;
+          border-radius: 999px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          height: 20px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .label-ingredients {
+          font-size: 13px;
+          color: #054921;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          line-height: 1.5;
+          max-width: 90%;
+          margin: 0 auto;
+          opacity: 0.85;
+        }
+        .label-price {
+          background-color: #054921;
+          color: #fff;
+          font-size: 22px;
+          font-weight: 800;
+          padding: 6px 24px;
+          border-radius: 999px;
+          margin-top: 14px;
+          display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fixed Cafe Label Badges Test</h1>
+    
+    <div class="test-section">
+        <h2>✅ FIXED - Slim Green Pills for Badges</h2>
+        <div class="label-card">
+            <p class="label-organic">Organic</p>
+            <h2 class="label-title">Chocolate Avocado Mousse</h2>
+            <div class="label-badges">
+                <span class="label-badge">Vegan</span>
+                <span class="label-badge">GF</span>
+            </div>
+            <p class="label-ingredients">Avocado, raw cacao, maple syrup, coconut cream, vanilla extract</p>
+            <span class="label-price">$9.50</span>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Badge Examples</h2>
+        <p>Fixed Vegan badge: <span class="label-badge">Vegan</span></p>
+        <p>Fixed GF badge: <span class="label-badge">GF</span></p>
+        <p>Multiple badges: <span class="label-badge">Vegan</span> <span class="label-badge">GF</span> <span class="label-badge">Organic</span></p>
+        <p>Price pill (unchanged): <span class="label-price">$12.95</span></p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Different Backgrounds</h2>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="label-card" style="background-color: #A9D196;"> <!-- Sage -->
+                <p class="label-organic">Organic</p>
+                <h2 class="label-title">Green Smoothie Bowl</h2>
+                <div class="label-badges">
+                    <span class="label-badge">Vegan</span>
+                    <span class="label-badge">GF</span>
+                </div>
+                <span class="label-price">$14.50</span>
+            </div>
+            
+            <div class="label-card" style="background-color: #FCF9C1;"> <!-- Cream -->
+                <p class="label-organic">Organic</p>
+                <h2 class="label-title">Raw Cheesecake</h2>
+                <div class="label-badges">
+                    <span class="label-badge">Vegan</span>
+                </div>
+                <span class="label-price">$8.95</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

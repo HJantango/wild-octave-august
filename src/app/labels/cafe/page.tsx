@@ -502,10 +502,14 @@ export default function CafeLabelsPage() {
           color: #fff;
           font-size: 13px;
           font-weight: 700;
-          padding: 4px 16px;
+          padding: 2px 16px;
           border-radius: 999px;
           letter-spacing: 0.08em;
           text-transform: uppercase;
+          height: 20px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         .label-ingredients {
           font-size: 13px;

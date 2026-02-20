@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cafe Label Test</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Playfair+Display:wght@700;800;900&display=swap"
+    />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        
+        .test-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+        }
+        
+        /* Current screen styles from the code */
+        .label-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          overflow: hidden;
+          padding: 36px 32px;
+          border-radius: 14px;
+          min-height: 320px;
+          width: 300px;
+          box-sizing: border-box;
+          background-color: #E2E3F0; /* Lavender */
+        }
+        .label-organic {
+          font-family: 'Dancing Script', cursive;
+          font-size: 34px;
+          color: #054921;
+          margin-bottom: 4px;
+          line-height: 1.1;
+        }
+        .label-title {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-weight: 800;
+          font-size: 38px;
+          color: #054921;
+          text-transform: uppercase;
+          line-height: 1.15;
+          margin: 8px 0 12px;
+          letter-spacing: 0.02em;
+          max-width: 100%;
+          word-break: break-word;
+        }
+        .label-badges {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        .label-badge {
+          background-color: #054921;
+          color: #fff;
+          font-size: 13px;
+          font-weight: 700;
+          padding: 4px 16px;
+          border-radius: 999px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .label-ingredients {
+          font-size: 13px;
+          color: #054921;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          line-height: 1.5;
+          max-width: 90%;
+          margin: 0 auto;
+          opacity: 0.85;
+        }
+        .label-price {
+          background-color: #054921;
+          color: #fff;
+          font-size: 22px;
+          font-weight: 800;
+          padding: 6px 24px;
+          border-radius: 999px;
+          margin-top: 14px;
+          display: inline-block;
+        }
+        
+        /* Fixed version with slim badges */
+        .label-badge-fixed {
+          background-color: #054921;
+          color: #fff;
+          font-size: 13px;
+          font-weight: 700;
+          padding: 2px 16px; /* Reduced vertical padding */
+          border-radius: 999px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          height: 20px; /* Fixed height to make them slim */
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cafe Label Styling Test</h1>
+    
+    <div class="test-section">
+        <h2>Current Implementation (from React code)</h2>
+        <div class="label-card">
+            <p class="label-organic">Organic</p>
+            <h2 class="label-title">Chocolate Avocado Mousse</h2>
+            <div class="label-badges">
+                <span class="label-badge">Vegan</span>
+                <span class="label-badge">GF</span>
+            </div>
+            <p class="label-ingredients">Avocado, raw cacao, maple syrup, coconut cream, vanilla extract</p>
+            <span class="label-price">$9.50</span>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Fixed Version (Slimmer Badges)</h2>
+        <div class="label-card">
+            <p class="label-organic">Organic</p>
+            <h2 class="label-title">Chocolate Avocado Mousse</h2>
+            <div class="label-badges">
+                <span class="label-badge-fixed">Vegan</span>
+                <span class="label-badge-fixed">GF</span>
+            </div>
+            <p class="label-ingredients">Avocado, raw cacao, maple syrup, coconut cream, vanilla extract</p>
+            <span class="label-price">$9.50</span>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Badge Comparison</h2>
+        <p>Current badge: <span class="label-badge">Vegan</span></p>
+        <p>Fixed slim badge: <span class="label-badge-fixed">Vegan</span></p>
+        <p>Current price pill: <span class="label-price">$9.50</span></p>
+    </div>
+</body>
+</html>
