@@ -129,7 +129,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         color: DARK_GREEN,
         textTransform: 'uppercase',
         lineHeight: 0.95,
-        margin: '1mm 0 6mm 0', // Perfect spacing - not too much, not too little
+        margin: '1mm 0 15mm 0', // EXTREME gap for testing
         letterSpacing: '0.02em',
         maxWidth: '80mm',
         wordBreak: 'break-word',
@@ -139,13 +139,14 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2mm', marginBottom: '3mm' }}>
           {label.vegan && (
             <span style={{
-              backgroundColor: DARK_GREEN,
-              padding: '0 3mm', // No vertical padding - let height/flexbox handle it
-              borderRadius: '999px',
-              height: '3.5mm', // Slim but readable
+              backgroundColor: 'red', // EXTREME: Red background
+              padding: '0 3mm',
+              borderRadius: '999px', 
+              height: '1.5mm', // EXTREME: Super super slim
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
+              border: '1px solid yellow', // EXTREME: Yellow border
             }}>
               <span style={{
                 color: '#fff',
