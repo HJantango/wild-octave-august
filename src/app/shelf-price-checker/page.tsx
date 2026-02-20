@@ -371,6 +371,56 @@ export default function ShelfPriceCheckerPage() {
     }
   };
 
+  // Print single scanned item immediately
+  const handlePrintScannedItem = async (item: ShelfItem) => {
+    if (!dymoAvailable) return;
+    
+    const label: ShelfLabel = {
+      productName: item.name,
+      price: formatPriceForLabel(item.price),
+    };
+    
+    setPrinting(true);
+    setPrintProgress({ current: 0, total: 1 });
+    
+    try {
+      const result = await printLabels(
+        [label], 
+        selectedPrinter,
+        (current, total) => setPrintProgress({ current, total })
+      );
+      
+      if (result.success > 0) {
+        console.log(`✅ Printed label for: ${item.name}`);
+        // Don't show alert for single prints, just clear barcode result
+        setBarcodeResult(null);
+        setBarcodeInput('');
+      } else {
+        alert('❌ Failed to print label. Is DYMO Connect running?');
+      }
+    } catch (err) {
+      console.error('Print error:', err);
+      alert('❌ Print error. Check DYMO Connect is running.');
+    } finally {
+      setPrinting(false);
+      setPrintProgress({ current: 0, total: 0 });
+    }
+  };
+
+  // Add scanned item to print queue
+  const handleAddScannedToQueue = (item: ShelfItem) => {
+    setLabelNeeds(prev => {
+      const newState = { ...prev, [item.id]: 'missing' as const };
+      saveLabelState(newState);
+      return newState;
+    });
+    
+    // Clear barcode result and show success
+    setBarcodeResult(null);
+    setBarcodeInput('');
+    console.log(`📋 Added to print queue: ${item.name}`);
+  };
+
   // Barcode lookup function - now uses dedicated API that searches ALL items
   const handleBarcodeLookup = useCallback(async (barcode: string) => {
     const trimmed = barcode.trim();
@@ -697,13 +747,44 @@ export default function ShelfPriceCheckerPage() {
               {/* Result Display */}
               {barcodeResult && (
                 <div className="flex-1 bg-green-100 border border-green-300 rounded-lg p-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
                       <div className="font-semibold text-green-900 text-lg">{barcodeResult.name}</div>
-                      <div className="text-green-700 text-sm">
+                      <div className="text-green-700 text-sm mb-2">
                         Shelf: <span className="font-medium">{barcodeResult.categoryName}</span>
                         {barcodeResult.barcode && <span className="ml-2 text-green-600">• Barcode: {barcodeResult.barcode}</span>}
                         {barcodeResult.sku && !barcodeResult.barcode && <span className="ml-2 text-green-600">• SKU: {barcodeResult.sku}</span>}
+                      </div>
+                      
+                      {/* Print Actions */}
+                      <div className="flex items-center gap-2 mt-2">
+                        {dymoAvailable && (
+                          <>
+                            <Button
+                              onClick={() => handlePrintScannedItem(barcodeResult)}
+                              disabled={printing}
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7"
+                            >
+                              <TagIcon className="w-3 h-3 mr-1" />
+                              {printing ? 'Printing...' : 'Print Now'}
+                            </Button>
+                            <Button
+                              onClick={() => handleAddScannedToQueue(barcodeResult)}
+                              disabled={printing}
+                              size="sm"
+                              variant="outline"
+                              className="border-green-400 text-green-700 hover:bg-green-50 text-xs h-7"
+                            >
+                              Add to Queue
+                            </Button>
+                          </>
+                        )}
+                        {!dymoAvailable && (
+                          <div className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                            DYMO not available - labels disabled
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-2xl font-bold text-green-800 whitespace-nowrap">
