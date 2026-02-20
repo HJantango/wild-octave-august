@@ -182,11 +182,12 @@ input, select, textarea {
 .label-price {
   background-color: #054921;
   color: white;
-  padding: 1px 16px; /* Super slim vertical padding */
+  padding: 0 16px; /* No vertical padding - let flexbox handle centering */
   border-radius: 999px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
-  height: 24px; /* Fixed slim height */
+  height: 28px; /* Slightly taller for better text fit */
+  line-height: 1; /* Tight line height for proper centering */
   display: inline-flex;
   align-items: center;
   justify-content: center;
