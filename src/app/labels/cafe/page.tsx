@@ -173,36 +173,25 @@ function LabelCard({ label }: { label: CafeLabel }) {
   );
 }
 
-// ── Print label with INLINE mm styles (bypasses all CSS specificity issues) ──
+// ── Print label for CSS Grid layout (no positioning needed) ──
 function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
   const hasDietaryTags = label.vegan || label.glutenFree;
-  
-  // Calculate position: 2 columns × 4 rows
-  // Each label: 100mm wide × 71.75mm tall
-  // Page: 210mm × 297mm with 5mm margins = 200mm × 287mm usable
-  const col = index % 2;
-  const row = Math.floor(index / 2);
-  const left = col * 100; // 0 or 100mm
-  const top = row * 71.75; // 0, 71.75, 143.5, 215.25mm
 
   return (
     <div
       style={{
-        position: 'absolute',
-        left: `${left}mm`,
-        top: `${top}mm`,
-        width: '100mm',
-        height: '71.75mm',
         backgroundColor: label.bgColor,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
-        padding: '6mm', // Less padding for more content space
+        padding: '6mm',
         boxSizing: 'border-box',
+        border: '0.5mm solid #ddd', // Cutting guides
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
+        minHeight: '71.75mm', // Ensure consistent height
       } as React.CSSProperties}
     >
       {label.organic && (
@@ -845,11 +834,19 @@ export default function CafeLabelsPage() {
         )}
       </div>
 
-      {/* Print styles - only show print sheet when printing */}
+      {/* Print styles - CSS Grid approach for reliable printing */}
       <style jsx>{`
         @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
           body > *:not(#print-sheet) {
             display: none !important;
+          }
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
           }
           #print-sheet {
             position: static !important;
@@ -858,29 +855,34 @@ export default function CafeLabelsPage() {
             margin: 0 !important;
             padding: 5mm !important;
             background: white !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            grid-template-rows: repeat(4, 1fr) !important;
+            gap: 0mm !important;
+            page-break-inside: avoid !important;
           }
           @page {
-            size: A4;
-            margin: 0;
+            size: A4 portrait;
+            margin: 0mm;
           }
         }
       `}</style>
 
-      {/* Print-only sheet — absolute positioned labels on A4 */}
+      {/* Print-only sheet — CSS Grid layout for reliable printing */}
       <div id="print-sheet" ref={printRef} style={{
         width: '210mm',
         height: '297mm',
         padding: '5mm',
         boxSizing: 'border-box',
-        position: 'relative',
         background: 'white',
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr', // 2 columns
+        gridTemplateRows: 'repeat(4, 1fr)', // 4 rows
+        gap: '0mm', // No gaps between labels
       }}>
-        {/* Labels container - 200mm × 287mm */}
-        <div style={{ position: 'relative', width: '200mm', height: '287mm' }}>
-          {labels.slice(0, 8).map((label, index) => (
-            <PrintLabel key={label.id} label={label} index={index} />
-          ))}
-        </div>
+        {labels.slice(0, 8).map((label, index) => (
+          <PrintLabel key={label.id} label={label} index={index} />
+        ))}
       </div>
     </DashboardLayout>
   );
