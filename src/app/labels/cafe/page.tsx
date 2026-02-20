@@ -9,8 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Printer, Plus, Trash2, Download, X, Save, Search, FolderOpen } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+// Removed PDF dependencies - using browser print instead!
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CafeLabel {
@@ -377,79 +376,12 @@ export default function CafeLabelsPage() {
   };
 
   const clearAll = () => setLabels([]);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
-
+  // Simplified - just print directly from browser!
   const handlePrint = () => {
     window.print();
   };
 
-  // Generate PDF - FORCE client-side generation (server-side seems broken on Railway)
-  const generatePDF = async () => {
-    if (labels.length === 0 || !printRef.current) return;
-    
-    setGeneratingPdf(true);
-    try {
-      // SKIP server-side, go straight to client-side with fresh styling
-      console.log('Using client-side PDF generation for consistent styling');
-      await generatePDFClientSide();
-    } catch (clientErr) {
-      console.error('Client PDF failed:', clientErr);
-      alert('Failed to generate PDF. Please try the Print button instead.');
-    } finally {
-      setGeneratingPdf(false);
-    }
-  };
-
-  // Client-side PDF generation using html2canvas + jsPDF with fresh styling
-  const generatePDFClientSide = async () => {
-    if (!printRef.current) return;
-    
-    // Temporarily show the print sheet for capture
-    const printSheet = printRef.current;
-    const originalDisplay = printSheet.style.display;
-    printSheet.style.display = 'block';
-    printSheet.style.position = 'fixed';
-    printSheet.style.left = '0';
-    printSheet.style.top = '0';
-    printSheet.style.zIndex = '-9999';
-    
-    // Force style recalculation to avoid cached styles
-    printSheet.style.opacity = '0.99';
-    await new Promise(resolve => setTimeout(resolve, 100));
-    printSheet.style.opacity = '1';
-    
-    try {
-      // Wait for fonts to load
-      await document.fonts.ready;
-      
-      const canvas = await html2canvas(printSheet, {
-        scale: 2, // Higher quality
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        width: 794, // A4 width at 96dpi
-        height: 1123, // A4 height at 96dpi
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-      
-      // A4 is 210mm x 297mm
-      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
-      pdf.save('cafe-labels.pdf');
-    } finally {
-      // Restore print sheet visibility
-      printSheet.style.display = originalDisplay;
-      printSheet.style.position = '';
-      printSheet.style.left = '';
-      printSheet.style.top = '';
-      printSheet.style.zIndex = '';
-    }
-  };
+  // No more PDF complexity - just use browser print!
 
   // Save current label as template
   const saveAsTemplate = async () => {
@@ -884,19 +816,15 @@ export default function CafeLabelsPage() {
                 Print Sheet ({labels.length} label{labels.length !== 1 ? 's' : ''})
               </CardTitle>
               <div className="flex gap-3">
-                <Button variant="secondary" onClick={handlePrint} className="text-base">
+                <Button onClick={handlePrint} className="text-base">
                   <Printer className="w-5 h-5 mr-2" />
-                  Print
-                </Button>
-                <Button onClick={generatePDF} disabled={generatingPdf} className="text-base">
-                  <Download className="w-5 h-5 mr-2" />
-                  {generatingPdf ? 'Generating...' : 'Download PDF'}
+                  Print Labels
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-500 mb-4">
-                8 labels per A4 page (2 columns × 4 rows). Click Download PDF for exact sizing.
+                8 labels per A4 page (2 columns × 4 rows). Use "Print Labels" to print directly from your browser.
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {labels.map((label) => (
@@ -916,6 +844,27 @@ export default function CafeLabelsPage() {
           </Card>
         )}
       </div>
+
+      {/* Print styles - only show print sheet when printing */}
+      <style jsx>{`
+        @media print {
+          body > *:not(#print-sheet) {
+            display: none !important;
+          }
+          #print-sheet {
+            position: static !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 5mm !important;
+            background: white !important;
+          }
+          @page {
+            size: A4;
+            margin: 0;
+          }
+        }
+      `}</style>
 
       {/* Print-only sheet — absolute positioned labels on A4 */}
       <div id="print-sheet" ref={printRef} style={{
