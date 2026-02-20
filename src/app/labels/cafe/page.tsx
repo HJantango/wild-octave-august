@@ -289,49 +289,24 @@ export default function CafeLabelsPage() {
     window.print();
   };
 
-  // Generate PDF - try server-side first, fall back to client-side
+  // Generate PDF - FORCE client-side generation (server-side seems broken on Railway)
   const generatePDF = async () => {
     if (labels.length === 0 || !printRef.current) return;
     
     setGeneratingPdf(true);
     try {
-      // Try server-side first (better quality)
-      const response = await fetch('/api/labels/cafe/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ labels }),
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'cafe-labels.pdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        return;
-      }
-      
-      // Fall back to client-side PDF generation
-      console.log('Server PDF failed, using client-side generation');
+      // SKIP server-side, go straight to client-side with fresh styling
+      console.log('Using client-side PDF generation for consistent styling');
       await generatePDFClientSide();
-    } catch (err) {
-      console.error('Server PDF error, trying client-side:', err);
-      try {
-        await generatePDFClientSide();
-      } catch (clientErr) {
-        console.error('Client PDF also failed:', clientErr);
-        alert('Failed to generate PDF. Please try the Print button instead.');
-      }
+    } catch (clientErr) {
+      console.error('Client PDF failed:', clientErr);
+      alert('Failed to generate PDF. Please try the Print button instead.');
     } finally {
       setGeneratingPdf(false);
     }
   };
 
-  // Client-side PDF generation fallback using html2canvas + jsPDF
+  // Client-side PDF generation using html2canvas + jsPDF with fresh styling
   const generatePDFClientSide = async () => {
     if (!printRef.current) return;
     
@@ -343,6 +318,11 @@ export default function CafeLabelsPage() {
     printSheet.style.left = '0';
     printSheet.style.top = '0';
     printSheet.style.zIndex = '-9999';
+    
+    // Force style recalculation to avoid cached styles
+    printSheet.style.opacity = '0.99';
+    await new Promise(resolve => setTimeout(resolve, 100));
+    printSheet.style.opacity = '1';
     
     try {
       // Wait for fonts to load
