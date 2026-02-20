@@ -129,17 +129,20 @@ export async function POST(request: NextRequest) {
             updateActions.push('cost');
           }
 
-          // Update SKU and barcode if available
-          if (defaultVariation?.sku) {
-            if (!existingItem.sku) {
-              updateData.sku = defaultVariation.sku;
-              updateActions.push('sku');
-            }
-            // Also set barcode for scanner lookup
-            if (!existingItem.barcode) {
-              updateData.barcode = defaultVariation.sku;
-              updateActions.push('barcode');
-            }
+          // Update SKU if available
+          if (defaultVariation?.sku && !existingItem.sku) {
+            updateData.sku = defaultVariation.sku;
+            updateActions.push('sku');
+          }
+          
+          // Update barcode with actual UPC/GTIN from Square (not SKU)
+          if (defaultVariation?.upc && !existingItem.barcode) {
+            updateData.barcode = defaultVariation.upc;
+            updateActions.push('barcode');
+          } else if (!existingItem.barcode && defaultVariation?.sku) {
+            // Fallback to SKU only if no UPC and no existing barcode
+            updateData.barcode = defaultVariation.sku;
+            updateActions.push('barcode_sku_fallback');
           }
 
           // Update vendor if we have one
@@ -174,7 +177,7 @@ export async function POST(request: NextRequest) {
               currentCostExGst: costExGst,
               currentMarkup: markup,
               sku: defaultVariation?.sku || undefined,
-              barcode: defaultVariation?.sku || undefined, // Use SKU as barcode for scanner lookup
+              barcode: defaultVariation?.upc || defaultVariation?.sku || undefined, // Prefer UPC, fallback to SKU
               vendorId: dbVendorId || undefined,
             },
           });

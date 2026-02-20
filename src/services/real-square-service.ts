@@ -19,6 +19,7 @@ export interface SquareItem {
     id: string;
     name: string;
     sku?: string;
+    upc?: string;
     vendorId?: string;
     priceMoney: {
       amount: number;
@@ -269,6 +270,7 @@ class RealSquareService {
               id: variation.id!,
               name: varData?.name || 'Default',
               sku: varData?.sku || undefined,
+              upc: varData?.upc || undefined, // Capture actual barcode/GTIN
               vendorId: varVendorInfo?.vendorId || undefined,
               priceMoney: {
                 amount: Number(varData?.priceMoney?.amount || 0),

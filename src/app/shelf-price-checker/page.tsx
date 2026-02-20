@@ -371,8 +371,8 @@ export default function ShelfPriceCheckerPage() {
     }
   };
 
-  // Barcode lookup function
-  const handleBarcodeLookup = useCallback((barcode: string) => {
+  // Barcode lookup function - now uses dedicated API that searches ALL items
+  const handleBarcodeLookup = useCallback(async (barcode: string) => {
     const trimmed = barcode.trim();
     if (!trimmed) {
       setBarcodeResult(null);
@@ -380,37 +380,57 @@ export default function ShelfPriceCheckerPage() {
       return;
     }
     
-    // Search all items for matching barcode OR SKU (case-insensitive)
-    const allItems = shelfGroups.flatMap(g => g.items);
-    const found = allItems.find(item => 
-      item.barcode?.toLowerCase() === trimmed.toLowerCase() ||
-      item.sku?.toLowerCase() === trimmed.toLowerCase()
-    );
-    
-    if (found) {
-      setBarcodeResult(found);
-      setBarcodeNotFound(false);
-      // Auto-clear after 8 seconds for next scan
-      setTimeout(() => {
-        setBarcodeInput('');
+    try {
+      console.log(`🔍 Looking up barcode: "${trimmed}"`);
+      const response = await fetch(`/api/barcode-lookup?barcode=${encodeURIComponent(trimmed)}`);
+      const result = await response.json();
+      
+      if (result.success && result.data.found) {
+        const foundItem: ShelfItem = {
+          id: result.data.id,
+          name: result.data.name,
+          sku: result.data.sku,
+          barcode: result.data.barcode,
+          price: result.data.price,
+          categoryName: result.data.categoryName,
+        };
+        
+        setBarcodeResult(foundItem);
+        setBarcodeNotFound(false);
+        console.log(`✅ Found: "${foundItem.name}" (${result.data.matchedBy})`);
+        
+        // Auto-clear after 8 seconds for next scan
+        setTimeout(() => {
+          setBarcodeInput('');
+          setBarcodeResult(null);
+        }, 8000);
+      } else {
         setBarcodeResult(null);
-      }, 8000);
-    } else {
+        setBarcodeNotFound(true);
+        console.log(`❌ Barcode not found: "${trimmed}"`);
+        
+        // Clear "not found" after 3 seconds
+        setTimeout(() => {
+          setBarcodeNotFound(false);
+          setBarcodeInput('');
+        }, 3000);
+      }
+    } catch (err) {
+      console.error('Barcode lookup error:', err);
       setBarcodeResult(null);
       setBarcodeNotFound(true);
-      // Clear "not found" after 3 seconds
       setTimeout(() => {
         setBarcodeNotFound(false);
         setBarcodeInput('');
       }, 3000);
     }
-  }, [shelfGroups]);
+  }, []);
 
   // Handle barcode input (scanner usually sends Enter at end)
   const handleBarcodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleBarcodeLookup(barcodeInput);
+      handleBarcodeLookup(barcodeInput); // Now async but we don't need to await
     }
   };
 
@@ -664,7 +684,7 @@ export default function ShelfPriceCheckerPage() {
                     autoComplete="off"
                   />
                   <Button
-                    onClick={() => handleBarcodeLookup(barcodeInput)}
+                    onClick={() => handleBarcodeLookup(barcodeInput)} // Now async but onClick doesn't need await
                     disabled={!barcodeInput.trim()}
                     className="absolute right-1 top-1 h-10"
                     size="sm"
