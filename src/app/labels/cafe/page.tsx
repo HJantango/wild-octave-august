@@ -129,21 +129,23 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         color: DARK_GREEN,
         textTransform: 'uppercase',
         lineHeight: 0.95,
-        margin: '1mm 0 8mm 0', // BIGGER gap below title (8mm) - matches PDF route
+        margin: '1mm 0 12mm 0', // MASSIVE gap below title for testing
         letterSpacing: '0.02em',
         maxWidth: '80mm',
         wordBreak: 'break-word',
+        border: '1px solid red', // DEBUG: Red border to see if styles are taking effect
       }}>{label.name || 'Item Name'}</h2>
       
       {hasDietaryTags && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2mm', marginBottom: '3mm' }}>
           {label.vegan && (
             <span style={{
-              backgroundColor: DARK_GREEN,
-              padding: '0.5mm 3mm', // Match PDF route - tighter padding
+              backgroundColor: 'orange', // DEBUG: Orange background to see if styles work
+              border: '2px solid blue', // DEBUG: Blue border  
+              padding: '0.5mm 3mm',
               borderRadius: '999px',
-              height: '3.5mm', // Match PDF route - slimmer
-              minHeight: '3.5mm',
+              height: '2mm', // DEBUG: Super slim to test
+              minHeight: '2mm',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
