@@ -112,11 +112,13 @@ function LabelCard({ label }: { label: CafeLabel }) {
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              height: '20px', // Slim for screen
+              height: '20px',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               lineHeight: 1,
+              verticalAlign: 'middle', // Force vertical alignment
+              fontFamily: 'Arial, sans-serif', // Consistent font for better centering
             }}>Vegan</span>
           )}
           {label.glutenFree && (
@@ -129,11 +131,13 @@ function LabelCard({ label }: { label: CafeLabel }) {
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              height: '20px', // Slim for screen
+              height: '20px',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               lineHeight: 1,
+              verticalAlign: 'middle',
+              fontFamily: 'Arial, sans-serif',
             }}>GF</span>
           )}
         </div>
@@ -160,11 +164,13 @@ function LabelCard({ label }: { label: CafeLabel }) {
           borderRadius: '999px',
           fontSize: '16px',
           fontWeight: 800,
-          height: '28px', // Good size for screen
+          height: '28px',
           lineHeight: 1,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
+          verticalAlign: 'middle',
+          fontFamily: 'Arial, sans-serif',
         }}>${parseFloat(label.price).toFixed(2)}</span>
       )}
     </div>
