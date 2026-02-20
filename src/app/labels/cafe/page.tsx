@@ -57,25 +57,116 @@ function FontLoader() {
   );
 }
 
-// ── Screen preview label ──────────────────────────────────────────────────
+// ── Screen preview label - PURE INLINE STYLES (no CSS classes) ──────────
 function LabelCard({ label }: { label: CafeLabel }) {
   const hasDietaryTags = label.vegan || label.glutenFree;
 
   return (
-    <div
-      className="label-card"
-      style={{ backgroundColor: label.bgColor }}
-    >
-      {label.organic && <p className="label-organic">Organic</p>}
-      <h2 className="label-title">{label.name || 'Item Name'}</h2>
+    <div style={{
+      width: '100%',
+      maxWidth: '300px',
+      aspectRatio: '100/71.75',
+      backgroundColor: label.bgColor,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center',
+      padding: '20px',
+      borderRadius: '8px',
+      boxSizing: 'border-box',
+    }}>
+      {label.organic && (
+        <p style={{
+          fontFamily: "'Dancing Script', cursive",
+          fontSize: '20px',
+          fontWeight: 600,
+          color: DARK_GREEN,
+          margin: '0 0 4px 0',
+          lineHeight: 1.1,
+        }}>Organic</p>
+      )}
+      
+      <h2 style={{
+        fontFamily: "'Playfair Display', Georgia, serif",
+        fontWeight: 800,
+        fontSize: '22px',
+        color: DARK_GREEN,
+        textTransform: 'uppercase',
+        lineHeight: 1,
+        margin: '4px 0 20px 0', // BIG gap for screen preview
+        letterSpacing: '0.02em',
+        maxWidth: '90%',
+        wordBreak: 'break-word',
+      }}>{label.name || 'Item Name'}</h2>
+      
       {hasDietaryTags && (
-        <div className="label-badges">
-          {label.vegan && <span className="label-badge">Vegan</span>}
-          {label.glutenFree && <span className="label-badge">GF</span>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
+          {label.vegan && (
+            <span style={{
+              backgroundColor: DARK_GREEN,
+              color: 'white',
+              padding: '0 12px',
+              borderRadius: '999px',
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              height: '20px', // Slim for screen
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: 1,
+            }}>Vegan</span>
+          )}
+          {label.glutenFree && (
+            <span style={{
+              backgroundColor: DARK_GREEN,
+              color: 'white', 
+              padding: '0 12px',
+              borderRadius: '999px',
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              height: '20px', // Slim for screen
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              lineHeight: 1,
+            }}>GF</span>
+          )}
         </div>
       )}
-      {label.ingredients && <p className="label-ingredients">{label.ingredients}</p>}
-      {label.price && <span className="label-price">${parseFloat(label.price).toFixed(2)}</span>}
+      
+      {label.ingredients && (
+        <p style={{
+          fontSize: '11px',
+          color: DARK_GREEN,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          lineHeight: 1.3,
+          maxWidth: '90%',
+          margin: '0 0 12px 0',
+          opacity: 0.85,
+        }}>{label.ingredients}</p>
+      )}
+      
+      {label.price && (
+        <span style={{
+          backgroundColor: DARK_GREEN,
+          color: 'white',
+          padding: '0 16px',
+          borderRadius: '999px',
+          fontSize: '16px',
+          fontWeight: 800,
+          height: '28px', // Good size for screen
+          lineHeight: 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>${parseFloat(label.price).toFixed(2)}</span>
+      )}
     </div>
   );
 }
