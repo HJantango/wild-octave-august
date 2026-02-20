@@ -253,5 +253,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Increase route timeout for PDF generation
+// Increase route timeout for PDF generation  
 export const maxDuration = 30;
+
+// Force redeploy - 2026-02-20
