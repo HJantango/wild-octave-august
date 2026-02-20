@@ -28,6 +28,11 @@ function normalizeItemName(name: string): string {
   return name
     .toLowerCase()
     .trim()
+    // Remove possessive apostrophes first (Olsson's → Olssons)
+    .replace(/\b(\w+)'\s*s\b/g, '$1s')
+    // Remove common brand prefixes that cause mismatches
+    .replace(/^(olssons?|celtic|maldon|murray river)\s+/gi, '')
+    .replace(/\s+(olssons?|celtic|maldon|murray river)\s+/gi, ' ')
     // Normalize weight units
     .replace(/(\d+)\s*grams?\b/gi, '$1g')
     .replace(/(\d+)\s*gm\b/gi, '$1g')
@@ -41,10 +46,10 @@ function normalizeItemName(name: string): string {
     .replace(/\borg\.?\b/gi, 'organic')
     .replace(/\bnat\.?\b/gi, 'natural')
     .replace(/\bgf\b/gi, 'gluten free')
-    // Remove extra whitespace
+    // Remove punctuation and brackets that cause issues
+    .replace(/[^\w\s]/g, ' ')
+    // Collapse multiple spaces into single space
     .replace(/\s+/g, ' ')
-    // Remove special chars except alphanumeric and spaces
-    .replace(/[^a-z0-9\s]/g, '')
     .trim();
 }
 
@@ -53,14 +58,31 @@ function getMatchKeys(name: string): string[] {
   const normalized = normalizeItemName(name);
   const keys = [normalized];
   
-  // Also try without common prefixes/suffixes that might differ
+  // Try without common descriptive words
   const withoutOrganic = normalized.replace(/\borganic\s*/g, '').trim();
-  if (withoutOrganic !== normalized) keys.push(withoutOrganic);
+  if (withoutOrganic !== normalized && withoutOrganic) keys.push(withoutOrganic);
   
   const withoutRaw = normalized.replace(/\braw\s*/g, '').trim();
-  if (withoutRaw !== normalized) keys.push(withoutRaw);
+  if (withoutRaw !== normalized && withoutRaw) keys.push(withoutRaw);
   
-  return keys;
+  const withoutNatural = normalized.replace(/\bnatural\s*/g, '').trim();
+  if (withoutNatural !== normalized && withoutNatural) keys.push(withoutNatural);
+  
+  // Try without size information for partial matches
+  const withoutSize = normalized.replace(/\d+[a-z]*\b/g, '').replace(/\s+/g, ' ').trim();
+  if (withoutSize !== normalized && withoutSize.length > 3) keys.push(withoutSize);
+  
+  // Generate word permutations for different word orders (limited to avoid explosion)
+  const words = normalized.split(' ').filter(w => w.length > 0);
+  if (words.length >= 2 && words.length <= 4) {
+    // Try moving the last word to the front (handles "Sea Salt Flakes Black" vs "Black Sea Salt Flakes")
+    if (words.length >= 3) {
+      const lastFirst = [words[words.length - 1], ...words.slice(0, -1)].join(' ');
+      if (!keys.includes(lastFirst)) keys.push(lastFirst);
+    }
+  }
+  
+  return [...new Set(keys)]; // Remove duplicates
 }
 
 // Extract keywords for similarity matching
@@ -216,19 +238,46 @@ export async function GET(request: NextRequest) {
       const normalized = salesLookup.get(normalizedKey);
       if (normalized && normalized.units > 0) return normalized;
       
-      // 3. Try partial matching - find Square item that contains our item name
-      const itemLower = itemName.toLowerCase();
-      for (const [squareName, data] of directLookup.entries()) {
-        if (squareName.includes(itemLower) || itemLower.includes(squareName)) {
-          if (data.units > 0) return data;
-        }
-      }
-      
-      // 4. Try fuzzy matching via match keys
+      // 3. Try fuzzy matching via match keys
       const keys = getMatchKeys(itemName);
       for (const key of keys) {
         const match = salesLookup.get(key);
         if (match && match.units > 0) return match;
+      }
+      
+      // 4. Try partial matching - find Square item that contains significant parts of our item name
+      const itemNormalized = normalizeItemName(itemName);
+      const itemWords = itemNormalized.split(' ').filter(w => w.length > 2); // Ignore short words
+      
+      // Must match at least 70% of significant words
+      const minWordsToMatch = Math.max(2, Math.ceil(itemWords.length * 0.7));
+      
+      for (const [squareName, data] of directLookup.entries()) {
+        if (data.units === 0) continue;
+        
+        const squareNormalized = normalizeItemName(squareName);
+        const squareWords = squareNormalized.split(' ');
+        
+        // Count matching words
+        const matchingWords = itemWords.filter(word => 
+          squareWords.some(sw => sw.includes(word) || word.includes(sw))
+        );
+        
+        if (matchingWords.length >= minWordsToMatch) {
+          console.log(`🔍 Partial match found: "${itemName}" → "${squareName}" (${matchingWords.length}/${itemWords.length} words)`);
+          return data;
+        }
+      }
+      
+      // 5. Last resort: try reverse lookup where Square name contains our normalized name
+      for (const [squareName, data] of directLookup.entries()) {
+        if (data.units === 0) continue;
+        
+        const squareNormalized = normalizeItemName(squareName);
+        if (squareNormalized.includes(itemNormalized) && itemNormalized.length > 5) {
+          console.log(`🔍 Contained match found: "${itemName}" found in "${squareName}"`);
+          return data;
+        }
       }
       
       return { units: 0, revenue: 0, weeks: 0 };
