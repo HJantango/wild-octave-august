@@ -113,13 +113,18 @@ function LabelCard({ label }: { label: CafeLabel }) {
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               height: '20px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: 1,
-              verticalAlign: 'middle', // Force vertical alignment
-              fontFamily: 'Arial, sans-serif', // Consistent font for better centering
-            }}>Vegan</span>
+              width: 'auto',
+              display: 'inline-table', // Table layout for better text centering
+              textAlign: 'center',
+              verticalAlign: 'middle',
+              fontFamily: 'Arial, sans-serif',
+            }}>
+              <span style={{
+                display: 'table-cell',
+                verticalAlign: 'middle',
+                textAlign: 'center',
+              }}>Vegan</span>
+            </span>
           )}
           {label.glutenFree && (
             <span style={{
@@ -132,13 +137,18 @@ function LabelCard({ label }: { label: CafeLabel }) {
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               height: '20px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: 1,
+              width: 'auto',
+              display: 'inline-table',
+              textAlign: 'center',
               verticalAlign: 'middle',
               fontFamily: 'Arial, sans-serif',
-            }}>GF</span>
+            }}>
+              <span style={{
+                display: 'table-cell',
+                verticalAlign: 'middle',
+                textAlign: 'center',
+              }}>GF</span>
+            </span>
           )}
         </div>
       )}
@@ -165,13 +175,18 @@ function LabelCard({ label }: { label: CafeLabel }) {
           fontSize: '16px',
           fontWeight: 800,
           height: '28px',
-          lineHeight: 1,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width: 'auto',
+          display: 'inline-table',
+          textAlign: 'center',
           verticalAlign: 'middle',
           fontFamily: 'Arial, sans-serif',
-        }}>${parseFloat(label.price).toFixed(2)}</span>
+        }}>
+          <span style={{
+            display: 'table-cell',
+            verticalAlign: 'middle',
+            textAlign: 'center',
+          }}>${parseFloat(label.price).toFixed(2)}</span>
+        </span>
       )}
     </div>
   );
