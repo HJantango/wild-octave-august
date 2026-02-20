@@ -165,9 +165,9 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     });
 
-    // Get sales data from SquareDailySales
+    // Get sales data from SquareDailySales - include squareCatalogId for better matching
     const salesData = await prisma.squareDailySales.groupBy({
-      by: ['itemName'],
+      by: ['itemName', 'squareCatalogId'],
       where: {
         date: { gte: startDate, lte: endDate },
       },
@@ -180,35 +180,42 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Build sales lookup with normalized names for better matching
-    const salesLookup = new Map<string, { units: number; revenue: number; weeks: number; originalName: string }>();
-    for (const sale of salesData) {
-      const normalizedKey = normalizeItemName(sale.itemName);
-      const existing = salesLookup.get(normalizedKey);
-      
-      // Aggregate if same normalized name (handles variations)
-      if (existing) {
-        existing.units += Number(sale._sum.quantitySold) || 0;
-        existing.revenue += ((sale._sum.netSalesCents || 0) / 100);
-        existing.weeks += sale._count.date || 0;
-      } else {
-        salesLookup.set(normalizedKey, {
-          units: Number(sale._sum.quantitySold) || 0,
-          revenue: (sale._sum.netSalesCents || 0) / 100,
-          weeks: sale._count.date || 0,
-          originalName: sale.itemName,
-        });
-      }
-    }
-    
-    // Also create direct name lookup for exact matches
+    // SQUARE-FIRST PRINCIPLE: Build sales lookup by Square catalog ID first, then names as fallback
+    const salesLookupBySquareId = new Map<string, { units: number; revenue: number; weeks: number; originalName: string }>();
+    const salesLookupByName = new Map<string, { units: number; revenue: number; weeks: number; originalName: string }>();
     const directLookup = new Map<string, { units: number; revenue: number; weeks: number }>();
+    
     for (const sale of salesData) {
-      directLookup.set(sale.itemName.toLowerCase().trim(), {
-        units: Number(sale._sum.quantitySold) || 0,
-        revenue: (sale._sum.netSalesCents || 0) / 100,
-        weeks: sale._count.date || 0,
-      });
+      const units = Number(sale._sum.quantitySold) || 0;
+      const revenue = (sale._sum.netSalesCents || 0) / 100;
+      const weeks = sale._count.date || 0;
+      const salesEntry = { units, revenue, weeks, originalName: sale.itemName };
+      
+      // Primary: Group by Square catalog ID if available
+      if (sale.squareCatalogId) {
+        const existing = salesLookupBySquareId.get(sale.squareCatalogId);
+        if (existing) {
+          existing.units += units;
+          existing.revenue += revenue;
+          existing.weeks += weeks;
+        } else {
+          salesLookupBySquareId.set(sale.squareCatalogId, { ...salesEntry });
+        }
+      }
+      
+      // Fallback: Also maintain name-based lookup (with normalization) for legacy items
+      const normalizedKey = normalizeItemName(sale.itemName);
+      const existingByName = salesLookupByName.get(normalizedKey);
+      if (existingByName) {
+        existingByName.units += units;
+        existingByName.revenue += revenue;
+        existingByName.weeks += weeks;
+      } else {
+        salesLookupByName.set(normalizedKey, { ...salesEntry });
+      }
+      
+      // Direct name lookup for exact matches
+      directLookup.set(sale.itemName.toLowerCase().trim(), { units, revenue, weeks });
     }
 
     // Get existing decisions
@@ -227,56 +234,53 @@ export async function GET(request: NextRequest) {
     // Calculate weeks in period
     const weeksInPeriod = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
 
-    // Helper to find sales for an item (tries multiple matching strategies)
-    function findSalesForItem(itemName: string): { units: number; revenue: number; weeks: number } {
-      // 1. Try direct exact match first
-      const direct = directLookup.get(itemName.toLowerCase().trim());
-      if (direct && direct.units > 0) return direct;
-      
-      // 2. Try normalized match
-      const normalizedKey = normalizeItemName(itemName);
-      const normalized = salesLookup.get(normalizedKey);
-      if (normalized && normalized.units > 0) return normalized;
-      
-      // 3. Try fuzzy matching via match keys
-      const keys = getMatchKeys(itemName);
-      for (const key of keys) {
-        const match = salesLookup.get(key);
-        if (match && match.units > 0) return match;
-      }
-      
-      // 4. Try partial matching - find Square item that contains significant parts of our item name
-      const itemNormalized = normalizeItemName(itemName);
-      const itemWords = itemNormalized.split(' ').filter(w => w.length > 2); // Ignore short words
-      
-      // Must match at least 70% of significant words
-      const minWordsToMatch = Math.max(2, Math.ceil(itemWords.length * 0.7));
-      
-      for (const [squareName, data] of directLookup.entries()) {
-        if (data.units === 0) continue;
-        
-        const squareNormalized = normalizeItemName(squareName);
-        const squareWords = squareNormalized.split(' ');
-        
-        // Count matching words
-        const matchingWords = itemWords.filter(word => 
-          squareWords.some(sw => sw.includes(word) || word.includes(sw))
-        );
-        
-        if (matchingWords.length >= minWordsToMatch) {
-          console.log(`🔍 Partial match found: "${itemName}" → "${squareName}" (${matchingWords.length}/${itemWords.length} words)`);
-          return data;
+    // Helper to find sales for an item - SQUARE-FIRST PRINCIPLE
+    function findSalesForItem(item: { name: string; squareCatalogId?: string | null }): { units: number; revenue: number; weeks: number } {
+      // 1. SQUARE-FIRST: Try direct Square catalog ID match (most accurate)
+      if (item.squareCatalogId) {
+        const squareMatch = salesLookupBySquareId.get(item.squareCatalogId);
+        if (squareMatch && squareMatch.units > 0) {
+          console.log(`✅ Square ID match: "${item.name}" → ${squareMatch.units} units via ${item.squareCatalogId}`);
+          return squareMatch;
         }
       }
       
-      // 5. Last resort: try reverse lookup where Square name contains our normalized name
-      for (const [squareName, data] of directLookup.entries()) {
-        if (data.units === 0) continue;
+      // 2. Fall back to direct exact name match
+      const direct = directLookup.get(item.name.toLowerCase().trim());
+      if (direct && direct.units > 0) return direct;
+      
+      // 3. Fall back to normalized name matching (legacy items without Square IDs)
+      const normalizedKey = normalizeItemName(item.name);
+      const normalized = salesLookupByName.get(normalizedKey);
+      if (normalized && normalized.units > 0) return normalized;
+      
+      // 4. Try fuzzy matching via match keys (for legacy items)
+      const keys = getMatchKeys(item.name);
+      for (const key of keys) {
+        const match = salesLookupByName.get(key);
+        if (match && match.units > 0) return match;
+      }
+      
+      // 5. Last resort: partial matching for items without Square IDs
+      if (!item.squareCatalogId) {
+        const itemNormalized = normalizeItemName(item.name);
+        const itemWords = itemNormalized.split(' ').filter(w => w.length > 2);
+        const minWordsToMatch = Math.max(2, Math.ceil(itemWords.length * 0.7));
         
-        const squareNormalized = normalizeItemName(squareName);
-        if (squareNormalized.includes(itemNormalized) && itemNormalized.length > 5) {
-          console.log(`🔍 Contained match found: "${itemName}" found in "${squareName}"`);
-          return data;
+        for (const [squareName, data] of directLookup.entries()) {
+          if (data.units === 0) continue;
+          
+          const squareNormalized = normalizeItemName(squareName);
+          const squareWords = squareNormalized.split(' ');
+          
+          const matchingWords = itemWords.filter(word => 
+            squareWords.some(sw => sw.includes(word) || word.includes(sw))
+          );
+          
+          if (matchingWords.length >= minWordsToMatch) {
+            console.log(`🔍 Partial match: "${item.name}" → "${squareName}" (${matchingWords.length}/${itemWords.length} words)`);
+            return data;
+          }
         }
       }
       
@@ -285,7 +289,7 @@ export async function GET(request: NextRequest) {
 
     // Build result
     const result: ProductRationalizationItem[] = items.map(item => {
-      const sales = findSalesForItem(item.name);
+      const sales = findSalesForItem({ name: item.name, squareCatalogId: item.squareCatalogId });
       const itemCost = Number(item.currentCostExGst) || 0;
       const itemSell = Number(item.currentSellIncGst) || 0;
       

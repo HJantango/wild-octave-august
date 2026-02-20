@@ -224,14 +224,22 @@ export async function POST(request: NextRequest) {
 
     console.log(`📊 Aggregated ${lineItemCount} line items into ${aggregated.size} daily records`);
 
-    // Try to match vendor names from the items table
+    // SQUARE-FIRST PRINCIPLE: Match vendors by Square catalog ID first, fall back to name
     const dbItems = await prisma.item.findMany({
-      select: { name: true, vendor: { select: { name: true } } },
+      select: { 
+        squareCatalogId: true, 
+        name: true, 
+        vendor: { select: { name: true } } 
+      },
     });
-    const vendorLookup = new Map<string, string>();
+    const vendorLookupBySquareId = new Map<string, string>();
+    const vendorLookupByName = new Map<string, string>();
     for (const dbItem of dbItems) {
       if (dbItem.vendor?.name) {
-        vendorLookup.set(dbItem.name.toLowerCase().trim(), dbItem.vendor.name);
+        if (dbItem.squareCatalogId) {
+          vendorLookupBySquareId.set(dbItem.squareCatalogId, dbItem.vendor.name);
+        }
+        vendorLookupByName.set(dbItem.name.toLowerCase().trim(), dbItem.vendor.name);
       }
     }
 
@@ -244,7 +252,10 @@ export async function POST(request: NextRequest) {
       const batch = entries.slice(i, i + batchSize);
       await Promise.all(
         batch.map((entry) => {
-          const vendorName = vendorLookup.get(entry.itemName.toLowerCase().trim()) || null;
+          // SQUARE-FIRST PRINCIPLE: Use Square catalog ID for vendor lookup, fall back to name
+          const vendorName = entry.squareCatalogId 
+            ? vendorLookupBySquareId.get(entry.squareCatalogId) || vendorLookupByName.get(entry.itemName.toLowerCase().trim())
+            : vendorLookupByName.get(entry.itemName.toLowerCase().trim()) || null;
           return prisma.squareDailySales.upsert({
             where: {
               unique_daily_item_variation: {

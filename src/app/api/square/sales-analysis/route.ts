@@ -152,6 +152,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // SQUARE-FIRST PRINCIPLE: Use Square catalog IDs for accurate matching
+    const dbItemsBySquareId = new Map(
+      dbItems.filter(i => i.squareCatalogId).map(item => [item.squareCatalogId!, item])
+    );
     const dbItemsByName = new Map(
       dbItems.map(item => [item.name.toLowerCase().trim(), item])
     );
@@ -197,8 +201,10 @@ export async function GET(request: NextRequest) {
         ? (data.totalGrossCents / 100) / data.totalUnits
         : 0;
 
-      // Match to database item
-      const dbItem = dbItemsByName.get(data.itemName.toLowerCase().trim());
+      // SQUARE-FIRST PRINCIPLE: Match by Square catalog ID first, fall back to name
+      const dbItem = data.squareCatalogId 
+        ? dbItemsBySquareId.get(data.squareCatalogId) || dbItemsByName.get(data.itemName.toLowerCase().trim())
+        : dbItemsByName.get(data.itemName.toLowerCase().trim());
 
       const currentStock = dbItem?.inventoryItem?.currentStock
         ? Number(dbItem.inventoryItem.currentStock)
