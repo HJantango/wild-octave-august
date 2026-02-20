@@ -129,7 +129,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         color: DARK_GREEN,
         textTransform: 'uppercase',
         lineHeight: 0.95,
-        margin: '0.5mm 0 6mm 0', // BIG gap below title (6mm)
+        margin: '1mm 0 8mm 0', // BIGGER gap below title (8mm) - matches PDF route
         letterSpacing: '0.02em',
         maxWidth: '80mm',
         wordBreak: 'break-word',
@@ -140,16 +140,17 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
           {label.vegan && (
             <span style={{
               backgroundColor: DARK_GREEN,
-              padding: '0 4mm', // Convert to mm units for consistency
+              padding: '0.5mm 3mm', // Match PDF route - tighter padding
               borderRadius: '999px',
-              height: '4mm', // Even slimmer
+              height: '3.5mm', // Match PDF route - slimmer
+              minHeight: '3.5mm',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
               <span style={{
                 color: '#fff',
-                fontSize: '3mm',
+                fontSize: '2.5mm', // Match PDF route font size
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase' as const,
@@ -159,16 +160,17 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
           {label.glutenFree && (
             <span style={{
               backgroundColor: DARK_GREEN,
-              padding: '0 4mm', // Convert to mm units for consistency
+              padding: '0.5mm 3mm', // Match PDF route - tighter padding
               borderRadius: '999px',
-              height: '4mm', // Even slimmer
+              height: '3.5mm', // Match PDF route - slimmer
+              minHeight: '3.5mm',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
               <span style={{
                 color: '#fff',
-                fontSize: '3mm',
+                fontSize: '2.5mm', // Match PDF route font size
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase' as const,
@@ -194,17 +196,18 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
       {label.price && (
         <span style={{
           backgroundColor: DARK_GREEN,
-          padding: '0 5mm', // Convert to mm units
+          padding: '0.5mm 4mm', // Match PDF route padding
           borderRadius: '999px',
           marginTop: '3mm',
-          height: '6mm', // Slim height in mm
+          height: '5.5mm', // Match PDF route height
+          minHeight: '5.5mm',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}>
           <span style={{
             color: '#fff',
-            fontSize: '4.5mm', // Convert to mm units
+            fontSize: '4.5mm', // Keep same font size
             fontWeight: 800,
           }}>${parseFloat(label.price).toFixed(2)}</span>
         </span>
