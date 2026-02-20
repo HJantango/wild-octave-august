@@ -129,7 +129,7 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         color: DARK_GREEN,
         textTransform: 'uppercase',
         lineHeight: 0.95,
-        margin: '1mm 0 15mm 0', // EXTREME gap for testing
+        margin: '1mm 0 8mm 0', // Good breathing room - not extreme but noticeable
         letterSpacing: '0.02em',
         maxWidth: '80mm',
         wordBreak: 'break-word',
@@ -139,41 +139,41 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2mm', marginBottom: '3mm' }}>
           {label.vegan && (
             <span style={{
-              backgroundColor: 'red', // EXTREME: Red background
+              backgroundColor: DARK_GREEN,
               padding: '0 3mm',
               borderRadius: '999px', 
-              height: '1.5mm', // EXTREME: Super super slim
+              height: '3mm', // Slim but readable
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1px solid yellow', // EXTREME: Yellow border
             }}>
               <span style={{
                 color: '#fff',
-                fontSize: '2.8mm', // Readable but proportional
+                fontSize: '2.5mm', // Proportional to 3mm height
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase' as const,
-                lineHeight: 1, // Tight line height for centering
+                lineHeight: 1,
               }}>Vegan</span>
             </span>
           )}
           {label.glutenFree && (
             <span style={{
               backgroundColor: DARK_GREEN,
-              padding: '0 3mm', // No vertical padding - let height/flexbox handle it
+              padding: '0 3mm',
               borderRadius: '999px',
-              height: '3.5mm', // Slim but readable
+              height: '3mm', // Match the vegan badge
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
               <span style={{
                 color: '#fff',
-                fontSize: '2.5mm', // Match PDF route font size
+                fontSize: '2.5mm', // Match vegan badge
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase' as const,
+                lineHeight: 1,
               }}>GF</span>
             </span>
           )}
