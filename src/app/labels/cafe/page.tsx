@@ -191,7 +191,9 @@ function PrintLabel({ label, index }: { label: CafeLabel; index: number }) {
         border: '0.5mm solid #ddd', // Cutting guides
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
-        minHeight: '71.75mm', // Ensure consistent height
+        width: '100%', // Fill the full grid cell width
+        height: '100%', // Fill the full grid cell height
+        minHeight: '71.75mm', // Minimum height for consistency
       } as React.CSSProperties}
     >
       {label.organic && (
