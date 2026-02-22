@@ -741,11 +741,24 @@ export default function OrdersPage() {
       }
 
       // Prepare line items - filter out items without cost prices or zero quantities
+      const skippedItemsDetails: Array<{item: OrderItem, reason: string}> = [];
+      
       const lineItems = itemsToOrder
         .filter(item => {
           const hasValidCostPrice = item.costPrice && item.costPrice > 0;
           const hasValidQuantity = item.orderQuantity && item.orderQuantity > 0;
-          return hasValidCostPrice && hasValidQuantity;
+          
+          if (!hasValidCostPrice || !hasValidQuantity) {
+            const reasons = [];
+            if (!hasValidCostPrice) reasons.push('missing/zero cost price');
+            if (!hasValidQuantity) reasons.push('zero order quantity');
+            skippedItemsDetails.push({
+              item,
+              reason: reasons.join(' and ')
+            });
+            return false;
+          }
+          return true;
         })
         .map(item => ({
           itemId: item.itemId, // Link to database item for SKU lookup
@@ -760,9 +773,21 @@ export default function OrdersPage() {
         return;
       }
 
-      const skippedItems = itemsToOrder.length - lineItems.length;
-      if (skippedItems > 0) {
-        toast.warning('Warning', `${skippedItems} item(s) skipped due to missing cost prices or zero order quantities`);
+      if (skippedItemsDetails.length > 0) {
+        // Log detailed info to console for debugging
+        console.log('Purchase order skipped items:', skippedItemsDetails);
+        
+        // Show first few items in toast with longer duration
+        const firstFew = skippedItemsDetails.slice(0, 3);
+        const moreCount = skippedItemsDetails.length - firstFew.length;
+        const itemsList = firstFew.map(({item, reason}) => `• ${item.itemName} (${reason})`).join('\n');
+        const extraText = moreCount > 0 ? `\n...and ${moreCount} more (see console for full list)` : '';
+        
+        toast.warning(
+          'Items Skipped', 
+          `${skippedItemsDetails.length} item(s) were skipped:\n\n${itemsList}${extraText}`, 
+          12000 // 12 seconds to read the details
+        );
       }
 
       // Create purchase order
