@@ -93,6 +93,7 @@ export default function RosterPage() {
   const [roster, setRoster] = useState<Roster | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
+  const [customSmsMessage, setCustomSmsMessage] = useState('');
   const [shiftModalOpen, setShiftModalOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<RosterShift | null>(null);
   const [modalDayOfWeek, setModalDayOfWeek] = useState(1);
@@ -333,6 +334,9 @@ export default function RosterPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          customMessage: customSmsMessage.trim() || null
+        }),
       });
 
       const result = await response.json();
@@ -1075,14 +1079,33 @@ export default function RosterPage() {
                         >
                           📧 Send Emails Again
                         </Button>
-                        <Button
-                          onClick={sendRosterSMS}
-                          disabled={loading}
-                          variant="outline"
-                          className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                        >
-                          📱 Send SMS
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Add a personal message for the team... (optional)"
+                              value={customSmsMessage}
+                              onChange={(e) => setCustomSmsMessage(e.target.value)}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              maxLength={160}
+                              disabled={loading}
+                            />
+                            <span className="text-xs text-gray-500 whitespace-nowrap">
+                              {customSmsMessage.length}/160
+                            </span>
+                          </div>
+                          <Button
+                            onClick={sendRosterSMS}
+                            disabled={loading}
+                            variant="outline"
+                            className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                          >
+                            📱 Send SMS
+                            {customSmsMessage.trim() && (
+                              <span className="ml-1 text-xs opacity-75">+ Custom Message</span>
+                            )}
+                          </Button>
+                        </div>
                       </>
                     )}
                   </div>

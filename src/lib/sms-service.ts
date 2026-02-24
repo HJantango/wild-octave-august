@@ -15,7 +15,8 @@ export async function sendRosterSMS(
   phoneNumber: string,
   recipientName: string,
   rosterId: string,
-  weekStartDate: Date
+  weekStartDate: Date,
+  customMessage?: string | null
 ): Promise<SMSResult> {
   try {
     // Validate environment variables
@@ -39,8 +40,14 @@ export async function sendRosterSMS(
       year: 'numeric',
     });
 
-    // Create shorter message body since image shows the details
-    const messageBody = `Hi ${recipientName}! 📅 Your roster for the week of ${weekFormatted}. - Wild Octave Organics`;
+    // Create message body with optional custom message
+    let messageBody = `Hi ${recipientName}! 📅 Your roster for the week of ${weekFormatted}.`;
+    
+    if (customMessage && customMessage.trim()) {
+      messageBody += `\n\n💬 ${customMessage.trim()}`;
+    }
+    
+    messageBody += ` - Wild Octave Organics`;
 
     // Create public URL for the roster image
     const baseUrl = process.env.NEXTAUTH_URL || 'https://wild-octave-august-production-a54e.up.railway.app';
@@ -82,7 +89,8 @@ export async function sendRosterSMS(
 export async function sendRosterSMSBatch(
   recipients: Array<{ phone: string; name: string }>,
   rosterId: string,
-  weekStartDate: Date
+  weekStartDate: Date,
+  customMessage?: string | null
 ): Promise<SMSResult[]> {
   const results: SMSResult[] = [];
 
@@ -93,7 +101,8 @@ export async function sendRosterSMSBatch(
       recipient.phone,
       recipient.name,
       rosterId,
-      weekStartDate
+      weekStartDate,
+      customMessage
     );
 
     results.push(result);

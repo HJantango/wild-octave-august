@@ -11,6 +11,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Parse request body for custom message
+    const body = await request.json().catch(() => ({}));
+    const customMessage = body.customMessage || null;
     // Fetch the roster with all shifts and staff
     const roster = await prisma.roster.findUnique({
       where: {
@@ -78,7 +81,8 @@ export async function POST(
     const smsResults = await sendRosterSMSBatch(
       recipients,
       roster.id, // Pass roster ID instead of image buffer
-      weekStartDate
+      weekStartDate,
+      customMessage
     );
 
     // Count successes and failures
