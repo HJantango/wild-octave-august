@@ -11,9 +11,15 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Parse request body for custom message
-    const body = await request.json().catch(() => ({}));
-    const customMessage = body.customMessage || null;
+    // Parse request body for custom message (with fallback)
+    let customMessage = null;
+    try {
+      const body = await request.json();
+      customMessage = body?.customMessage || null;
+    } catch (e) {
+      // If no body or parsing fails, continue without custom message
+      console.log('No custom message in request body');
+    }
     // Fetch the roster with all shifts and staff
     const roster = await prisma.roster.findUnique({
       where: {

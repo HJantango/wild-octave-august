@@ -339,6 +339,11 @@ export default function RosterPage() {
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`SMS API error: ${response.status} - ${errorText}`);
+      }
+
       const result = await response.json();
       if (result.success) {
         const smsCount = result.details?.smsSent || 0;
