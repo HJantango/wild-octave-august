@@ -11,14 +11,18 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Parse request body for custom message (with fallback)
+    // Parse request body for custom message - simplified and safer
     let customMessage = null;
-    try {
-      const body = await request.json();
-      customMessage = body?.customMessage || null;
-    } catch (e) {
-      // If no body or parsing fails, continue without custom message
-      console.log('No custom message in request body');
+    
+    if (request.headers.get('content-length') !== '0') {
+      try {
+        const body = await request.json();
+        if (body && typeof body.customMessage === 'string') {
+          customMessage = body.customMessage.trim() || null;
+        }
+      } catch (jsonError) {
+        console.warn('Failed to parse SMS request body, continuing without custom message:', jsonError);
+      }
     }
     // Fetch the roster with all shifts and staff
     const roster = await prisma.roster.findUnique({

@@ -328,16 +328,27 @@ export default function RosterPage() {
 
     try {
       setLoading(true);
+      console.log('📱 Starting SMS send with custom message:', customSmsMessage.trim() || '(none)');
 
-      const response = await fetch(`/api/roster/weekly/${roster.id}/send-sms`, {
+      // Create request body - only if there's a custom message
+      const requestBody = customSmsMessage.trim() 
+        ? JSON.stringify({ customMessage: customSmsMessage.trim() })
+        : JSON.stringify({});
+
+      // Create timeout promise for better browser compatibility
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMS request timed out after 30 seconds')), 30000)
+      );
+
+      const fetchPromise = fetch(`/api/roster/weekly/${roster.id}/send-sms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          customMessage: customSmsMessage.trim() || null
-        }),
+        body: requestBody
       });
+
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -361,7 +372,14 @@ export default function RosterPage() {
       }
     } catch (error) {
       console.error('Error sending roster SMS:', error);
-      toast.error('Failed to send SMS', 'An error occurred while sending roster SMS');
+      
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        toast.error('SMS Timeout', 'SMS request timed out. It may still be sending in the background.');
+      } else if (error instanceof Error && error.name === 'AbortError') {
+        toast.error('SMS Cancelled', 'SMS request was cancelled.');
+      } else {
+        toast.error('Failed to send SMS', error instanceof Error ? error.message : 'An unknown error occurred');
+      }
     } finally {
       setLoading(false);
     }
