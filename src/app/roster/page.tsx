@@ -1159,39 +1159,27 @@ export default function RosterPage() {
         </div>
 
         {/* Cost Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <DollarSignIcon className="w-6 h-6" />
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <DollarSignIcon className="w-8 h-8" />
                 <div>
                   <p className="text-sm opacity-90">Weekly Wages</p>
-                  <p className="text-xl font-bold">{formatCurrency(weeklyCost)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-gradient-to-r from-orange-500 to-red-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <ClockIcon className="w-6 h-6" />
-                <div>
-                  <p className="text-sm opacity-90">Tax Withheld</p>
-                  <p className="text-xl font-bold">{formatCurrency(taxAmount)}</p>
-                  <p className="text-xs opacity-75">Deducted from wages</p>
+                  <p className="text-2xl font-bold">{formatCurrency(weeklyCost)}</p>
+                  <p className="text-xs opacity-75">Gross staff wages</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           
           <Card className="bg-gradient-to-r from-purple-500 to-pink-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <UserIcon className="w-6 h-6" />
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <UserIcon className="w-8 h-8" />
                 <div>
                   <p className="text-sm opacity-90">Superannuation</p>
-                  <p className="text-xl font-bold">{formatCurrency(superAmount)}</p>
+                  <p className="text-2xl font-bold">{formatCurrency(superAmount)}</p>
                   <p className="text-xs opacity-75">Employer contribution</p>
                 </div>
               </div>
@@ -1199,12 +1187,12 @@ export default function RosterPage() {
           </Card>
           
           <Card className="bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <CalendarIcon className="w-6 h-6" />
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <CalendarIcon className="w-8 h-8" />
                 <div>
-                  <p className="text-sm opacity-90">Business Cost</p>
-                  <p className="text-xl font-bold">{formatCurrency(totalCost)}</p>
+                  <p className="text-sm opacity-90">Total Business Cost</p>
+                  <p className="text-2xl font-bold">{formatCurrency(totalCost)}</p>
                   <p className="text-xs opacity-75">Wages + Super</p>
                 </div>
               </div>
