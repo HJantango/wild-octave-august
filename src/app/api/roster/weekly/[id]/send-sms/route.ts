@@ -101,19 +101,7 @@ export async function POST(
 
     console.log(`✅ SMS sending complete: ${successful} sent, ${failed} failed`);
 
-    // Update roster metadata to track SMS sending (optional)
-    try {
-      await prisma.roster.update({
-        where: { id: roster.id },
-        data: {
-          updatedAt: new Date(), // Track when SMS was last sent
-        },
-      });
-    } catch (error) {
-      // Don't fail the whole SMS operation if we can't update the timestamp
-      console.warn('Could not update roster timestamp:', error);
-    }
-
+    // Immediately return response after SMS sent - no DB update needed
     return NextResponse.json({
       success: true,
       message: `Roster SMS sent to ${successful} staff member${successful !== 1 ? 's' : ''}`,

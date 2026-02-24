@@ -329,12 +329,19 @@ export default function RosterPage() {
     try {
       setLoading(true);
 
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+
       const response = await fetch(`/api/roster/weekly/${roster.id}/send-sms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const result = await response.json();
       if (result.success) {
@@ -353,7 +360,12 @@ export default function RosterPage() {
       }
     } catch (error) {
       console.error('Error sending roster SMS:', error);
-      toast.error('Failed to send SMS', 'An error occurred while sending roster SMS');
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        toast.error('SMS Timeout', 'SMS request timed out after 25 seconds. Check your phone - it may have still sent.');
+      } else {
+        toast.error('Failed to send SMS', 'An error occurred while sending roster SMS');
+      }
     } finally {
       setLoading(false);
     }
