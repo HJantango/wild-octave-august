@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/api-utils';
-import { generateRosterImage } from '@/lib/roster-image-generator';
 import {
   sendRosterSMSBatch,
   isValidPhoneNumber,
@@ -43,20 +42,6 @@ export async function POST(
       );
     }
 
-    // Get all staff members from the database for the roster preview
-    const allStaff = await prisma.rosterStaff.findMany({
-      where: {
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-        baseHourlyRate: true,
-        isActive: true,
-      },
-    });
-
     // Get unique staff who have shifts in this roster
     const staffWithShifts = roster.shifts
       .map((shift) => shift.staff)
@@ -80,58 +65,19 @@ export async function POST(
       });
     }
 
-    // Generate the roster image
-    console.log('🖼️  Generating roster image...');
-    const weekStartDate = new Date(roster.weekStartDate);
-
-    const rosterImageBuffer = await generateRosterImage(
-      {
-        id: roster.id,
-        weekStartDate: roster.weekStartDate.toISOString(),
-        status: roster.status,
-        shifts: roster.shifts.map((shift) => ({
-          id: shift.id,
-          staffId: shift.staffId,
-          dayOfWeek: shift.dayOfWeek,
-          startTime: shift.startTime,
-          endTime: shift.endTime,
-          breakMinutes: shift.breakMinutes,
-          notes: shift.notes || undefined,
-          role: shift.role || undefined,
-          isBackupBarista: shift.isBackupBarista || undefined,
-          staff: {
-            id: shift.staff.id,
-            name: shift.staff.name,
-            role: shift.staff.role,
-            baseHourlyRate: Number(shift.staff.baseHourlyRate),
-            isActive: shift.staff.isActive,
-          },
-        })),
-      },
-      allStaff.map((s) => ({
-        id: s.id,
-        name: s.name,
-        role: s.role,
-        baseHourlyRate: Number(s.baseHourlyRate),
-        isActive: s.isActive,
-      })),
-      weekStartDate
-    );
-
-    console.log(`✅ Roster image generated (${rosterImageBuffer.length} bytes)`);
-
     // Prepare recipients
     const recipients = staffWithPhones.map((staff) => ({
       phone: normalizePhoneNumber(staff.phone!),
       name: staff.name,
     }));
 
-    console.log(`📱 Sending SMS to ${recipients.length} staff members...`);
+    const weekStartDate = new Date(roster.weekStartDate);
+    console.log(`📱 Sending MMS with roster image to ${recipients.length} staff members...`);
 
-    // Send SMS messages
+    // Send MMS messages with roster image
     const smsResults = await sendRosterSMSBatch(
       recipients,
-      rosterImageBuffer,
+      roster.id, // Pass roster ID instead of image buffer
       weekStartDate
     );
 

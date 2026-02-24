@@ -14,7 +14,7 @@ interface SMSResult {
 export async function sendRosterSMS(
   phoneNumber: string,
   recipientName: string,
-  rosterImageBuffer: Buffer,
+  rosterId: string,
   weekStartDate: Date
 ): Promise<SMSResult> {
   try {
@@ -39,14 +39,21 @@ export async function sendRosterSMS(
       year: 'numeric',
     });
 
-    // Create message body
-    const messageBody = `Hi ${recipientName}! 📅 Your roster for the week of ${weekFormatted} has been published. Please check your email or the roster board at work for details. - Wild Octave Organics`;
+    // Create shorter message body since image shows the details
+    const messageBody = `Hi ${recipientName}! 📅 Your roster for the week of ${weekFormatted}. - Wild Octave Organics`;
 
-    // Send SMS (text only - Twilio requires public URLs for MMS which we don't have set up yet)
+    // Create public URL for the roster image
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://wild-octave-august-production-a54e.up.railway.app';
+    const rosterImageUrl = `${baseUrl}/api/roster/image/${rosterId}`;
+
+    console.log(`📱 Sending MMS to ${recipientName} with image: ${rosterImageUrl}`);
+
+    // Send MMS with roster image
     const message = await client.messages.create({
       body: messageBody,
       from: fromNumber,
       to: phoneNumber,
+      mediaUrl: [rosterImageUrl], // Attach the roster PNG image
     });
 
     console.log(`✅ SMS sent to ${recipientName} (${phoneNumber}): ${message.sid}`);
@@ -74,7 +81,7 @@ export async function sendRosterSMS(
  */
 export async function sendRosterSMSBatch(
   recipients: Array<{ phone: string; name: string }>,
-  rosterImageBuffer: Buffer,
+  rosterId: string,
   weekStartDate: Date
 ): Promise<SMSResult[]> {
   const results: SMSResult[] = [];
@@ -85,7 +92,7 @@ export async function sendRosterSMSBatch(
     const result = await sendRosterSMS(
       recipient.phone,
       recipient.name,
-      rosterImageBuffer,
+      rosterId,
       weekStartDate
     );
 
