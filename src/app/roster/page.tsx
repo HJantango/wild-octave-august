@@ -328,32 +328,13 @@ export default function RosterPage() {
 
     try {
       setLoading(true);
-      console.log('📱 Starting SMS send with custom message:', customSmsMessage.trim() || '(none)');
 
-      // Create request body - only if there's a custom message
-      const requestBody = customSmsMessage.trim() 
-        ? JSON.stringify({ customMessage: customSmsMessage.trim() })
-        : JSON.stringify({});
-
-      // Create timeout promise for better browser compatibility
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('SMS request timed out after 30 seconds')), 30000)
-      );
-
-      const fetchPromise = fetch(`/api/roster/weekly/${roster.id}/send-sms`, {
+      const response = await fetch(`/api/roster/weekly/${roster.id}/send-sms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: requestBody
       });
-
-      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`SMS API error: ${response.status} - ${errorText}`);
-      }
 
       const result = await response.json();
       if (result.success) {
@@ -372,14 +353,7 @@ export default function RosterPage() {
       }
     } catch (error) {
       console.error('Error sending roster SMS:', error);
-      
-      if (error instanceof Error && error.name === 'TimeoutError') {
-        toast.error('SMS Timeout', 'SMS request timed out. It may still be sending in the background.');
-      } else if (error instanceof Error && error.name === 'AbortError') {
-        toast.error('SMS Cancelled', 'SMS request was cancelled.');
-      } else {
-        toast.error('Failed to send SMS', error instanceof Error ? error.message : 'An unknown error occurred');
-      }
+      toast.error('Failed to send SMS', 'An error occurred while sending roster SMS');
     } finally {
       setLoading(false);
     }
@@ -1102,33 +1076,14 @@ export default function RosterPage() {
                         >
                           📧 Send Emails Again
                         </Button>
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              placeholder="Add a personal message for the team... (optional)"
-                              value={customSmsMessage}
-                              onChange={(e) => setCustomSmsMessage(e.target.value)}
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              maxLength={160}
-                              disabled={loading}
-                            />
-                            <span className="text-xs text-gray-500 whitespace-nowrap">
-                              {customSmsMessage.length}/160
-                            </span>
-                          </div>
-                          <Button
-                            onClick={sendRosterSMS}
-                            disabled={loading}
-                            variant="outline"
-                            className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                          >
-                            📱 Send SMS
-                            {customSmsMessage.trim() && (
-                              <span className="ml-1 text-xs opacity-75">+ Custom Message</span>
-                            )}
-                          </Button>
-                        </div>
+                        <Button
+                          onClick={sendRosterSMS}
+                          disabled={loading}
+                          variant="outline"
+                          className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                        >
+                          📱 Send SMS
+                        </Button>
                       </>
                     )}
                   </div>
