@@ -820,11 +820,13 @@ export default function RosterPage() {
   const weeklyCost = calculateWeeklyCost();
   
   // Calculate tax and super per staff member based on their individual rates
+  // NOTE: Tax is deducted FROM wages (not added to business costs)
+  // Super is paid BY business (additional to wages)
   const calculateStaffTaxAndSuper = () => {
     if (!roster) return { totalTax: 0, totalSuper: 0 };
     
-    let totalTax = 0;
-    let totalSuper = 0;
+    let totalTax = 0;    // Amount deducted from staff wages
+    let totalSuper = 0;  // Amount business pays on top of wages
     
     // Get unique staff IDs who have shifts this week
     const staffIdsWithShifts = new Set(roster.shifts.map(s => s.staffId));
@@ -851,6 +853,7 @@ export default function RosterPage() {
       }
       
       // Tax calculation: use individual taxRate (defaults to 30% if undefined)
+      // This is withholding tax - deducted from employee wages, not added to business costs
       const taxRate = (staffMember.taxRate ?? 30) / 100;
       totalTax += gross * taxRate;
       
@@ -865,7 +868,7 @@ export default function RosterPage() {
   };
   
   const { totalTax: taxAmount, totalSuper: superAmount } = calculateStaffTaxAndSuper();
-  const totalCost = weeklyCost + taxAmount + superAmount;
+  const totalCost = weeklyCost + superAmount; // Tax is deducted FROM wages, not added TO costs
   const targetWageCost = weeklySalesTarget * (targetWagePercentage / 100);
   const wageDifference = totalCost - targetWageCost;
   const wagePercentageActual = weeklySalesTarget > 0 ? (totalCost / weeklySalesTarget * 100) : 0;
@@ -1174,8 +1177,9 @@ export default function RosterPage() {
               <div className="flex items-center space-x-2">
                 <ClockIcon className="w-6 h-6" />
                 <div>
-                  <p className="text-sm opacity-90">Tax (per person)</p>
+                  <p className="text-sm opacity-90">Tax Withheld</p>
                   <p className="text-xl font-bold">{formatCurrency(taxAmount)}</p>
+                  <p className="text-xs opacity-75">Deducted from wages</p>
                 </div>
               </div>
             </CardContent>
@@ -1186,8 +1190,9 @@ export default function RosterPage() {
               <div className="flex items-center space-x-2">
                 <UserIcon className="w-6 h-6" />
                 <div>
-                  <p className="text-sm opacity-90">Super (per person)</p>
+                  <p className="text-sm opacity-90">Superannuation</p>
                   <p className="text-xl font-bold">{formatCurrency(superAmount)}</p>
+                  <p className="text-xs opacity-75">Employer contribution</p>
                 </div>
               </div>
             </CardContent>
@@ -1198,8 +1203,9 @@ export default function RosterPage() {
               <div className="flex items-center space-x-2">
                 <CalendarIcon className="w-6 h-6" />
                 <div>
-                  <p className="text-sm opacity-90">Total Cost</p>
+                  <p className="text-sm opacity-90">Business Cost</p>
                   <p className="text-xl font-bold">{formatCurrency(totalCost)}</p>
+                  <p className="text-xs opacity-75">Wages + Super</p>
                 </div>
               </div>
             </CardContent>
