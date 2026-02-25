@@ -7,28 +7,10 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-// Try multiple sources for DATABASE_URL
-const databaseUrl = 
-  process.env.DATABASE_URL || 
-  process.env.CUSTOM_DATABASE_URL || 
-  process.env.RAILWAY_DATABASE_URL;
-
-if (!databaseUrl) {
-  console.error('❌ No DATABASE_URL found!');
-  console.error('Env check:', {
-    DATABASE_URL: !!process.env.DATABASE_URL,
-    CUSTOM_DATABASE_URL: !!process.env.CUSTOM_DATABASE_URL,
-    NODE_ENV: process.env.NODE_ENV,
-    keys: Object.keys(process.env).filter(k => k.includes('DATABASE'))
-  });
-}
-
+// Simple Prisma client - Railway should handle DATABASE_URL automatically
 export const prisma = globalThis.__prisma ?? new PrismaClient({
-  datasources: {
-    db: {
-      url: databaseUrl!
-    }
-  }
+  log: ['error', 'warn'],
+  errorFormat: 'pretty',
 });
 
 if (process.env.NODE_ENV !== 'production') {
