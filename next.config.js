@@ -2,6 +2,16 @@
 const nextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
+  
+  // Ensure DATABASE_URL is available to API routes
+  serverRuntimeConfig: {
+    DATABASE_URL: process.env.DATABASE_URL,
+  },
+  
+  // Make DATABASE_URL available to both client and server
+  env: {
+    CUSTOM_DATABASE_URL: process.env.DATABASE_URL,
+  },
 
   // Disable ESLint and TypeScript checks during production builds
   // This speeds up Railway deployment - run checks locally instead
