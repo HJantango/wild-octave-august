@@ -30,9 +30,7 @@ function normalizeItemName(name: string): string {
     .trim()
     // Remove possessive apostrophes first (Olsson's → Olssons)
     .replace(/\b(\w+)'\s*s\b/g, '$1s')
-    // Remove common brand prefixes that cause mismatches
-    .replace(/^(olssons?|celtic|maldon|murray river)\s+/gi, '')
-    .replace(/\s+(olssons?|celtic|maldon|murray river)\s+/gi, ' ')
+    // REMOVED - Don't remove brand/origin words as they're part of product identity
     // Normalize weight units
     .replace(/(\d+)\s*grams?\b/gi, '$1g')
     .replace(/(\d+)\s*gm\b/gi, '$1g')
@@ -164,9 +162,9 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     });
 
-    // Get sales data from SquareDailySales - include squareCatalogId for better matching
+    // Get sales data from SquareDailySales - group by itemName ONLY to avoid splitting totals
     const salesData = await prisma.squareDailySales.groupBy({
-      by: ['itemName', 'squareCatalogId'],
+      by: ['itemName'],  // Group only by itemName to get correct totals
       where: {
         date: { gte: startDate, lte: endDate },
       },
@@ -179,7 +177,28 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // SQUARE-FIRST PRINCIPLE: Build sales lookup by Square catalog ID first, then names as fallback
+    // Also get a sample record for each itemName to extract squareCatalogId for matching
+    const salesCatalogIds = await prisma.squareDailySales.findMany({
+      where: {
+        date: { gte: startDate, lte: endDate },
+        squareCatalogId: { not: null },
+      },
+      select: {
+        itemName: true,
+        squareCatalogId: true,
+      },
+      distinct: ['itemName'],
+    });
+
+    // Build catalog ID lookup map for Square-first matching
+    const catalogIdLookup = new Map<string, string>();  // itemName -> squareCatalogId
+    for (const record of salesCatalogIds) {
+      if (record.squareCatalogId) {
+        catalogIdLookup.set(record.itemName, record.squareCatalogId);
+      }
+    }
+
+    // CORRECTED: Build sales lookup by itemName with correct aggregated totals
     const salesLookupBySquareId = new Map<string, { units: number; revenue: number; weeks: number; originalName: string }>();
     const salesLookupByName = new Map<string, { units: number; revenue: number; weeks: number; originalName: string }>();
     const directLookup = new Map<string, { units: number; revenue: number; weeks: number }>();
@@ -190,28 +209,17 @@ export async function GET(request: NextRequest) {
       const weeks = sale._count.date || 0;
       const salesEntry = { units, revenue, weeks, originalName: sale.itemName };
       
-      // Primary: Group by Square catalog ID if available
-      if (sale.squareCatalogId) {
-        const existing = salesLookupBySquareId.get(sale.squareCatalogId);
-        if (existing) {
-          existing.units += units;
-          existing.revenue += revenue;
-          existing.weeks += weeks;
-        } else {
-          salesLookupBySquareId.set(sale.squareCatalogId, { ...salesEntry });
-        }
+      // Get the Square catalog ID for this item name if available
+      const squareCatalogId = catalogIdLookup.get(sale.itemName);
+      
+      // Primary: Index by Square catalog ID if available
+      if (squareCatalogId) {
+        salesLookupBySquareId.set(squareCatalogId, { ...salesEntry });
       }
       
-      // Fallback: Also maintain name-based lookup (with normalization) for legacy items
+      // Always maintain name-based lookup (with normalization)
       const normalizedKey = normalizeItemName(sale.itemName);
-      const existingByName = salesLookupByName.get(normalizedKey);
-      if (existingByName) {
-        existingByName.units += units;
-        existingByName.revenue += revenue;
-        existingByName.weeks += weeks;
-      } else {
-        salesLookupByName.set(normalizedKey, { ...salesEntry });
-      }
+      salesLookupByName.set(normalizedKey, { ...salesEntry });
       
       // Direct name lookup for exact matches
       directLookup.set(sale.itemName.toLowerCase().trim(), { units, revenue, weeks });
