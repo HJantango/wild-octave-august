@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency } from '@/lib/format';
+import { RefreshCwIcon } from 'lucide-react';
 
 interface RationalizationItem {
   id: string;
@@ -50,6 +51,7 @@ export default function RationalizationPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   
   // Shelf progress
   const [shelfProgress, setShelfProgress] = useState<{
@@ -154,6 +156,32 @@ export default function RationalizationPage() {
     }
   };
 
+  const syncSalesData = async () => {
+    setSyncing(true);
+    try {
+      toast.info('Syncing', 'Syncing all-time sales data from Square...');
+      const res = await fetch('/api/square/sync-sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}), // No weeks parameter - syncs all-time by default
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Sync Complete', `Updated ${data.data.summary.dailyRecordsUpserted} sales records`);
+        // Refresh the rationalization data to show updated sales
+        await fetchData();
+      } else {
+        toast.error('Sync Failed', data.error?.message || 'Failed to sync sales data');
+      }
+    } catch (err) {
+      toast.error('Error', 'Failed to sync sales data');
+      console.error('Sales sync error:', err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const filteredItems = useMemo(() => {
     let result = items;
     
@@ -243,15 +271,33 @@ export default function RationalizationPage() {
         <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-8 text-white">
           <div className="absolute inset-0 bg-black opacity-10"></div>
           <div className="relative">
-            <h1 className="text-3xl font-bold mb-2">📦 Product Rationalization</h1>
-            <p className="text-emerald-100">
-              Review products shelf-by-shelf. Mark as Keep, Remove, or Staple.
-            </p>
-            {summary && (
-              <p className="text-emerald-200 text-sm mt-1">
-                📊 All sales data since March 22, 2025 ({summary.weeks} weeks)
-              </p>
-            )}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">📦 Product Rationalization</h1>
+                <p className="text-emerald-100">
+                  Review products shelf-by-shelf. Mark as Keep, Remove, or Staple.
+                </p>
+                {summary && (
+                  <p className="text-emerald-200 text-sm mt-1">
+                    📊 All sales data since March 22, 2025 ({summary.weeks} weeks)
+                  </p>
+                )}
+              </div>
+              <div className="mt-4 lg:mt-0">
+                <Button
+                  onClick={syncSalesData}
+                  disabled={syncing}
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/20 backdrop-blur-sm px-6 py-3 font-semibold"
+                >
+                  {syncing ? (
+                    <RefreshCwIcon className="w-5 h-5 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCwIcon className="w-5 h-5 mr-2" />
+                  )}
+                  Sync All Sales
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -472,7 +518,8 @@ export default function RationalizationPage() {
                       <th className="text-right p-3">Cost</th>
                       <th className="text-right p-3">Sell</th>
                       <th className="text-right p-3">Margin</th>
-                      <th className="text-right p-3">Sales</th>
+                      <th className="text-right p-3">Weekly Sales</th>
+                      <th className="text-right p-3">Total Units</th>
                       <th className="text-right p-3">Revenue</th>
                       <th className="text-right p-3">Profit</th>
                       <th className="text-center p-3">Decision</th>
@@ -484,7 +531,7 @@ export default function RationalizationPage() {
                       <>
                         {showSimilar && group !== 'ungrouped' && groupItems.length > 0 && (
                           <tr key={`group-${group}`} className="bg-purple-50">
-                            <td colSpan={9} className="p-2 font-medium text-purple-800">
+                            <td colSpan={10} className="p-2 font-medium text-purple-800">
                               🔗 Similar: {group} ({groupItems.length} items)
                             </td>
                           </tr>
@@ -518,7 +565,14 @@ export default function RationalizationPage() {
                             </td>
                             <td className="p-3 text-right">
                               {getSalesIndicator(item)}
-                              <div className="text-xs text-gray-400">{item.totalUnitsSold} total</div>
+                            </td>
+                            <td className="p-3 text-right font-mono text-lg">
+                              {item.totalUnitsSold > 0 ? (
+                                <span className="text-blue-600 font-semibold">{item.totalUnitsSold.toLocaleString()}</span>
+                              ) : (
+                                <span className="text-red-400">0</span>
+                              )}
+                              <div className="text-xs text-gray-400">all-time</div>
                             </td>
                             <td className="p-3 text-right font-mono">
                               {formatCurrency(item.totalRevenue)}

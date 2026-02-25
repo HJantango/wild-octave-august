@@ -132,13 +132,12 @@ async function fetchAllOrders(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const weeksBack = body.weeks || 6;
-
+    
     const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - weeksBack * 7);
+    // ALWAYS sync all sales since shop opened (March 22, 2025) - no more weeks limitation
+    const startDate = new Date('2025-03-22');
 
-    console.log(`🔄 Syncing Square sales from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]} (${weeksBack} weeks)`);
+    console.log(`🔄 Syncing ALL Square sales from shop opening (${startDate.toISOString().split('T')[0]}) to ${endDate.toISOString().split('T')[0]}`);
 
     const client = getSquareClient();
 
@@ -297,6 +296,7 @@ export async function POST(request: NextRequest) {
       from: startDate.toISOString().split('T')[0],
       to: endDate.toISOString().split('T')[0],
     };
+    const daysSinceOpening = Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
 
     return createSuccessResponse({
       summary: {
@@ -305,9 +305,9 @@ export async function POST(request: NextRequest) {
         dailyRecordsUpserted: upsertedCount,
         uniqueItems: uniqueItems.size,
         dateRange,
-        weeksBack,
+        daysSinceOpening,
       },
-    }, `Synced ${upsertedCount} daily sales records from ${orders.length} orders`);
+    }, `Synced ${upsertedCount} daily sales records from ${orders.length} orders (all-time since opening)`);
   } catch (error: any) {
     console.error('❌ Square sync error:', error);
     return createErrorResponse(
