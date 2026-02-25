@@ -7,8 +7,20 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-// Simple prisma client - rely on Railway setting DATABASE_URL at runtime
-export const prisma = globalThis.__prisma ?? new PrismaClient();
+// Validate DATABASE_URL is available
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL environment variable is not set!');
+  console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('DATABASE')));
+}
+
+// Explicit Prisma client with DATABASE_URL validation  
+export const prisma = globalThis.__prisma ?? new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
 if (process.env.NODE_ENV !== 'production') {
   globalThis.__prisma = prisma;
