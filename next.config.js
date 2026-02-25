@@ -3,11 +3,6 @@ const nextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
 
-  // Environment variables for API routes
-  env: {
-    DATABASE_URL: process.env.DATABASE_URL,
-  },
-
   // Disable ESLint and TypeScript checks during production builds
   // This speeds up Railway deployment - run checks locally instead
   eslint: {
