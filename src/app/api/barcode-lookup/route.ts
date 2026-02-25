@@ -26,21 +26,20 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 Looking up barcode: "${barcode}"`);
 
     // SQUARE-FIRST PRINCIPLE: Search by barcode AND SKU across ALL items
-    const item = await prisma.item.findFirst({
-      where: {
-        OR: [
-          // First try exact barcode match (case-insensitive)
-          { barcode: { equals: barcode, mode: 'insensitive' } },
-          // Then try SKU match (case-insensitive) 
-          { sku: { equals: barcode, mode: 'insensitive' } },
-        ],
-      },
-      orderBy: [
-        // Prefer items with actual barcodes over SKU matches
-        { barcode: 'desc' },
-        { name: 'asc' }
-      ]
+    // GTINs are just numbers, so exact matches are fast
+    let item = await prisma.item.findFirst({
+      where: { barcode }  // Try exact barcode match first (fastest)
     });
+
+    let matchedBy: 'barcode' | 'sku' = 'barcode';
+
+    // If not found by barcode, try SKU (some items might use SKU field)
+    if (!item) {
+      item = await prisma.item.findFirst({
+        where: { sku: barcode }
+      });
+      matchedBy = 'sku';
+    }
 
     if (!item) {
       console.log(`❌ Barcode not found: "${barcode}"`);
@@ -51,10 +50,7 @@ export async function GET(request: NextRequest) {
       } as BarcodeResult);
     }
 
-    // Determine what field matched
-    const matchedByBarcode = item.barcode && 
-      item.barcode.toLowerCase() === barcode.toLowerCase();
-    const matchedBy = matchedByBarcode ? 'barcode' : 'sku';
+    // matchedBy already determined above during the search
 
     console.log(`✅ Found item: "${item.name}" (matched by ${matchedBy})`);
 
