@@ -38,7 +38,8 @@ interface Summary {
   toRemove: number;
   toKeep: number;
   undecided: number;
-  months: number;
+  weeks: number;
+  startDate: string;
 }
 
 export default function RationalizationPage() {
@@ -246,6 +247,11 @@ export default function RationalizationPage() {
             <p className="text-emerald-100">
               Review products shelf-by-shelf. Mark as Keep, Remove, or Staple.
             </p>
+            {summary && (
+              <p className="text-emerald-200 text-sm mt-1">
+                📊 All sales data since March 22, 2025 ({summary.weeks} weeks)
+              </p>
+            )}
           </div>
         </div>
 
@@ -261,7 +267,7 @@ export default function RationalizationPage() {
             <Card className="border-red-200 bg-red-50">
               <CardContent className="p-4">
                 <div className="text-2xl font-bold text-red-700">{summary.itemsNoSales}</div>
-                <div className="text-sm text-red-600">No Sales (6mo)</div>
+                <div className="text-sm text-red-600">No Sales (since opening)</div>
               </CardContent>
             </Card>
             <Card className="border-blue-200 bg-blue-50">

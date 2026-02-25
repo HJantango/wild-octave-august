@@ -141,12 +141,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const shelfLabel = searchParams.get('shelfLabel') || null;
     const category = searchParams.get('category') || null;
-    const months = parseInt(searchParams.get('months') || '6');
+    // No longer using months parameter - always collect all sales data since opening
 
-    // Calculate date range
+    // Calculate date range - ALWAYS start from when sales began (March 22, 2025)
     const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - months);
+    const startDate = new Date('2025-03-22'); // First day of sales data
 
     // Get all items with optional filtering
     const where: any = {};
@@ -231,7 +230,7 @@ export async function GET(request: NextRequest) {
     // Find similar product groups
     const similarGroups = findSimilarGroups(items.map(i => ({ id: i.id, name: i.name })));
 
-    // Calculate weeks in period
+    // Calculate weeks since opening (March 22, 2025)
     const weeksInPeriod = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
 
     // Helper to find sales for an item - SQUARE-FIRST PRINCIPLE
@@ -364,7 +363,8 @@ export async function GET(request: NextRequest) {
         toRemove: result.filter(i => i.decision === 'remove').length,
         toKeep: result.filter(i => i.decision === 'keep').length,
         undecided: result.filter(i => !i.decision).length,
-        months,
+        weeks: weeksInPeriod,
+        startDate: startDate.toISOString().split('T')[0], // YYYY-MM-DD format
       },
       filters: {
         shelfLabels: shelfLabels.map(s => s.subcategory).filter(Boolean).sort(),
