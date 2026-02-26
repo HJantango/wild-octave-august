@@ -138,6 +138,15 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, name, role, canDoBarista, salaryType, weeklySalary, baseHourlyRate, saturdayHourlyRate, sundayHourlyRate, publicHolidayHourlyRate, taxRate, superRate, email, phone, isActive } = body;
 
+    // DEBUG: Log the exact input data
+    console.log('=== STAFF UPDATE DEBUG ===');
+    console.log('Staff ID:', id);
+    console.log('Phone input:', phone);
+    console.log('Phone type:', typeof phone);
+    console.log('Phone === null:', phone === null);
+    console.log('Phone === undefined:', phone === undefined);
+    console.log('Full body:', JSON.stringify(body, null, 2));
+
     if (!id) {
       return NextResponse.json(
         { 
@@ -148,25 +157,34 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // DEBUG: Check what will be included in update
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (role !== undefined) updateData.role = role;
+    if (canDoBarista !== undefined) updateData.canDoBarista = canDoBarista;
+    if (salaryType !== undefined) updateData.salaryType = salaryType;
+    if (weeklySalary !== undefined) updateData.weeklySalary = weeklySalary;
+    if (baseHourlyRate !== undefined) updateData.baseHourlyRate = baseHourlyRate;
+    if (saturdayHourlyRate !== undefined) updateData.saturdayHourlyRate = saturdayHourlyRate;
+    if (sundayHourlyRate !== undefined) updateData.sundayHourlyRate = sundayHourlyRate;
+    if (publicHolidayHourlyRate !== undefined) updateData.publicHolidayHourlyRate = publicHolidayHourlyRate;
+    if (taxRate !== undefined) updateData.taxRate = taxRate;
+    if (superRate !== undefined) updateData.superRate = superRate;
+    if (email !== undefined && email !== null) updateData.email = email;
+    if (phone !== undefined && phone !== null) updateData.phone = phone;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    console.log('Will include phone in update:', phone !== undefined && phone !== null);
+    console.log('Update data keys:', Object.keys(updateData));
+    console.log('Update data phone:', updateData.phone);
+
     const updatedStaff = await prisma.rosterStaff.update({
       where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(role !== undefined && { role }),
-        ...(canDoBarista !== undefined && { canDoBarista }),
-        ...(salaryType !== undefined && { salaryType }),
-        ...(weeklySalary !== undefined && { weeklySalary }),
-        ...(baseHourlyRate !== undefined && { baseHourlyRate }),
-        ...(saturdayHourlyRate !== undefined && { saturdayHourlyRate }),
-        ...(sundayHourlyRate !== undefined && { sundayHourlyRate }),
-        ...(publicHolidayHourlyRate !== undefined && { publicHolidayHourlyRate }),
-        ...(taxRate !== undefined && { taxRate }),
-        ...(superRate !== undefined && { superRate }),
-        ...(email !== undefined && email !== null && { email }),
-        ...(phone !== undefined && phone !== null && { phone }),
-        ...(isActive !== undefined && { isActive }),
-      }
+      data: updateData
     });
+
+    console.log('Updated staff phone:', updatedStaff.phone);
+    console.log('=== END STAFF UPDATE DEBUG ===');
 
     return NextResponse.json({
       success: true,
