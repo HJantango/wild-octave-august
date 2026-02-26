@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Staff Phone Save</title>
+</head>
+<body>
+    <h2>Test Staff Phone Number Save</h2>
+    
+    <div id="status"></div>
+    
+    <script>
+        // Test saving phone numbers directly to API
+        async function testPhoneSave() {
+            const status = document.getElementById('status');
+            status.innerHTML = 'Testing phone save...';
+            
+            try {
+                // Test data with phone number
+                const testData = {
+                    name: "Test Staff Member",
+                    role: "Counter/Roam", 
+                    baseHourlyRate: 25.50,
+                    email: "test@example.com",
+                    phone: "0412345678",
+                    isActive: true
+                };
+                
+                status.innerHTML += '<br>Sending: ' + JSON.stringify(testData, null, 2);
+                
+                // POST to create staff
+                const response = await fetch('/api/roster/staff', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const result = await response.json();
+                status.innerHTML += '<br><br>Response: ' + JSON.stringify(result, null, 2);
+                
+                if (result.success && result.data.id) {
+                    // Now fetch it back to see if phone persisted
+                    const getResponse = await fetch('/api/roster/staff');
+                    const getResult = await getResponse.json();
+                    
+                    const savedStaff = getResult.data.find(s => s.id === result.data.id);
+                    status.innerHTML += '<br><br>Saved staff phone: ' + (savedStaff?.phone || 'NULL/MISSING');
+                    
+                    if (savedStaff?.phone !== testData.phone) {
+                        status.innerHTML += '<br><br>🚨 PHONE NUMBER LOST! Expected: ' + testData.phone + ', Got: ' + (savedStaff?.phone || 'null');
+                    } else {
+                        status.innerHTML += '<br><br>✅ Phone number saved correctly!';
+                    }
+                }
+                
+            } catch (error) {
+                status.innerHTML += '<br><br>Error: ' + error.message;
+            }
+        }
+        
+        // Run test on page load
+        window.onload = testPhoneSave;
+    </script>
+</body>
+</html>
