@@ -162,8 +162,8 @@ export async function PUT(request: NextRequest) {
         ...(publicHolidayHourlyRate !== undefined && { publicHolidayHourlyRate }),
         ...(taxRate !== undefined && { taxRate }),
         ...(superRate !== undefined && { superRate }),
-        ...(email !== undefined && { email }),
-        ...(phone !== undefined && { phone }),
+        ...(email !== undefined && email !== null && { email }),
+        ...(phone !== undefined && phone !== null && { phone }),
         ...(isActive !== undefined && { isActive }),
       }
     });
