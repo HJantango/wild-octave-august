@@ -118,6 +118,8 @@ export default function AdminPage() {
               saturdayHourlyRate: person.saturdayHourlyRate,
               sundayHourlyRate: person.sundayHourlyRate,
               publicHolidayHourlyRate: person.publicHolidayHourlyRate,
+              email: person.email || null,
+              phone: person.phone || null,
               isActive: person.isActive
             }),
           });
