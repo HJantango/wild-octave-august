@@ -62,6 +62,7 @@ const navigation: NavItem[] = [
     name: 'Efficiencies',
     icon: '📈',
     submenu: [
+      { name: '💰 Sales Boosters', href: '/sales-boosters' },
       { name: '⏰ Hourly Sales', href: '/hourly-sales' },
       { name: '☕ Cafe Hourly Sales', href: '/hourly-sales/cafe' },
       { name: '🏷️ Shelf Price Checker', href: '/shelf-price-checker' },
