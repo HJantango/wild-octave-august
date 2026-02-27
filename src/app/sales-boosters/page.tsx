@@ -85,8 +85,11 @@ export default function SalesBoostersPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">💰 Sales Boosters</h1>
-          <p className="text-gray-600">Smart cross-sell suggestions to increase sales</p>
+          <h1 className="text-3xl font-bold mb-2">☕ Cafe Sales Boosters</h1>
+          <p className="text-gray-600">Cross-sell patterns focused on cafe items - pies, coffee, cakes, etc.</p>
+          {data?.message && (
+            <p className="text-blue-600 text-sm mt-1">{data.message}</p>
+          )}
         </div>
 
         {/* Stats */}
@@ -102,28 +105,28 @@ export default function SalesBoostersPage() {
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
+              <span className="text-2xl">☕</span>
+              <div className="ml-3">
+                <p className="text-xl font-bold">{data?.summary?.cafeItems || 0}</p>
+                <p className="text-gray-600 text-sm">Cafe Items Found</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
               <span className="text-2xl">🎯</span>
+              <div className="ml-3">
+                <p className="text-xl font-bold">{data?.summary?.totalRules || 0}</p>
+                <p className="text-gray-600 text-sm">Cafe Patterns</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <span className="text-2xl">🚀</span>
               <div className="ml-3">
                 <p className="text-xl font-bold">{data?.summary?.strongRules || 0}</p>
                 <p className="text-gray-600 text-sm">Strong Patterns</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <span className="text-2xl">📈</span>
-              <div className="ml-3">
-                <p className="text-xl font-bold">{data?.summary?.totalItems || 0}</p>
-                <p className="text-gray-600 text-sm">Unique Items</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center">
-              <span className="text-2xl">🔍</span>
-              <div className="ml-3">
-                <p className="text-xl font-bold">{data?.summary?.totalRules || 0}</p>
-                <p className="text-gray-600 text-sm">Total Rules</p>
               </div>
             </div>
           </div>
@@ -153,28 +156,47 @@ export default function SalesBoostersPage() {
           <h2 className="text-xl font-semibold mb-4">🔍 Cross-Sell Patterns</h2>
           <div className="space-y-3">
             {data?.rules?.length > 0 ? (
-              data.rules.slice(0, 10).map((rule: any, index: number) => (
-                <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
-                    <p className="font-medium">
-                      <span className="text-blue-600">{rule.itemA}</span>
-                      <span className="mx-2">→</span>
-                      <span className="text-green-600">{rule.itemB}</span>
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Found together {rule.transactions} times
-                    </p>
+              data.rules.slice(0, 15).map((rule: any, index: number) => {
+                // Helper to check if an item is likely a cafe item
+                const isCafeItem = (itemName: string) => {
+                  const cafeKeywords = ['pie', 'coffee', 'cake', 'juice', 'smoothie', 'sandwich', 'salad', 'roll', 'samosa', 'slice', 'latte', 'chai', 'soup'];
+                  return cafeKeywords.some(keyword => itemName.toLowerCase().includes(keyword));
+                };
+                
+                const itemAIsCafe = isCafeItem(rule.itemA);
+                const itemBIsCafe = isCafeItem(rule.itemB);
+                
+                return (
+                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        <span className={itemAIsCafe ? "text-orange-600 font-semibold" : "text-blue-600"}>
+                          {itemAIsCafe && "☕ "}{rule.itemA}
+                        </span>
+                        <span className="mx-2 text-gray-400">→</span>
+                        <span className={itemBIsCafe ? "text-orange-600 font-semibold" : "text-green-600"}>
+                          {itemBIsCafe && "☕ "}{rule.itemB}
+                        </span>
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Found together {rule.transactions} times
+                        {(itemAIsCafe || itemBIsCafe) && 
+                          <span className="ml-2 text-orange-600">• Cafe item pair</span>
+                        }
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                        {((rule.confidence || 0) * 100).toFixed(1)}%
+                      </span>
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
+                        {(rule.lift || 0).toFixed(2)}x
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                      {((rule.confidence || 0) * 100).toFixed(1)}%
-                    </span>
-                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
-                      {(rule.lift || 0).toFixed(2)}x
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
+            )
             ) : (
               <p className="text-gray-500 text-center py-8">
                 No cross-sell patterns found in your data.

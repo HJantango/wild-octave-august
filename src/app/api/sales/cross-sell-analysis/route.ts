@@ -1,9 +1,35 @@
 import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
+// Helper function to identify cafe items
+function isCafeItem(itemName: string): boolean {
+  const cafeKeywords = [
+    // Coffee & drinks
+    'coffee', 'latte', 'cappuccino', 'espresso', 'flat white', 'mocha', 'chai', 'hot chocolate',
+    'americano', 'macchiato', 'cortado', 'long black', 'short black',
+    
+    // Food items
+    'pie', 'pies', 'cake', 'muffin', 'scone', 'croissant', 'danish', 'pastry',
+    'sandwich', 'panini', 'wrap', 'bagel', 'toast', 'toastie',
+    'salad', 'soup', 'quiche', 'tart', 'slice', 'roll',
+    'smoothie', 'juice', 'milkshake', 'frappe',
+    
+    // Specific items that might appear in your data
+    'samosa', 'sausage roll', 'bacon', 'egg', 'avocado', 'spinach roll',
+    'banana bread', 'carrot cake', 'chocolate cake', 'lemon slice',
+    'gf pie', 'vegan pie', 'meat pie', 'chicken pie',
+    
+    // Drinks
+    'kombucha', 'cold press', 'fresh juice', 'green juice'
+  ];
+  
+  const lowerName = itemName.toLowerCase();
+  return cafeKeywords.some(keyword => lowerName.includes(keyword));
+}
+
 export async function GET(request: NextRequest) {
   try {
-    console.log('🛒 Cross-sell analysis API called');
+    console.log('☕ Cafe-focused cross-sell analysis API called');
 
     // First, let's check if we have any Square data at all
     const dataCount = await prisma.squareDailySales.count();
@@ -26,9 +52,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get a sample of recent data to test
+    // Get a larger sample of recent data for better patterns
     const recentData = await prisma.squareDailySales.findMany({
-      take: 100,
+      take: 500,
       orderBy: { date: 'desc' },
       select: {
         date: true,
@@ -39,6 +65,20 @@ export async function GET(request: NextRequest) {
     });
 
     console.log(`📊 Recent data sample: ${recentData.length} records`);
+    
+    // Count cafe vs non-cafe items
+    const cafeItems = new Set();
+    const allItems = new Set();
+    recentData.forEach(record => {
+      if (record.itemName) {
+        allItems.add(record.itemName);
+        if (isCafeItem(record.itemName)) {
+          cafeItems.add(record.itemName);
+        }
+      }
+    });
+    
+    console.log(`☕ Found ${cafeItems.size} cafe items out of ${allItems.size} total unique items`);
 
     // Group by date to simulate transaction baskets  
     const dateGroups: { [key: string]: string[] } = {};
@@ -71,13 +111,17 @@ export async function GET(request: NextRequest) {
         itemCounts[item] = (itemCounts[item] || 0) + 1;
       });
 
-      // Count pairs
+      // Count pairs (only where at least one item is a cafe item)
       for (let i = 0; i < items.length; i++) {
         for (let j = i + 1; j < items.length; j++) {
           const item1 = items[i];
           const item2 = items[j];
-          const pairKey = item1 < item2 ? `${item1}|${item2}` : `${item2}|${item1}`;
-          pairCounts[pairKey] = (pairCounts[pairKey] || 0) + 1;
+          
+          // Only count pairs where at least one item is a cafe item
+          if (isCafeItem(item1) || isCafeItem(item2)) {
+            const pairKey = item1 < item2 ? `${item1}|${item2}` : `${item2}|${item1}`;
+            pairCounts[pairKey] = (pairCounts[pairKey] || 0) + 1;
+          }
         }
       }
     });
@@ -123,11 +167,18 @@ export async function GET(request: NextRequest) {
         .slice(0, 20)
         .map(([pairKey, count]) => {
           const [itemA, itemB] = pairKey.split('|');
-          return { itemA, itemB, count };
+          return { 
+            itemA, 
+            itemB, 
+            count,
+            cafeItemA: isCafeItem(itemA),
+            cafeItemB: isCafeItem(itemB)
+          };
         }),
       summary: {
         totalBaskets: multiItemDays.length,
         totalItems: Object.keys(itemCounts).length,
+        cafeItems: cafeItems.size,
         totalRules: simpleRules.length,
         strongRules: simpleRules.filter(r => r.lift > 1.2).length,
         dateRange: {
@@ -135,8 +186,13 @@ export async function GET(request: NextRequest) {
           end: new Date(Math.max(...multiItemDays.map(([date]) => new Date(date).getTime()))).getTime(),
         },
         parameters: { minSupport: 0.05, minConfidence: 0.3 },
+        filterType: 'cafe-focused',
       },
-      topItems,
+      topItems: topItems.map(item => ({
+        ...item,
+        isCafeItem: isCafeItem(item.item)
+      })),
+      message: `Analysis focused on cafe item cross-sells. Found ${cafeItems.size} cafe items out of ${allItems.size} total items.`,
     });
 
   } catch (error) {
