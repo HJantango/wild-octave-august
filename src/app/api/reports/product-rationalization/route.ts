@@ -241,15 +241,37 @@ export async function GET(request: NextRequest) {
     // Calculate weeks since opening (March 22, 2025)
     const weeksInPeriod = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
 
-    // Helper to find sales for an item - SQUARE-FIRST PRINCIPLE
+    // Known problematic item mappings (temporary fix while we improve Square ID coverage)
+    const knownMappings: { [key: string]: string } = {
+      'acc organic carob powder raw 200g': '108 carob powder raw organic bulk',
+      'black sea salt flakes 180g': 'salt bulk', // Will match any salt bulk variants
+    };
+
+    // Helper to find sales for an item - SQUARE-FIRST PRINCIPLE (Enhanced)
     function findSalesForItem(item: { name: string; squareCatalogId?: string | null }): { units: number; revenue: number; weeks: number } {
+      // 0. Check known problematic mappings first
+      const itemLowerCase = item.name.toLowerCase().trim();
+      for (const [knownItem, salesPattern] of Object.entries(knownMappings)) {
+        if (itemLowerCase.includes(knownItem) || knownItem.includes(itemLowerCase)) {
+          for (const [squareName, data] of directLookup.entries()) {
+            if (data.units > 0 && squareName.toLowerCase().includes(salesPattern)) {
+              console.log(`🎯 Known mapping match: "${item.name}" → "${squareName}" (${data.units} units)`);
+              return data;
+            }
+          }
+        }
+      }
       // 1. SQUARE-FIRST: Try direct Square catalog ID match (most accurate)
       if (item.squareCatalogId) {
         const squareMatch = salesLookupBySquareId.get(item.squareCatalogId);
         if (squareMatch && squareMatch.units > 0) {
-          console.log(`✅ Square ID match: "${item.name}" → ${squareMatch.units} units via ${item.squareCatalogId}`);
+          console.log(`✅ Square ID match: "${item.name}" → ${squareMatch.originalName} (${squareMatch.units} units) via ${item.squareCatalogId}`);
           return squareMatch;
+        } else {
+          console.log(`❌ No sales for Square ID ${item.squareCatalogId} (${item.name})`);
         }
+      } else {
+        console.log(`⚠️ No Square catalog ID for item: ${item.name}`);
       }
       
       // 2. Fall back to direct exact name match
@@ -268,11 +290,15 @@ export async function GET(request: NextRequest) {
         if (match && match.units > 0) return match;
       }
       
-      // 5. Last resort: partial matching for items without Square IDs
+      // 5. Enhanced partial matching for items without Square IDs
       if (!item.squareCatalogId) {
         const itemNormalized = normalizeItemName(item.name);
         const itemWords = itemNormalized.split(' ').filter(w => w.length > 2);
-        const minWordsToMatch = Math.max(2, Math.ceil(itemWords.length * 0.7));
+        
+        // Lower threshold to 60% for better matching (was 70%)
+        const minWordsToMatch = Math.max(2, Math.ceil(itemWords.length * 0.6));
+        
+        let bestMatch = { score: 0, data: null as any, name: '' };
         
         for (const [squareName, data] of directLookup.entries()) {
           if (data.units === 0) continue;
@@ -280,15 +306,46 @@ export async function GET(request: NextRequest) {
           const squareNormalized = normalizeItemName(squareName);
           const squareWords = squareNormalized.split(' ');
           
-          const matchingWords = itemWords.filter(word => 
-            squareWords.some(sw => sw.includes(word) || word.includes(sw))
-          );
+          // Calculate match score including partial word matches
+          let matchScore = 0;
+          const matchingWords = [];
           
-          if (matchingWords.length >= minWordsToMatch) {
-            console.log(`🔍 Partial match: "${item.name}" → "${squareName}" (${matchingWords.length}/${itemWords.length} words)`);
-            return data;
+          for (const itemWord of itemWords) {
+            let wordMatched = false;
+            for (const squareWord of squareWords) {
+              if (itemWord === squareWord) {
+                matchScore += 1; // Exact match
+                matchingWords.push(itemWord);
+                wordMatched = true;
+                break;
+              } else if (itemWord.length > 3 && (squareWord.includes(itemWord) || itemWord.includes(squareWord))) {
+                matchScore += 0.7; // Partial match
+                matchingWords.push(itemWord);
+                wordMatched = true;
+                break;
+              }
+            }
+          }
+          
+          // Bonus for product type matches (carob, salt, etc.)
+          const productTypes = ['carob', 'salt', 'powder', 'oil', 'butter', 'flour'];
+          for (const type of productTypes) {
+            if (itemNormalized.includes(type) && squareNormalized.includes(type)) {
+              matchScore += 0.5; // Product type bonus
+            }
+          }
+          
+          if (matchScore >= minWordsToMatch && matchScore > bestMatch.score) {
+            bestMatch = { score: matchScore, data, name: squareName };
           }
         }
+        
+        if (bestMatch.data) {
+          console.log(`🔍 Enhanced match: "${item.name}" → "${bestMatch.name}" (score: ${bestMatch.score.toFixed(1)}/${itemWords.length})`);
+          return bestMatch.data;
+        }
+        
+        console.log(`❌ No match found for: "${item.name}" (needed ${minWordsToMatch}, best was ${bestMatch.score})`);
       }
       
       return { units: 0, revenue: 0, weeks: 0 };
