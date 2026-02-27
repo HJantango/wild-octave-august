@@ -1,30 +1,11 @@
 import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
-// Helper function to identify cafe items
-function isCafeItem(itemName: string): boolean {
-  const cafeKeywords = [
-    // Coffee & drinks
-    'coffee', 'latte', 'cappuccino', 'espresso', 'flat white', 'mocha', 'chai', 'hot chocolate',
-    'americano', 'macchiato', 'cortado', 'long black', 'short black',
-    
-    // Food items
-    'pie', 'pies', 'cake', 'muffin', 'scone', 'croissant', 'danish', 'pastry',
-    'sandwich', 'panini', 'wrap', 'bagel', 'toast', 'toastie',
-    'salad', 'soup', 'quiche', 'tart', 'slice', 'roll',
-    'smoothie', 'juice', 'milkshake', 'frappe',
-    
-    // Specific items that might appear in your data
-    'samosa', 'sausage roll', 'bacon', 'egg', 'avocado', 'spinach roll',
-    'banana bread', 'carrot cake', 'chocolate cake', 'lemon slice',
-    'gf pie', 'vegan pie', 'meat pie', 'chicken pie',
-    
-    // Drinks
-    'kombucha', 'cold press', 'fresh juice', 'green juice'
-  ];
-  
-  const lowerName = itemName.toLowerCase();
-  return cafeKeywords.some(keyword => lowerName.includes(keyword));
+// Use actual cafe categories instead of keyword guessing
+const CAFE_CATEGORIES = ['Cafe Food', 'Cafe Drinks'];
+
+function isCafeItem(category: string | null): boolean {
+  return category ? CAFE_CATEGORIES.includes(category) : false;
 }
 
 export async function GET(request: NextRequest) {
@@ -52,13 +33,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get a larger sample of recent data for better patterns
+    // Get a larger sample of recent data for better patterns  
     const recentData = await prisma.squareDailySales.findMany({
-      take: 500,
+      take: 1000,
       orderBy: { date: 'desc' },
       select: {
         date: true,
         itemName: true,
+        category: true,
         quantitySold: true,
         netSalesCents: true,
       },
@@ -66,22 +48,23 @@ export async function GET(request: NextRequest) {
 
     console.log(`📊 Recent data sample: ${recentData.length} records`);
     
-    // Count cafe vs non-cafe items
+    // Count cafe vs non-cafe items using actual categories
     const cafeItems = new Set();
     const allItems = new Set();
     recentData.forEach(record => {
       if (record.itemName) {
         allItems.add(record.itemName);
-        if (isCafeItem(record.itemName)) {
+        if (isCafeItem(record.category)) {
           cafeItems.add(record.itemName);
         }
       }
     });
     
     console.log(`☕ Found ${cafeItems.size} cafe items out of ${allItems.size} total unique items`);
+    console.log(`📋 Categories found: ${[...new Set(recentData.map(r => r.category).filter(Boolean))].join(', ')}`);
 
-    // Group by date to simulate transaction baskets  
-    const dateGroups: { [key: string]: string[] } = {};
+    // Group by date to simulate transaction baskets (with category info)
+    const dateGroups: { [key: string]: Array<{name: string, category: string | null}> } = {};
     
     recentData.forEach(record => {
       if (!record.itemName || record.quantitySold <= 0) return;
@@ -91,8 +74,12 @@ export async function GET(request: NextRequest) {
         dateGroups[dateKey] = [];
       }
       
-      if (!dateGroups[dateKey].includes(record.itemName)) {
-        dateGroups[dateKey].push(record.itemName);
+      const existingItem = dateGroups[dateKey].find(item => item.name === record.itemName);
+      if (!existingItem) {
+        dateGroups[dateKey].push({ 
+          name: record.itemName, 
+          category: record.category 
+        });
       }
     });
 
@@ -106,9 +93,9 @@ export async function GET(request: NextRequest) {
     const itemCounts: { [key: string]: number } = {};
 
     multiItemDays.forEach(([date, items]) => {
-      // Count individual items
+      // Count individual items  
       items.forEach(item => {
-        itemCounts[item] = (itemCounts[item] || 0) + 1;
+        itemCounts[item.name] = (itemCounts[item.name] || 0) + 1;
       });
 
       // Count pairs (only where at least one item is a cafe item)
@@ -118,8 +105,8 @@ export async function GET(request: NextRequest) {
           const item2 = items[j];
           
           // Only count pairs where at least one item is a cafe item
-          if (isCafeItem(item1) || isCafeItem(item2)) {
-            const pairKey = item1 < item2 ? `${item1}|${item2}` : `${item2}|${item1}`;
+          if (isCafeItem(item1.category) || isCafeItem(item2.category)) {
+            const pairKey = item1.name < item2.name ? `${item1.name}|${item2.name}` : `${item2.name}|${item1.name}`;
             pairCounts[pairKey] = (pairCounts[pairKey] || 0) + 1;
           }
         }
@@ -188,10 +175,15 @@ export async function GET(request: NextRequest) {
         parameters: { minSupport: 0.05, minConfidence: 0.3 },
         filterType: 'cafe-focused',
       },
-      topItems: topItems.map(item => ({
-        ...item,
-        isCafeItem: isCafeItem(item.item)
-      })),
+      topItems: topItems.map(item => {
+        // Find the category for this item from our data
+        const itemRecord = recentData.find(record => record.itemName === item.item);
+        return {
+          ...item,
+          isCafeItem: isCafeItem(itemRecord?.category || null),
+          category: itemRecord?.category || null,
+        };
+      }),
       message: `Analysis focused on cafe item cross-sells. Found ${cafeItems.size} cafe items out of ${allItems.size} total items.`,
     });
 

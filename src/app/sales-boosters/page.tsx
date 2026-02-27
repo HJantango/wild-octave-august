@@ -139,7 +139,16 @@ export default function SalesBoostersPage() {
             {data?.topItems?.length > 0 ? (
               data.topItems.map((item: any, index: number) => (
                 <div key={index} className="flex items-center justify-between py-2 border-b">
-                  <span className="font-medium">{item.item}</span>
+                  <div>
+                    <span className="font-medium">
+                      {item.isCafeItem && "☕ "}{item.item}
+                    </span>
+                    {item.category && (
+                      <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                        {item.category}
+                      </span>
+                    )}
+                  </div>
                   <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">
                     {((item.frequency || 0) * 100).toFixed(1)}%
                   </span>
@@ -157,14 +166,19 @@ export default function SalesBoostersPage() {
           <div className="space-y-3">
             {data?.rules?.length > 0 ? (
               data.rules.slice(0, 15).map((rule: any, index: number) => {
-                // Helper to check if an item is likely a cafe item
-                const isCafeItem = (itemName: string) => {
-                  const cafeKeywords = ['pie', 'coffee', 'cake', 'juice', 'smoothie', 'sandwich', 'salad', 'roll', 'samosa', 'slice', 'latte', 'chai', 'soup'];
-                  return cafeKeywords.some(keyword => itemName.toLowerCase().includes(keyword));
+                // Use the actual category data instead of keyword matching  
+                const getCategoryInfo = (itemName: string) => {
+                  const topItem = data.topItems?.find((item: any) => item.item === itemName);
+                  return {
+                    isCafe: topItem?.isCafeItem || false,
+                    category: topItem?.category || null,
+                  };
                 };
                 
-                const itemAIsCafe = isCafeItem(rule.itemA);
-                const itemBIsCafe = isCafeItem(rule.itemB);
+                const itemAInfo = getCategoryInfo(rule.itemA);
+                const itemBInfo = getCategoryInfo(rule.itemB);
+                const itemAIsCafe = itemAInfo.isCafe;
+                const itemBIsCafe = itemBInfo.isCafe;
                 
                 return (
                   <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
@@ -180,9 +194,13 @@ export default function SalesBoostersPage() {
                       </p>
                       <p className="text-sm text-gray-600">
                         Found together {rule.transactions} times
-                        {(itemAIsCafe || itemBIsCafe) && 
-                          <span className="ml-2 text-orange-600">• Cafe item pair</span>
-                        }
+                        {(itemAIsCafe || itemBIsCafe) && (
+                          <span className="ml-2 text-orange-600">
+                            • Cafe: {itemAInfo.category && itemAIsCafe ? itemAInfo.category : ''} 
+                            {itemAIsCafe && itemBIsCafe ? ' + ' : ''}
+                            {itemBInfo.category && itemBIsCafe ? itemBInfo.category : ''}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex space-x-2">
