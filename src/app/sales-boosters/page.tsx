@@ -10,11 +10,24 @@ export default function SalesBoostersPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/sales/cross-sell-analysis');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status}`);
+      const response = await fetch('/api/sales/cross-sell-analysis', {
+        credentials: 'include', // Include cookies for authentication
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.status === 401) {
+        throw new Error('Please log in to view sales data');
       }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText}`);
+      }
+      
       const result = await response.json();
+      console.log('API Response:', result); // Debug logging
       setData(result);
       setError(null);
     } catch (err) {
@@ -170,9 +183,32 @@ export default function SalesBoostersPage() {
         {/* Debug Info */}
         <div className="mt-8 bg-gray-100 rounded-lg p-4">
           <h3 className="font-semibold mb-2">📋 Debug Info</h3>
-          <pre className="text-xs text-gray-700 bg-white p-2 rounded overflow-auto">
-            {JSON.stringify(data?.summary, null, 2)}
-          </pre>
+          <div className="space-y-2">
+            <div>
+              <strong>Error:</strong> {error || 'None'}
+            </div>
+            <div>
+              <strong>Data loaded:</strong> {data ? 'Yes' : 'No'}
+            </div>
+            <div>
+              <strong>Summary:</strong>
+              <pre className="text-xs text-gray-700 bg-white p-2 rounded overflow-auto mt-1">
+                {JSON.stringify(data?.summary, null, 2)}
+              </pre>
+            </div>
+            <div>
+              <strong>Rules count:</strong> {data?.rules?.length || 0}
+            </div>
+            <div>
+              <strong>Top items count:</strong> {data?.topItems?.length || 0}
+            </div>
+            <div>
+              <strong>Full response:</strong>
+              <pre className="text-xs text-gray-700 bg-white p-2 rounded overflow-auto mt-1 max-h-40">
+                {JSON.stringify(data, null, 2)}
+              </pre>
+            </div>
+          </div>
         </div>
       </div>
     </div>
