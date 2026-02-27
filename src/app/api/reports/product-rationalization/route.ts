@@ -203,13 +203,23 @@ export async function GET(request: NextRequest) {
 
     console.log(`📊 Summary: ${itemsWithSales} with sales, ${itemsWithoutSales} without sales, ${itemsWithoutSquareId} missing Square IDs`);
 
+    // Extract unique filter options for dropdowns
+    const allShelfLabels = Array.from(new Set(items.map(item => item.subcategory).filter(Boolean))).sort();
+    const allCategories = Array.from(new Set(items.map(item => item.category).filter(Boolean))).sort();
+
     return createSuccessResponse({
       items: result,
       summary: {
         totalItems: items.length,
         itemsWithSales,
-        itemsWithoutSales,
-        itemsWithoutSquareId,
+        itemsWithoutSales: itemsWithoutSales,
+        itemsNoSales: itemsWithoutSales, // Alias for frontend compatibility
+        staples: result.filter(r => r.decision === 'staple').length,
+        toRemove: result.filter(r => r.decision === 'remove').length,
+        toKeep: result.filter(r => r.decision === 'keep').length,
+        undecided: result.filter(r => !r.decision).length,
+        weeks: weeksInPeriod,
+        startDate: startDate.toISOString().split('T')[0],
         weeksAnalyzed: weeksInPeriod,
         dateRange: {
           start: startDate.toISOString().split('T')[0],
@@ -218,6 +228,10 @@ export async function GET(request: NextRequest) {
         message: itemsWithoutSquareId > 0 
           ? `${itemsWithoutSquareId} items missing Square catalog IDs - run Square catalog sync to fix`
           : 'All items have Square catalog IDs - perfect matching'
+      },
+      filters: {
+        shelfLabels: allShelfLabels,
+        categories: allCategories,
       },
     });
 
