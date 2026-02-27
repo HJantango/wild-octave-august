@@ -196,7 +196,6 @@ export default function SalesBoostersPage() {
                   </div>
                 );
               })
-            )
             ) : (
               <p className="text-gray-500 text-center py-8">
                 No cross-sell patterns found in your data.
