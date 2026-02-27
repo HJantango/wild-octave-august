@@ -56,6 +56,7 @@ model Item {
   id                 String   @id @default(cuid())
   squareCatalogId    String?  @unique @map("square_catalog_id") // Links to Square's catalog object ID
   squareVariationId  String?  @map("square_variation_id") // Links to specific variation
+  referenceHandle    String?  @map("reference_handle") // Square's stable Reference Handle (e.g., #001-carob-powder-bulk-)
   name               String
   vendorId           String?  @map("vendor_id")
   category           String
@@ -601,6 +602,7 @@ model SquareDailySales {
   grossSalesCents   Int      @map("gross_sales_cents") // Store in cents to avoid float issues
   netSalesCents     Int      @default(0) @map("net_sales_cents")
   squareCatalogId   String?  @map("square_catalog_id")
+  referenceHandle   String?  @map("reference_handle") // Square's stable Reference Handle
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
