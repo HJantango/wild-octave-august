@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { isAuthenticatedMiddleware } from '@/lib/auth-middleware';
 
 // Routes that don't require authentication
-const publicRoutes = ['/login', '/api/auth/login', '/api/barcode-lookup', '/api/sales/debug', '/api/sales/cross-sell-analysis', '/api/calendar/orders', '/api/health', '/api/cron', '/api/debug', '/api/debug/sales-check', '/api/debug/square-id-coverage', '/api/roster/migrate-barista', '/api/square/catalog-sync', '/api/admin', '/api/fix-rates', '/api/sms-test', '/api/roster/image', '/api/roster/list'];
+const publicRoutes = ['/login', '/api/auth/login', '/api/barcode-lookup', '/api/sales/debug', '/api/sales/cross-sell-analysis', '/api/calendar/orders', '/api/health', '/api/cron', '/api/debug', '/api/debug/sales-check', '/api/debug/square-id-coverage', '/api/debug/square-ids', '/api/roster/migrate-barista', '/api/square/catalog-sync', '/api/admin', '/api/fix-rates', '/api/sms-test', '/api/roster/image', '/api/roster/list'];
 
 // API routes that require authentication
 const protectedApiRoutes = [
