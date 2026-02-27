@@ -28,7 +28,10 @@ export default function SalesBoostersPage() {
       
       const result = await response.json();
       console.log('API Response:', result); // Debug logging
-      setData(result);
+      
+      // Handle the nested data structure
+      const actualData = result.data || result;
+      setData(actualData);
       setError(null);
     } catch (err) {
       console.error('Fetch error:', err);
