@@ -61,6 +61,45 @@ export async function GET(request: NextRequest) {
     sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 26 * 7);
     const oldestExpected = sixMonthsAgo.toISOString().split('T')[0];
 
+    // 10. Square Catalog ID Analysis for rationalization debugging
+    const totalItems = await prisma.item.count();
+    const itemsWithSquareId = await prisma.item.count({
+      where: { squareCatalogId: { not: null } },
+    });
+    const salesWithSquareId = await prisma.squareDailySales.count({
+      where: { squareCatalogId: { not: null } },
+    });
+    
+    // Check specific problematic items for rationalization debugging
+    const accCarobItem = await prisma.item.findFirst({
+      where: { name: { contains: 'ACC Organic Carob', mode: 'insensitive' } },
+      select: { name: true, squareCatalogId: true, vendor: { select: { name: true } } },
+    });
+    
+    const carobSalesVariants = await prisma.squareDailySales.findMany({
+      where: { itemName: { contains: 'carob powder', mode: 'insensitive' } },
+      select: { itemName: true, squareCatalogId: true, quantitySold: true, date: true },
+      take: 5,
+      orderBy: { date: 'desc' },
+    });
+
+    const saltItem = await prisma.item.findFirst({
+      where: { name: { contains: 'Black Sea Salt', mode: 'insensitive' } },
+      select: { name: true, squareCatalogId: true, vendor: { select: { name: true } } },
+    });
+
+    const saltSalesVariants = await prisma.squareDailySales.findMany({
+      where: { 
+        OR: [
+          { itemName: { contains: 'salt bulk', mode: 'insensitive' } },
+          { itemName: { contains: 'black sea salt', mode: 'insensitive' } },
+        ]
+      },
+      select: { itemName: true, squareCatalogId: true, quantitySold: true, date: true },
+      take: 5,
+      orderBy: { date: 'desc' },
+    });
+
     return NextResponse.json({
       salesData: {
         totalRecords: salesCount,
@@ -71,6 +110,26 @@ export async function GET(request: NextRequest) {
         oldestExpectedWith6moSync: oldestExpected,
         septemberRecords: septemberSales,
         recordsWithVendor: withVendor,
+      },
+      squareIdAnalysis: {
+        summary: {
+          totalItems,
+          itemsWithSquareId,
+          itemsWithoutSquareId: totalItems - itemsWithSquareId,
+          squareIdCoverage: `${((itemsWithSquareId / totalItems) * 100).toFixed(1)}%`,
+          salesWithSquareId,
+          salesSquareIdCoverage: `${((salesWithSquareId / salesCount) * 100).toFixed(1)}%`,
+        },
+        problematicItems: {
+          accCarob: {
+            item: accCarobItem,
+            salesVariants: carobSalesVariants,
+          },
+          salt: {
+            item: saltItem,
+            salesVariants: saltSalesVariants,
+          },
+        },
       },
       vendors: {
         heapsGood: heapsGood ? { id: heapsGood.id, name: heapsGood.name } : null,
