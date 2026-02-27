@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
       returnEntries: false,
     };
 
-    const response: any = await client.orders.searchOrders(searchRequest);
+    const { orders: ordersApi } = client;
+    const response: any = await ordersApi.searchOrders(searchRequest);
     const orders = response.result?.orders || [];
     
     if (orders.length === 0) {
