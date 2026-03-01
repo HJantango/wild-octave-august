@@ -740,53 +740,59 @@ export default function OrdersPage() {
         }
       }
 
-      // Prepare line items - filter out items without cost prices or zero quantities
+      // Prepare line items - ONLY filter out items with zero quantities (allow items without cost prices)
       const skippedItemsDetails: Array<{item: OrderItem, reason: string}> = [];
+      const itemsWithoutCost: Array<OrderItem> = [];
       
       const lineItems = itemsToOrder
         .filter(item => {
-          const hasValidCostPrice = item.costPrice && item.costPrice > 0;
           const hasValidQuantity = item.orderQuantity && item.orderQuantity > 0;
           
-          if (!hasValidCostPrice || !hasValidQuantity) {
-            const reasons = [];
-            if (!hasValidCostPrice) reasons.push('missing/zero cost price');
-            if (!hasValidQuantity) reasons.push('zero order quantity');
+          if (!hasValidQuantity) {
             skippedItemsDetails.push({
               item,
-              reason: reasons.join(' and ')
+              reason: 'zero order quantity'
             });
             return false;
           }
+          
+          // Track items without cost price for notification, but include them
+          if (!item.costPrice || item.costPrice <= 0) {
+            itemsWithoutCost.push(item);
+          }
+          
           return true;
         })
         .map(item => ({
           itemId: item.itemId, // Link to database item for SKU lookup
           name: item.itemName,
           quantity: item.orderQuantity!,
-          unitCostExGst: item.costPrice!,
-          notes: `Avg Weekly Sales: ${item.avgWeekly} | 6-Week Total: ${item.totalUnits}`,
+          unitCostExGst: item.costPrice || 0, // Use 0 if no cost price (can be updated later)
+          notes: `Avg Weekly Sales: ${item.avgWeekly} | 6-Week Total: ${item.totalUnits}${!item.costPrice ? ' | ⚠️ NO COST PRICE - UPDATE MANUALLY' : ''}`,
         }));
 
       if (lineItems.length === 0) {
-        toast.error('Error', 'No items have both cost prices and order quantities greater than zero. Please add items to order first.');
+        toast.error('Error', 'No items with order quantities greater than zero. Please add items to order first.');
         return;
       }
 
+      // Notify about skipped items (only quantity issues now)
       if (skippedItemsDetails.length > 0) {
-        // Log detailed info to console for debugging
         console.log('Purchase order skipped items:', skippedItemsDetails);
+        toast.warning('Items Skipped', `${skippedItemsDetails.length} item(s) were skipped due to zero order quantities.`);
+      }
+      
+      // Notify about items without cost prices (but still included)
+      if (itemsWithoutCost.length > 0) {
+        const firstFew = itemsWithoutCost.slice(0, 3);
+        const moreCount = itemsWithoutCost.length - firstFew.length;
+        const itemsList = firstFew.map(item => `• ${item.itemName}`).join('\n');
+        const extraText = moreCount > 0 ? `\n...and ${moreCount} more` : '';
         
-        // Show first few items in toast with longer duration
-        const firstFew = skippedItemsDetails.slice(0, 3);
-        const moreCount = skippedItemsDetails.length - firstFew.length;
-        const itemsList = firstFew.map(({item, reason}) => `• ${item.itemName} (${reason})`).join('\n');
-        const extraText = moreCount > 0 ? `\n...and ${moreCount} more (see console for full list)` : '';
-        
-        toast.warning(
-          'Items Skipped', 
-          `${skippedItemsDetails.length} item(s) were skipped:\n\n${itemsList}${extraText}`, 
-          12000 // 12 seconds to read the details
+        toast.info(
+          'Cost Prices Missing', 
+          `⚠️ ${itemsWithoutCost.length} item(s) have no cost price but were included in the PO:\n\n${itemsList}${extraText}\n\nUpdate cost prices manually in the PO.`, 
+          10000
         );
       }
 
