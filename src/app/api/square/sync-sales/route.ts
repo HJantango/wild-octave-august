@@ -48,8 +48,9 @@ async function fetchCategoryMap(client: SquareClient): Promise<Map<string, strin
 }
 
 // Fetch item catalog data (category, vendor) for enrichment
-async function fetchItemCatalogMap(client: SquareClient): Promise<Map<string, { categoryId?: string; itemName?: string }>> {
-  const itemMap = new Map<string, { categoryId?: string; itemName?: string }>();
+// CRITICAL: Build variation ID → parent item ID mapping to fix Square ID mismatch
+async function fetchItemCatalogMap(client: SquareClient): Promise<Map<string, { categoryId?: string; itemName?: string; parentItemId?: string }>> {
+  const itemMap = new Map<string, { categoryId?: string; itemName?: string; parentItemId?: string }>();
   try {
     const response: any = await client.catalog.list({ types: 'ITEM' });
     const objects = response.result?.objects || response.objects || [];
@@ -58,9 +59,11 @@ async function fetchItemCatalogMap(client: SquareClient): Promise<Map<string, { 
       if (itemData?.variations) {
         for (const variation of itemData.variations) {
           if (variation.id) {
+            // KEY FIX: Map variation ID → parent item ID
             itemMap.set(variation.id, {
               categoryId: itemData.categoryId || undefined,
               itemName: itemData.name || undefined,
+              parentItemId: obj.id, // This is the parent catalog item ID
             });
           }
         }
@@ -178,12 +181,21 @@ export async function POST(request: NextRequest) {
         const variationName = item.variationName || null;
         const catalogObjectId = item.catalogObjectId || null;
 
-        // Resolve category from catalog
+        // Resolve category from catalog & get parent item ID
         let category: string | null = null;
+        let parentCatalogId: string | null = catalogObjectId; // Default fallback
+        
         if (catalogObjectId) {
           const catalogItem = itemCatalogMap.get(catalogObjectId);
-          if (catalogItem?.categoryId) {
-            category = categoryMap.get(catalogItem.categoryId) || null;
+          if (catalogItem) {
+            if (catalogItem.categoryId) {
+              category = categoryMap.get(catalogItem.categoryId) || null;
+            }
+            // CRITICAL FIX: Use parent item ID instead of variation ID
+            if (catalogItem.parentItemId) {
+              parentCatalogId = catalogItem.parentItemId;
+              console.log(`🔄 Variation ${catalogObjectId} → Parent ${parentCatalogId} for "${itemName}"`);
+            }
           }
         }
 
@@ -199,9 +211,9 @@ export async function POST(request: NextRequest) {
           existing.quantitySold += quantity;
           existing.grossSalesCents += grossCents;
           existing.netSalesCents += netCents;
-          // Keep first catalog ID found
-          if (!existing.squareCatalogId && catalogObjectId) {
-            existing.squareCatalogId = catalogObjectId;
+          // Keep first parent catalog ID found (FIXED)
+          if (!existing.squareCatalogId && parentCatalogId) {
+            existing.squareCatalogId = parentCatalogId;
           }
           if (!existing.category && category) {
             existing.category = category;
@@ -215,7 +227,7 @@ export async function POST(request: NextRequest) {
             quantitySold: quantity,
             grossSalesCents: grossCents,
             netSalesCents: netCents,
-            squareCatalogId: catalogObjectId,
+            squareCatalogId: parentCatalogId, // FIXED: Use parent item ID
           });
         }
       }
