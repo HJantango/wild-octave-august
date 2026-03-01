@@ -262,9 +262,35 @@ class RealSquareService {
           vendorName,
           variations: itemData?.variations?.map(variation => {
             const varData = variation.itemVariationData;
-            // Try to get cost from vendor info if available
             const varVendorInfo = varData?.itemVariationVendorInfos?.[0];
-            const costMoney = varVendorInfo?.priceMoney;
+            
+            // FIXED: Look for cost data in multiple locations in Square API
+            let costMoney = null;
+            
+            // Option 1: Direct cost field (Square's inventory cost tracking)
+            if (varData?.costOfGoodsSoldMoney) {
+              costMoney = varData.costOfGoodsSoldMoney;
+            }
+            // Option 2: Vendor cost information (wholesale/purchase price)  
+            else if (varVendorInfo?.wholesalePriceMoney) {
+              costMoney = varVendorInfo.wholesalePriceMoney;
+            }
+            // Option 3: Look in measurement unit cost
+            else if (varData?.measurementUnitData?.costMoney) {
+              costMoney = varData.measurementUnitData.costMoney;
+            }
+            // Option 4: Check inventory tracking cost
+            else if (varData?.trackInventory && varData?.inventoryData?.costMoney) {
+              costMoney = varData.inventoryData.costMoney;
+            }
+            
+            console.log(`🔍 Cost lookup for "${itemData?.name}" variation "${varData?.name}":`, {
+              hasCostOfGoods: !!varData?.costOfGoodsSoldMoney,
+              hasWholesalePrice: !!varVendorInfo?.wholesalePriceMoney,
+              hasMeasurementCost: !!varData?.measurementUnitData?.costMoney,
+              hasInventoryCost: !!varData?.inventoryData?.costMoney,
+              selectedCost: costMoney?.amount || 0,
+            });
             
             return {
               id: variation.id!,
@@ -276,7 +302,7 @@ class RealSquareService {
                 amount: Number(varData?.priceMoney?.amount || 0),
                 currency: varData?.priceMoney?.currency || 'AUD'
               },
-              // Include cost if available from vendor info
+              // FIXED: Include cost from proper Square cost tracking fields
               costMoney: costMoney ? {
                 amount: Number(costMoney.amount || 0),
                 currency: costMoney.currency || 'AUD'
