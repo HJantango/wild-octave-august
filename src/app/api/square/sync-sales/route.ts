@@ -49,8 +49,24 @@ async function fetchCategoryMap(client: SquareClient): Promise<Map<string, strin
 
 // Fetch item catalog data (category, vendor) for enrichment
 // CRITICAL: Build variation ID → parent item ID mapping to fix Square ID mismatch
-async function fetchItemCatalogMap(client: SquareClient): Promise<Map<string, { categoryId?: string; itemName?: string; parentItemId?: string }>> {
-  const itemMap = new Map<string, { categoryId?: string; itemName?: string; parentItemId?: string }>();
+async function fetchItemCatalogMap(client: SquareClient): Promise<Map<string, { categoryId?: string; itemName?: string; parentItemId?: string; vendorId?: string; vendorName?: string }>> {
+  const itemMap = new Map<string, { categoryId?: string; itemName?: string; parentItemId?: string; vendorId?: string; vendorName?: string }>();
+  
+  // First get all vendors to build vendor ID → name mapping
+  const vendorMap = new Map<string, string>();
+  try {
+    const vendorsResponse: any = await client.catalog.list({ types: 'VENDOR' });
+    const vendors = vendorsResponse.result?.objects || vendorsResponse.objects || [];
+    for (const vendor of vendors) {
+      if (vendor.id && vendor.vendorData?.name) {
+        vendorMap.set(vendor.id, vendor.vendorData.name);
+      }
+    }
+    console.log(`📦 Found ${vendorMap.size} vendors in Square catalog`);
+  } catch (err) {
+    console.warn('⚠️  Could not fetch vendors from Square catalog:', err);
+  }
+  
   try {
     const response: any = await client.catalog.list({ types: 'ITEM' });
     const objects = response.result?.objects || response.objects || [];
@@ -59,12 +75,24 @@ async function fetchItemCatalogMap(client: SquareClient): Promise<Map<string, { 
       if (itemData?.variations) {
         for (const variation of itemData.variations) {
           if (variation.id) {
-            // KEY FIX: Map variation ID → parent item ID
+            // Extract vendor info from variation data
+            const variationData = variation.itemVariationData;
+            const vendorInfos = variationData?.itemVariationVendorInfos || [];
+            const vendorId = vendorInfos[0]?.vendorId;
+            const vendorName = vendorId ? vendorMap.get(vendorId) : undefined;
+            
+            // KEY FIX: Map variation ID → parent item ID + vendor info
             itemMap.set(variation.id, {
               categoryId: itemData.categoryId || undefined,
               itemName: itemData.name || undefined,
               parentItemId: obj.id, // This is the parent catalog item ID
+              vendorId: vendorId || undefined,
+              vendorName: vendorName || undefined,
             });
+            
+            if (vendorName && vendorName.toLowerCase().includes('heaps good')) {
+              console.log(`✅ Found Heaps Good item: "${itemData.name}" → vendor: ${vendorName}`);
+            }
           }
         }
       }
@@ -165,6 +193,7 @@ export async function POST(request: NextRequest) {
       grossSalesCents: number;
       netSalesCents: number;
       squareCatalogId: string | null;
+      vendorName: string | null;
     }>();
 
     let lineItemCount = 0;
@@ -181,9 +210,10 @@ export async function POST(request: NextRequest) {
         const variationName = item.variationName || null;
         const catalogObjectId = item.catalogObjectId || null;
 
-        // Resolve category from catalog & get parent item ID
+        // Resolve category, vendor, and parent item ID from catalog
         let category: string | null = null;
         let parentCatalogId: string | null = catalogObjectId; // Default fallback
+        let vendorName: string | null = null;
         
         if (catalogObjectId) {
           const catalogItem = itemCatalogMap.get(catalogObjectId);
@@ -195,6 +225,11 @@ export async function POST(request: NextRequest) {
             if (catalogItem.parentItemId) {
               parentCatalogId = catalogItem.parentItemId;
               console.log(`🔄 Variation ${catalogObjectId} → Parent ${parentCatalogId} for "${itemName}"`);
+            }
+            // EXTRACT VENDOR FROM SQUARE CATALOG
+            if (catalogItem.vendorName) {
+              vendorName = catalogItem.vendorName;
+              console.log(`🏪 Found vendor "${vendorName}" for "${itemName}" from Square catalog`);
             }
           }
         }
@@ -218,6 +253,10 @@ export async function POST(request: NextRequest) {
           if (!existing.category && category) {
             existing.category = category;
           }
+          // VENDOR FROM SQUARE: Keep first vendor found
+          if (!existing.vendorName && vendorName) {
+            existing.vendorName = vendorName;
+          }
         } else {
           aggregated.set(key, {
             date: new Date(dateStr + 'T00:00:00.000Z'),
@@ -228,6 +267,7 @@ export async function POST(request: NextRequest) {
             grossSalesCents: grossCents,
             netSalesCents: netCents,
             squareCatalogId: parentCatalogId, // FIXED: Use parent item ID
+            vendorName: vendorName, // VENDOR FROM SQUARE CATALOG
           });
         }
       }
@@ -263,10 +303,16 @@ export async function POST(request: NextRequest) {
       const batch = entries.slice(i, i + batchSize);
       await Promise.all(
         batch.map((entry) => {
-          // SQUARE-FIRST PRINCIPLE: Use Square catalog ID for vendor lookup, fall back to name
-          const vendorName = entry.squareCatalogId 
-            ? vendorLookupBySquareId.get(entry.squareCatalogId) || vendorLookupByName.get(entry.itemName.toLowerCase().trim())
-            : vendorLookupByName.get(entry.itemName.toLowerCase().trim()) || null;
+          // SQUARE-FIRST PRINCIPLE: Use vendor from Square catalog first, fall back to database lookup
+          const finalVendorName = entry.vendorName || // Vendor from Square catalog (NEW!)
+            (entry.squareCatalogId 
+              ? vendorLookupBySquareId.get(entry.squareCatalogId) || vendorLookupByName.get(entry.itemName.toLowerCase().trim())
+              : vendorLookupByName.get(entry.itemName.toLowerCase().trim())) || null;
+              
+          if (entry.vendorName && entry.vendorName.toLowerCase().includes('heaps good')) {
+            console.log(`🎉 HEAPS GOOD: Using vendor "${entry.vendorName}" from Square catalog for "${entry.itemName}"`);
+          }
+          
           return prisma.squareDailySales.upsert({
             where: {
               unique_daily_item_variation: {
@@ -277,7 +323,7 @@ export async function POST(request: NextRequest) {
             },
             update: {
               category: entry.category,
-              vendorName,
+              vendorName: finalVendorName,
               quantitySold: entry.quantitySold,
               grossSalesCents: entry.grossSalesCents,
               netSalesCents: entry.netSalesCents,
@@ -288,7 +334,7 @@ export async function POST(request: NextRequest) {
               itemName: entry.itemName,
               variationName: entry.variationName || '',
               category: entry.category,
-              vendorName,
+              vendorName: finalVendorName, // FIXED: Use vendor from Square catalog
               quantitySold: entry.quantitySold,
               grossSalesCents: entry.grossSalesCents,
               netSalesCents: entry.netSalesCents,
