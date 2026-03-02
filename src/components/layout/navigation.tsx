@@ -47,6 +47,8 @@ const navigation: NavItem[] = [
     icon: '🏪',
     submenu: [
       { name: '📔 Diary', href: '/shop-diary' },
+      { name: '📋 Daily Checklists', href: '/checklists' },
+      { name: '⚙️ Manage Checklists', href: '/checklists/manage' },
       { name: '💰 Cash Up', href: '/cash-up' },
       { name: '🧊 Fridge Schedule', href: '/shop-ops' },
       { name: '👥 Roster', href: '/roster' },

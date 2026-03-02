@@ -797,3 +797,59 @@ model ShelfStatus {
 
   @@map("shelf_statuses")
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// CHECKLISTS - Daily/Weekly task management for shop operations
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ChecklistTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  section     String   // "kitchen", "front", "barista"
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items       ChecklistItem[]
+
+  @@index([section])
+  @@index([isActive])
+  @@map("checklist_templates")
+}
+
+model ChecklistItem {
+  id           String   @id @default(cuid())
+  templateId   String   @map("template_id")
+  title        String
+  description  String?
+  frequency    String   @default("daily") // "daily", "weekly", "specific_days"
+  specificDays String[] @map("specific_days") // ["monday", "wednesday"] for specific day tasks
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  template     ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  completions  ChecklistCompletion[]
+
+  @@index([templateId])
+  @@index([frequency])
+  @@index([sortOrder])
+  @@map("checklist_items")
+}
+
+model ChecklistCompletion {
+  id          String    @id @default(cuid())
+  itemId      String    @map("item_id")
+  date        DateTime  @db.Date
+  completedBy String?   @map("completed_by")
+  completedAt DateTime  @default(now()) @map("completed_at")
+  notes       String?
+
+  item        ChecklistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, date])
+  @@index([itemId])
+  @@index([date])
+  @@map("checklist_completions")
+}
