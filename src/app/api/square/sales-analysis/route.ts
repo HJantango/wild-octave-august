@@ -56,20 +56,24 @@ export async function GET(request: NextRequest) {
 
     // If vendorFilter is provided, resolve vendor name
     if (vendorFilter) {
-      // Could be vendor ID or vendor name
+      // Try database vendor lookup first (for vendor IDs)
       const vendor = await prisma.vendor.findFirst({
         where: {
           OR: [
             { id: vendorFilter },
-            { name: { contains: vendorFilter, mode: 'insensitive' } },
+            { name: { equals: vendorFilter, mode: 'insensitive' } },
           ],
         },
       });
+      
       if (vendor) {
-        where.vendorName = vendor.name;
+        // Found in database - use exact name
+        where.vendorName = { equals: vendor.name, mode: 'insensitive' };
       } else {
-        // Try direct name match on sales data
-        where.vendorName = { contains: vendorFilter, mode: 'insensitive' };
+        // Not in database - could be sales-only vendor like "Heaps Good"
+        // Use direct name match on sales data
+        where.vendorName = { equals: vendorFilter, mode: 'insensitive' };
+        console.log(`🔍 Filtering by sales-only vendor: "${vendorFilter}"`);
       }
     }
 
@@ -230,11 +234,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const finalVendorName = data.vendorName || dbItem?.vendor?.name || 'Unknown';
+      
       const entry: WeeklySalesData = {
         itemId: dbItem?.id,
         itemName: data.itemName,
         variationName: data.variationName || undefined,
-        vendorName: data.vendorName || dbItem?.vendor?.name || 'Unknown',
+        vendorName: finalVendorName,
         category: data.category || dbItem?.category || 'Uncategorized',
         subcategory: dbItem?.subcategory || undefined,
         sku: dbItem?.sku || undefined,
@@ -248,6 +254,11 @@ export async function GET(request: NextRequest) {
         currentStock,
         suggestedOrder,
       };
+      
+      // Debug logging for Heaps Good items
+      if (finalVendorName.toLowerCase().includes('heaps good')) {
+        console.log(`🥤 HEAPS GOOD FOUND: "${data.itemName}" → vendor: "${finalVendorName}" (${data.totalUnits} units sold)`);
+      }
 
       // Enrich with wastage/discount
       if (dbItem?.id) {

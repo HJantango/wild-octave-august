@@ -143,13 +143,26 @@ export default function OrdersPage() {
 
   const loadVendors = async () => {
     try {
-      const response = await fetch('/api/vendors');
+      // Use new endpoint that combines database vendors + sales vendors
+      const response = await fetch('/api/vendors-with-sales');
       const data = await response.json();
-      // API returns array directly, not wrapped in success/data structure
-      if (Array.isArray(data)) {
-        setVendors(data);
+      
+      if (data.success && data.data?.vendors) {
+        // Convert to format expected by frontend
+        const formattedVendors = data.data.vendors.map((vendor: any) => ({
+          id: vendor.id || vendor.name, // Use name as fallback ID for sales-only vendors
+          name: vendor.name,
+          source: vendor.source, // 'database', 'sales_only', or 'both'
+        }));
+        setVendors(formattedVendors);
+        console.log(`📦 Loaded ${formattedVendors.length} vendors (${data.data.summary.salesOnlyVendors} from sales data only)`);
       } else {
-        console.error('Unexpected vendors response format:', data);
+        // Fallback to old endpoint
+        const response = await fetch('/api/vendors');
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setVendors(data);
+        }
       }
     } catch (error) {
       console.error('Failed to load vendors:', error);
