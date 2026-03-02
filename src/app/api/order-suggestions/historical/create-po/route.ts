@@ -8,7 +8,7 @@ const CreatePOFromHistoricalSchema = z.object({
   selectedItems: z.array(z.object({
     itemName: z.string(),
     quantity: z.number().positive(),
-    unitCostExGst: z.number().positive(),
+    unitCostExGst: z.number().min(0), // FIXED: Allow 0 cost prices for items without Square cost data
     notes: z.string().optional(),
   })).min(1),
   expectedDeliveryDate: z.string().optional().transform(val => val ? new Date(val) : undefined),

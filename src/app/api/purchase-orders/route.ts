@@ -15,7 +15,7 @@ const PurchaseOrderLineItemSchema = z.object({
   itemId: z.string().optional(),
   name: z.string(),
   quantity: z.number().positive(),
-  unitCostExGst: z.number().positive(),
+  unitCostExGst: z.number().min(0), // FIXED: Allow 0 cost prices for items without Square cost data
   notes: z.string().optional(),
 })
 
