@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server';
+
 // Static checklist data for production (bypasses DATABASE_URL issues)
 const checklistData = [
   {
@@ -72,21 +74,18 @@ const checklistData = [
   }
 ];
 
-export default function handler(req, res) {
+export async function GET() {
   try {
-    if (req.method === 'GET') {
-      // Return static checklist templates
-      res.status(200).json({ 
-        templates: checklistData,
-        source: "static", 
-        timestamp: new Date().toISOString() 
-      });
-    } else {
-      res.setHeader('Allow', ['GET']);
-      res.status(405).json({ error: 'Method not allowed' });
-    }
+    return NextResponse.json({ 
+      templates: checklistData,
+      source: "static", 
+      timestamp: new Date().toISOString() 
+    });
   } catch (error) {
     console.error('Static checklist API error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return NextResponse.json(
+      { error: 'Internal server error' }, 
+      { status: 500 }
+    );
   }
 }

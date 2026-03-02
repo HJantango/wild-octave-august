@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
@@ -265,7 +267,7 @@ export default function ChecklistsStatic() {
                           {dayTasks.map(item => (
                             <div key={item.id} className="text-xs text-gray-700 flex items-start gap-2">
                               <div className="w-3 h-3 border border-gray-400 rounded flex-shrink-0 mt-0.5"></div>
-                              <span>{item.title}</span>
+              <span>{item.title}</span>
                             </div>
                           ))}
                         </div>
