@@ -1,0 +1,173 @@
+/* Wild Octave Checklist Print Styles - One Page Per Day */
+@media print {
+  /* Hide everything that shouldn't print */
+  .print\:hidden,
+  nav,
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Show print-only content */
+  .print\:block {
+    display: block !important;
+  }
+
+  /* Page setup */
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm;
+  }
+
+  /* Force page breaks between days */
+  .print-day-page {
+    page-break-before: always !important;
+    break-before: page !important;
+    min-height: 90vh !important;
+    display: block !important;
+  }
+
+  .print-day-page:first-child {
+    page-break-before: auto !important;
+    break-before: auto !important;
+  }
+
+  /* Hide the grid layout in print */
+  .grid.print\:grid-cols-7,
+  .grid.md\:grid-cols-2,
+  .grid.lg\:grid-cols-3,
+  .grid.xl\:grid-cols-7 {
+    display: none !important;
+  }
+
+  /* Day headers */
+  .print-day-header {
+    text-align: center !important;
+    margin-bottom: 40px !important;
+    border-bottom: 3px solid black !important;
+    padding-bottom: 20px !important;
+  }
+
+  .print-day-title {
+    font-size: 36px !important;
+    font-weight: bold !important;
+    margin-bottom: 10px !important;
+    color: black !important;
+  }
+
+  .print-day-date {
+    font-size: 18px !important;
+    color: #333 !important;
+  }
+
+  /* Section styling */
+  .print-section {
+    margin-bottom: 30px !important;
+    border: 2px solid black !important;
+    border-radius: 10px !important;
+    padding: 20px !important;
+    break-inside: avoid !important;
+  }
+
+  .print-section-header {
+    background: #f0f0f0 !important;
+    margin: -20px -20px 20px -20px !important;
+    padding: 15px 20px !important;
+    border-radius: 8px 8px 0 0 !important;
+    border-bottom: 2px solid black !important;
+  }
+
+  .print-section-title {
+    font-size: 24px !important;
+    font-weight: bold !important;
+    color: black !important;
+    margin: 0 !important;
+  }
+
+  /* Task items */
+  .print-task {
+    display: flex !important;
+    align-items: flex-start !important;
+    margin-bottom: 15px !important;
+    padding: 10px !important;
+    border: 1px solid #ccc !important;
+    border-radius: 5px !important;
+    break-inside: avoid !important;
+  }
+
+  /* Large checkboxes */
+  .print-checkbox {
+    width: 20px !important;
+    height: 20px !important;
+    border: 2px solid black !important;
+    border-radius: 3px !important;
+    margin-right: 15px !important;
+    margin-top: 2px !important;
+    flex-shrink: 0 !important;
+    background: white !important;
+  }
+
+  .print-task-content {
+    flex-grow: 1 !important;
+  }
+
+  .print-task-title {
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+    color: black !important;
+    margin: 0 0 5px 0 !important;
+  }
+
+  .print-task-description {
+    font-size: 13px !important;
+    color: #666 !important;
+    margin: 0 !important;
+  }
+
+  .print-task-schedule {
+    font-size: 12px !important;
+    color: #0066cc !important;
+    font-weight: 600 !important;
+    margin-top: 3px !important;
+  }
+
+  /* Completion status */
+  .print-task-status {
+    width: 100px !important;
+    text-align: right !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Page footer */
+  .print-footer {
+    position: fixed !important;
+    bottom: 1cm !important;
+    left: 0 !important;
+    right: 0 !important;
+    text-align: center !important;
+    font-size: 12px !important;
+    color: #666 !important;
+    border-top: 1px solid #ccc !important;
+    padding-top: 10px !important;
+  }
+
+  /* Global print overrides */
+  * {
+    color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Remove any conflicting styles */
+  .card, .Card {
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Ensure proper text sizing */
+  body, html {
+    font-family: Arial, sans-serif !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+  }
+}
