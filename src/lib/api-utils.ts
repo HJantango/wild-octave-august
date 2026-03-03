@@ -1,30 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError, ZodSchema } from 'zod';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './prisma';
 
-// Global singleton pattern for Prisma client to prevent connection leaks
-declare global {
-  var __prisma: PrismaClient | undefined;
-}
-
-// Simple Prisma client - Railway should handle DATABASE_URL automatically
-export const prisma = globalThis.__prisma ?? new PrismaClient({
-  log: ['error', 'warn'],
-  errorFormat: 'pretty',
-});
-
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.__prisma = prisma;
-}
-
-// Gracefully disconnect Prisma on process exit
-const shutdown = async () => {
-  await prisma.$disconnect();
-};
-
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-process.on('beforeExit', shutdown);
+// Re-export prisma from our dedicated prisma module
+export { prisma };
 
 // Error response helper
 export function createErrorResponse(
