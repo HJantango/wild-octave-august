@@ -312,3 +312,4 @@ For support and questions:
 
 Built with ❤️ for small business success
 # Force rebuild - Tue Mar  3 11:27:33 AEDT 2026
+# Rebuild trigger - Tue Mar  3 11:39:35 AEDT 2026
