@@ -156,15 +156,16 @@ export default function ChecklistBackupPage() {
           * {
             margin: 0 !important;
             padding: 0 !important;
-            background: none !important;
+            background: transparent !important;
             color: black !important;
             box-shadow: none !important;
+            border: none !important;
           }
           
           body {
             font-family: Arial, sans-serif !important;
-            font-size: 10px !important;
-            line-height: 1.2 !important;
+            font-size: 7px !important;
+            line-height: 1.0 !important;
           }
           
           .no-print { display: none !important; }
@@ -172,16 +173,15 @@ export default function ChecklistBackupPage() {
           
           @page {
             size: A4 portrait;
-            margin: 0.8cm;
+            margin: 0.5cm;
           }
           
           .print-day-page {
             page-break-before: always;
             page-break-after: always;
-            height: 26cm;
+            height: 28cm;
             width: 100%;
             position: relative;
-            overflow: hidden;
           }
           
           .print-day-page:first-child {
@@ -190,74 +190,69 @@ export default function ChecklistBackupPage() {
           
           .print-day-header {
             text-align: center;
-            margin-bottom: 8px !important;
+            margin-bottom: 4px !important;
             border-bottom: 1px solid black;
-            padding-bottom: 3px !important;
+            padding-bottom: 2px !important;
           }
           
           .print-day-title {
-            font-size: 16px !important;
+            font-size: 12px !important;
             font-weight: bold;
             margin-bottom: 1px !important;
           }
           
           .print-day-date {
-            font-size: 9px !important;
-            color: #333 !important;
+            font-size: 7px !important;
           }
           
           .print-section {
-            margin-bottom: 6px !important;
-            border: none !important;
+            margin-bottom: 3px !important;
             break-inside: avoid;
           }
           
           .print-section-header {
-            background: none !important;
-            padding: 2px 0px !important;
-            border-bottom: 1px solid black;
-            margin-bottom: 3px !important;
+            padding: 1px 0px !important;
+            border-bottom: 0.5px solid black;
+            margin-bottom: 2px !important;
           }
           
           .print-section-title {
-            font-size: 11px !important;
+            font-size: 8px !important;
             font-weight: bold;
           }
           
           .print-task {
             display: flex;
             align-items: flex-start;
-            margin-bottom: 1px !important;
-            padding: 1px 0px !important;
-            border: none !important;
+            margin-bottom: 0px !important;
+            padding: 0px !important;
           }
           
           .print-checkbox {
-            width: 10px !important;
-            height: 10px !important;
-            border: 1px solid black;
-            margin-right: 4px !important;
-            margin-top: 0px !important;
+            width: 7px !important;
+            height: 7px !important;
+            border: 0.5px solid black;
+            margin-right: 3px !important;
+            margin-top: 1px !important;
             background: white !important;
             flex-shrink: 0;
           }
           
           .print-task-title {
-            font-size: 8px !important;
+            font-size: 6px !important;
             line-height: 1.0 !important;
             font-weight: normal !important;
           }
           
           .print-footer {
             position: absolute;
-            bottom: 0.2cm;
+            bottom: 0.1cm;
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 7px !important;
-            color: #666 !important;
-            border-top: 1px solid #ccc;
-            padding-top: 2px !important;
+            font-size: 5px !important;
+            border-top: 0.5px solid black;
+            padding-top: 1px !important;
           }
         }
       `}</style>
