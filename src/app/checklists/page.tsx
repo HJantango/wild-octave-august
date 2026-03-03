@@ -13,56 +13,74 @@ interface ChecklistItem {
   description?: string;
   frequency: string;
   specificDays: string[];
+  sort_order: number;
   completed?: boolean;
   completedBy?: string;
-  completedAt?: string;
-  notes?: string;
 }
 
-interface ChecklistSection {
+interface ChecklistTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  section: string;
+  items: ChecklistItem[];
+}
+
+interface DaySection {
   id: string;
   name: string;
   section: string;
   items: ChecklistItem[];
 }
 
-interface WeeklyDay {
+interface DayData {
   date: string;
   dayName: string;
-  sections: ChecklistSection[];
+  sections: DaySection[];
 }
+
+interface WeeklyData {
+  weekStart: string;
+  weekEnd: string;
+  days: DayData[];
+}
+
+const getSectionIcon = (section: string) => {
+  const icons: { [key: string]: string } = {
+    kitchen: '🍳',
+    front: '🏪',
+    barista: '☕'
+  };
+  return icons[section] || '📋';
+};
+
+const getSectionName = (section: string) => {
+  const names: { [key: string]: string } = {
+    kitchen: 'Kitchen & Back Tasks',
+    front: 'Front of House Tasks',
+    barista: 'Barista Tasks'
+  };
+  return names[section] || section;
+};
 
 export default function ChecklistsPage() {
   const toast = useToast();
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
+  const [weeklyData, setWeeklyData] = useState<WeeklyData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [weeklyData, setWeeklyData] = useState<{ days: WeeklyDay[]; weekStart: string; weekEnd: string } | null>(null);
-  const [currentWeek, setCurrentWeek] = useState<Date>(new Date());
-  const [selectedSection, setSelectedSection] = useState<string>('all');
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [newTaskTemplate, setNewTaskTemplate] = useState<string | null>(null);
 
-  // Get Monday of current week
-  const getMondayOfWeek = (date: Date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    return new Date(d.setDate(diff));
-  };
-
-  const loadWeeklyChecklists = async (weekStart: Date) => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams({
-        weekStart: weekStart.toISOString().split('T')[0],
-      });
-      
-      if (selectedSection !== 'all') {
-        params.append('section', selectedSection);
-      }
-
-      const response = await fetch(`/api/checklists/weekly?${params}`);
+      const response = await fetch('/api/checklists');
       const data = await response.json();
       
       if (data.success) {
-        setWeeklyData(data.data);
+        setTemplates(data.data);
+        buildWeeklyData(data.data);
       } else {
         toast.error('Error', 'Failed to load checklists');
       }
@@ -73,43 +91,152 @@ export default function ChecklistsPage() {
     }
   };
 
-  const toggleCompletion = async (itemId: string, date: string, completed: boolean, completedBy?: string) => {
+  const buildWeeklyData = (templates: ChecklistTemplate[]) => {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday
+
+    const weeklyData: WeeklyData = {
+      weekStart: startOfWeek.toISOString().split('T')[0],
+      weekEnd: new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      days: []
+    };
+
+    // Build 7 days
+    for (let i = 0; i < 7; i++) {
+      const currentDate = new Date(startOfWeek);
+      currentDate.setDate(startOfWeek.getDate() + i);
+      
+      const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+      const sections: DaySection[] = [];
+
+      // Process each template/section
+      templates.forEach(template => {
+        const sectionItems: ChecklistItem[] = [];
+
+        template.items.forEach(item => {
+          let shouldInclude = false;
+
+          if (item.frequency === 'daily') {
+            shouldInclude = true;
+          } else if (item.frequency === 'weekly' && item.specificDays?.length > 0) {
+            shouldInclude = item.specificDays.includes(dayName);
+          }
+
+          if (shouldInclude) {
+            sectionItems.push(item);
+          }
+        });
+
+        if (sectionItems.length > 0) {
+          sections.push({
+            id: template.id,
+            name: getSectionName(template.section),
+            section: template.section,
+            items: sectionItems
+          });
+        }
+      });
+
+      weeklyData.days.push({
+        date: currentDate.toISOString().split('T')[0],
+        dayName,
+        sections
+      });
+    }
+
+    setWeeklyData(weeklyData);
+  };
+
+  const saveItem = async (templateId: string, item: ChecklistItem) => {
     try {
-      if (completed) {
-        // Mark as incomplete
-        await fetch('/api/checklists/complete', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId, date }),
-        });
+      const template = templates.find(t => t.id === templateId);
+      if (!template) return;
+
+      const updatedItems = template.items.map(i => i.id === item.id ? item : i);
+      const updatedTemplate = { ...template, items: updatedItems };
+
+      const response = await fetch(`/api/checklists/${templateId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedTemplate),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Success', 'Task updated successfully');
+        loadData();
       } else {
-        // Mark as complete
-        const staffName = prompt('Who completed this task?') || 'Unknown';
-        await fetch('/api/checklists/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            itemId, 
-            date, 
-            completedBy: staffName,
-            notes: ''
-          }),
-        });
+        toast.error('Error', data.error?.message || 'Failed to save task');
       }
-      
-      // Reload data
-      loadWeeklyChecklists(getMondayOfWeek(currentWeek));
-      
     } catch (error) {
-      toast.error('Error', 'Failed to update task');
+      toast.error('Error', 'Failed to save task');
     }
   };
 
-  const navigateWeek = (direction: 'prev' | 'next') => {
-    const newWeek = new Date(currentWeek);
-    newWeek.setDate(newWeek.getDate() + (direction === 'next' ? 7 : -7));
-    setCurrentWeek(newWeek);
-    loadWeeklyChecklists(getMondayOfWeek(newWeek));
+  const addNewTask = async (templateId: string) => {
+    try {
+      const template = templates.find(t => t.id === templateId);
+      if (!template) return;
+
+      const newItem: ChecklistItem = {
+        id: `new_${Date.now()}`,
+        title: 'New Task',
+        description: '',
+        frequency: 'daily',
+        specificDays: [],
+        sort_order: template.items.length + 1
+      };
+
+      const updatedTemplate = { 
+        ...template, 
+        items: [...template.items, newItem] 
+      };
+
+      const response = await fetch(`/api/checklists/${templateId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedTemplate),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Success', 'Task added successfully');
+        loadData();
+      } else {
+        toast.error('Error', data.error?.message || 'Failed to add task');
+      }
+    } catch (error) {
+      toast.error('Error', 'Failed to add task');
+    }
+  };
+
+  const deleteTask = async (templateId: string, itemId: string) => {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+      const template = templates.find(t => t.id === templateId);
+      if (!template) return;
+
+      const updatedItems = template.items.filter(i => i.id !== itemId);
+      const updatedTemplate = { ...template, items: updatedItems };
+
+      const response = await fetch(`/api/checklists/${templateId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedTemplate),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Success', 'Task deleted successfully');
+        loadData();
+      } else {
+        toast.error('Error', data.error?.message || 'Failed to delete task');
+      }
+    } catch (error) {
+      toast.error('Error', 'Failed to delete task');
+    }
   };
 
   const printWeek = () => {
@@ -117,27 +244,8 @@ export default function ChecklistsPage() {
   };
 
   useEffect(() => {
-    const monday = getMondayOfWeek(currentWeek);
-    loadWeeklyChecklists(monday);
-  }, [selectedSection]);
-
-  const getSectionColor = (section: string) => {
-    switch (section) {
-      case 'kitchen': return 'bg-red-50 border-red-200';
-      case 'front': return 'bg-blue-50 border-blue-200';  
-      case 'barista': return 'bg-green-50 border-green-200';
-      default: return 'bg-gray-50 border-gray-200';
-    }
-  };
-
-  const getSectionIcon = (section: string) => {
-    switch (section) {
-      case 'kitchen': return '🍳';
-      case 'front': return '🏪';
-      case 'barista': return '☕';
-      default: return '📋';
-    }
-  };
+    loadData();
+  }, []);
 
   if (loading) {
     return (
@@ -151,145 +259,199 @@ export default function ChecklistsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 print:space-y-4">
-        {/* Header - Hidden in print */}
+      <div className="space-y-6 print:space-y-0">
+        {/* Header - Hidden in Print */}
+        <div className="print:hidden bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 rounded-2xl p-8 text-white">
+          <h1 className="text-3xl font-bold mb-2">📋 Weekly Checklists</h1>
+          <p className="text-purple-100">
+            Manage your shop tasks and print daily checklists
+          </p>
+        </div>
+
+        {/* Controls - Hidden in Print */}
+        <div className="print:hidden flex gap-4 justify-center">
+          <Button onClick={printWeek} className="bg-blue-600 hover:bg-blue-700">
+            🖨️ Print Week (7 Pages)
+          </Button>
+        </div>
+
+        {/* Screen Layout - Hidden in Print */}
         <div className="print:hidden">
-          <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-8 text-white">
-            <h1 className="text-3xl font-bold mb-2">📋 Shop Checklists</h1>
-            <p className="text-blue-100">
-              Daily and weekly task management for shop operations
-            </p>
-          </div>
-
-          {/* Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-6">
-            <div className="flex items-center gap-4">
-              <Button 
-                onClick={() => navigateWeek('prev')}
-                variant="outline"
-              >
-                ← Previous Week
-              </Button>
-              
-              <div className="text-center">
-                <div className="font-semibold">
-                  {weeklyData?.weekStart} to {weeklyData?.weekEnd}
-                </div>
-              </div>
-              
-              <Button 
-                onClick={() => navigateWeek('next')}
-                variant="outline"
-              >
-                Next Week →
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <select 
-                value={selectedSection}
-                onChange={(e) => setSelectedSection(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2"
-              >
-                <option value="all">All Sections</option>
-                <option value="kitchen">Kitchen / Back</option>
-                <option value="front">Front of House</option>
-                <option value="barista">Barista</option>
-              </select>
-
-              <Button onClick={printWeek} variant="outline">
-                🖨️ Print Week
-              </Button>
-
-              <Button 
-                onClick={() => window.location.href = '/checklists/manage'}
-                variant="outline"
-              >
-                ⚙️ Manage Lists
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Print Header */}
-        <div className="hidden print:block text-center border-b-2 border-black pb-4 mb-6">
-          <h1 className="text-3xl font-bold">Wild Octave Organics - Weekly Checklist</h1>
-          <div className="text-lg mt-2">
-            Week of {weeklyData?.weekStart} to {weeklyData?.weekEnd}
-          </div>
-        </div>
-
-        {/* Weekly Grid - Screen View */}
-        {weeklyData && (
-          <div className="block print:hidden">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-              {weeklyData.days.map((day, dayIndex) => (
-                <Card key={day.date} className="break-inside-avoid">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg font-bold text-center">
-                      {day.dayName}
-                      <div className="text-sm font-normal text-gray-600">
-                        {new Date(day.date).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })}
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {day.sections.map((section) => (
-                      <div 
-                        key={section.id}
-                        className={`p-3 rounded-lg border ${getSectionColor(section.section)}`}
+          {templates.map((template) => (
+            <Card key={template.id} className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span>{getSectionIcon(template.section)}</span>
+                    {editingTemplate === template.id ? (
+                      <input
+                        type="text"
+                        value={template.name}
+                        onChange={(e) => {
+                          const updated = templates.map(t => 
+                            t.id === template.id ? { ...t, name: e.target.value } : t
+                          );
+                          setTemplates(updated);
+                        }}
+                        onBlur={() => {
+                          saveItem(template.id, template.items[0]); // Trigger save
+                          setEditingTemplate(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            saveItem(template.id, template.items[0]);
+                            setEditingTemplate(null);
+                          }
+                        }}
+                        className="text-lg font-semibold bg-transparent border-b border-gray-300"
+                        autoFocus
+                      />
+                    ) : (
+                      <span 
+                        onClick={() => setEditingTemplate(template.id)}
+                        className="cursor-pointer hover:text-blue-600"
                       >
-                        <div className="font-semibold text-sm mb-2 flex items-center gap-1">
-                          <span>{getSectionIcon(section.section)}</span>
-                          {section.name}
-                        </div>
-                        <div className="space-y-1">
-                          {section.items.map((item) => (
-                            <div 
-                              key={item.id}
-                              className="flex items-start gap-2 text-sm"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={item.completed || false}
-                                onChange={(e) => toggleCompletion(
-                                  item.id, 
-                                  day.date, 
-                                  item.completed || false,
-                                  item.completedBy
-                                )}
-                                className="mt-1"
-                              />
-                              <div className="flex-1">
-                                <div className={item.completed ? 'line-through text-gray-500' : ''}>
-                                  {item.title}
-                                </div>
-                                {item.completed && item.completedBy && (
-                                  <div className="text-xs text-gray-500">
-                                    ✓ {item.completedBy}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {day.sections.length === 0 && (
-                      <div className="text-center text-gray-500 text-sm py-8">
-                        No tasks for this day
-                      </div>
+                        {template.name}
+                      </span>
                     )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
+                  </div>
+                  <Button 
+                    onClick={() => addNewTask(template.id)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    ➕ Add Task
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {template.items.map((item) => (
+                    <div 
+                      key={item.id} 
+                      className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="flex-1">
+                        {editingItem === item.id ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => {
+                                const updated = templates.map(t => 
+                                  t.id === template.id 
+                                    ? { ...t, items: t.items.map(i => i.id === item.id ? { ...i, title: e.target.value } : i) }
+                                    : t
+                                );
+                                setTemplates(updated);
+                              }}
+                              className="w-full px-2 py-1 border border-gray-300 rounded"
+                            />
+                            <div className="flex gap-2">
+                              <select
+                                value={item.frequency}
+                                onChange={(e) => {
+                                  const updated = templates.map(t => 
+                                    t.id === template.id 
+                                      ? { ...t, items: t.items.map(i => i.id === item.id ? { ...i, frequency: e.target.value } : i) }
+                                      : t
+                                  );
+                                  setTemplates(updated);
+                                }}
+                                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                              >
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                              </select>
+                              {item.frequency === 'weekly' && (
+                                <div className="flex gap-1 text-xs">
+                                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                                    <label key={day} className="flex items-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={item.specificDays.includes(day)}
+                                        onChange={(e) => {
+                                          const days = e.target.checked
+                                            ? [...item.specificDays, day]
+                                            : item.specificDays.filter(d => d !== day);
+                                          const updated = templates.map(t => 
+                                            t.id === template.id 
+                                              ? { ...t, items: t.items.map(i => i.id === item.id ? { ...i, specificDays: days } : i) }
+                                              : t
+                                          );
+                                          setTemplates(updated);
+                                        }}
+                                      />
+                                      <span className="ml-1">{day.slice(0,3)}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => setEditingItem(item.id)}
+                            className="cursor-pointer"
+                          >
+                            <div className="font-medium">{item.title}</div>
+                            <div className="text-sm text-gray-500">
+                              {item.frequency === 'daily' ? 'Every day' : 
+                               item.frequency === 'weekly' && item.specificDays?.length > 0 ? 
+                                 `Weekly: ${item.specificDays.join(', ')}` : 
+                                 item.frequency}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        {editingItem === item.id ? (
+                          <>
+                            <Button 
+                              onClick={() => {
+                                saveItem(template.id, item);
+                                setEditingItem(null);
+                              }}
+                              size="sm"
+                            >
+                              ✓
+                            </Button>
+                            <Button 
+                              onClick={() => setEditingItem(null)}
+                              size="sm" 
+                              variant="outline"
+                            >
+                              ✕
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button 
+                              onClick={() => setEditingItem(item.id)}
+                              size="sm" 
+                              variant="outline"
+                            >
+                              ✏️
+                            </Button>
+                            <Button 
+                              onClick={() => deleteTask(template.id, item.id)}
+                              size="sm" 
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              🗑️
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
         {/* Print Layout - One Page Per Day */}
         {weeklyData && (
@@ -303,14 +465,10 @@ export default function ChecklistsPage() {
                   </h1>
                   <div className="print-day-date">
                     {new Date(day.date).toLocaleDateString('en-US', { 
-                      weekday: 'long',
                       year: 'numeric',
                       month: 'long', 
                       day: 'numeric' 
                     })}
-                  </div>
-                  <div style={{ fontSize: '14px', marginTop: '10px', color: '#666' }}>
-                    Week of {weeklyData.weekStart} to {weeklyData.weekEnd}
                   </div>
                 </div>
 
@@ -342,13 +500,6 @@ export default function ChecklistsPage() {
                             </div>
                           )}
                         </div>
-                        <div className="print-task-status">
-                          {item.completed && (
-                            <div style={{ fontSize: '12px', color: '#16a34a' }}>
-                              ✓ {item.completedBy}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -362,26 +513,13 @@ export default function ChecklistsPage() {
 
                 {/* Footer */}
                 <div className="print-footer">
-                  Wild Octave Organics - Daily Checklist - {day.dayName} - Page {dayIndex + 1} of 7
+                  Wild Octave Organics - {day.dayName} - Page {dayIndex + 1} of 7
                 </div>
               </div>
             ))}
           </div>
         )}
-
-        {/* Footer for print */}
-        <div className="hidden print:block mt-8 pt-4 border-t-2 border-black text-center text-xs">
-          <p>Wild Octave Organics - {new Date().toLocaleDateString()}</p>
-        </div>
       </div>
-      
-      {/* Simple print override to ensure our layout works */}
-      <style jsx global>{`
-        @media print {
-          .print\\:hidden { display: none !important; }
-          .print\\:block { display: block !important; }
-        }
-      `}</style>
     </DashboardLayout>
   );
 }
