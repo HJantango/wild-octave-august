@@ -294,6 +294,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // CAFE VENDOR PATTERNS - when Square and Item table lookups fail
+    // Maps item name patterns to vendor names
+    const CAFE_VENDOR_PATTERNS: Array<{ pattern: RegExp; vendor: string }> = [
+      // Yummify patterns - savoury items
+      { pattern: /protein patty/i, vendor: 'Yummify' },
+      { pattern: /spinach.*pumpkin.*roll/i, vendor: 'Yummify' },
+      { pattern: /vegan.*lasagne/i, vendor: 'Yummify' },
+      { pattern: /lentil.*shepherd.*pie|lentil.*shepard.*pie/i, vendor: 'Yummify' },
+      { pattern: /frittata.*sweet.*potato/i, vendor: 'Yummify' },
+      // Yummify also has cakes - add these if Heath confirms which ones
+      // { pattern: /yummify.*cake/i, vendor: 'Yummify' },
+      
+      // Gigi's patterns
+      { pattern: /gigi'?s/i, vendor: "Gigi's" },
+      
+      // Byron Brownies
+      { pattern: /byron.*brownie/i, vendor: 'Byron Brownies' },
+      
+      // Yumbar
+      { pattern: /yumbar/i, vendor: 'Yumbar' },
+    ];
+    
+    // Function to match vendor by pattern
+    const getVendorByPattern = (itemName: string): string | null => {
+      for (const { pattern, vendor } of CAFE_VENDOR_PATTERNS) {
+        if (pattern.test(itemName)) {
+          return vendor;
+        }
+      }
+      return null;
+    };
+
     // Upsert all records
     let upsertedCount = 0;
     const batchSize = 50;
@@ -303,11 +335,13 @@ export async function POST(request: NextRequest) {
       const batch = entries.slice(i, i + batchSize);
       await Promise.all(
         batch.map((entry) => {
-          // SQUARE-FIRST PRINCIPLE: Use vendor from Square catalog first, fall back to database lookup
-          const finalVendorName = entry.vendorName || // Vendor from Square catalog (NEW!)
+          // SQUARE-FIRST PRINCIPLE: Use vendor from Square catalog first, fall back to database lookup, then patterns
+          const finalVendorName = entry.vendorName || // 1. Vendor from Square catalog
             (entry.squareCatalogId 
               ? vendorLookupBySquareId.get(entry.squareCatalogId) || vendorLookupByName.get(entry.itemName.toLowerCase().trim())
-              : vendorLookupByName.get(entry.itemName.toLowerCase().trim())) || null;
+              : vendorLookupByName.get(entry.itemName.toLowerCase().trim())) || // 2. Database lookup
+            getVendorByPattern(entry.itemName) || // 3. Pattern matching fallback
+            null;
               
           if (entry.vendorName && entry.vendorName.toLowerCase().includes('heaps good')) {
             console.log(`🎉 HEAPS GOOD: Using vendor "${entry.vendorName}" from Square catalog for "${entry.itemName}"`);
