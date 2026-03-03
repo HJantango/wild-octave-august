@@ -1,18 +1,24 @@
 import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
-// Cafe categories to include (matches the 'category' field in squareDailySales)
-const CAFE_CATEGORIES = [
-  'Cafe Food',
-  'Cafe Drinks',
-  'Cafe Cakes',
-  'Cakes',
-  'Sweets',
-  'Savoury',
-  'Brownies',
-  'Pastries',
-  'Ready Meals',
-  'Deli',
+// Cafe vendors to include (since category field is empty, we filter by vendor)
+const CAFE_VENDORS = [
+  'Yummify',
+  'liz jackson',
+  'Byron Brownies',
+  'Gigi\'s',
+  'Gigis',
+  'Bread Social',
+  'Doughboy',
+  'Kijai Kitchen',
+  'Yumbar',
+  'Breadicine',
+  'Love Bites',
+  'Wild Octave Organics',
+  'Heat Heart Heart',
+  'Dippity Doo Dips',
+  'Knox & Aya',
+  'Citris Bliss Icy Poles',
 ];
 
 // Items/vendors to exclude (pies are handled separately)
@@ -24,7 +30,7 @@ const EXCLUDE_VENDORS = [
 const EXCLUDE_ITEMS = [
   'pie',
   'pies',
-  'gado',
+  'gado gado',
   'samosa',
   'energy roll',
 ];
@@ -33,24 +39,38 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const weeks = parseInt(searchParams.get('weeks') || '6');
+    const allVendors = searchParams.get('all') === 'true';
 
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeks * 7);
 
-    // Build category conditions (field is 'category' not 'categoryName')
-    const categoryConditions = CAFE_CATEGORIES.map(cat => ({
-      category: { contains: cat, mode: 'insensitive' as const },
-    }));
+    let dailySales;
+    
+    if (allVendors) {
+      // Fetch ALL vendors (for discovering new cafe vendors)
+      dailySales = await prisma.squareDailySales.findMany({
+        where: {
+          date: { gte: startDate, lte: endDate },
+          vendorName: { not: null },
+        },
+        orderBy: { date: 'asc' },
+      });
+    } else {
+      // Build vendor conditions (case-insensitive matching)
+      const vendorConditions = CAFE_VENDORS.map(vendor => ({
+        vendorName: { contains: vendor, mode: 'insensitive' as const },
+      }));
 
-    // Fetch all daily sales records for cafe categories
-    const dailySales = await prisma.squareDailySales.findMany({
-      where: {
-        date: { gte: startDate, lte: endDate },
-        OR: categoryConditions,
-      },
-      orderBy: { date: 'asc' },
-    });
+      // Fetch daily sales records for cafe vendors
+      dailySales = await prisma.squareDailySales.findMany({
+        where: {
+          date: { gte: startDate, lte: endDate },
+          OR: vendorConditions,
+        },
+        orderBy: { date: 'asc' },
+      });
+    }
 
     // Filter out excluded vendors and items
     const excludeVendorsLower = EXCLUDE_VENDORS.map(v => v.toLowerCase());
