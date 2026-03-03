@@ -294,8 +294,8 @@ export default function ChecklistsPage() {
 
         {/* Controls - Hidden in Print */}
         <div className="print:hidden flex gap-4 justify-center">
-          <Button onClick={printWeek} className="bg-blue-600 hover:bg-blue-700">
-            🖨️ Print Week (7 Pages)
+          <Button onClick={printWeek} className="bg-green-600 hover:bg-green-700 text-lg px-8 py-4">
+            🖨️ Print Weekly Checklists (7 Pages)
           </Button>
         </div>
 
@@ -477,67 +477,50 @@ export default function ChecklistsPage() {
           ))}
         </div>
 
-        {/* Print Layout - One Page Per Day */}
+        {/* Simple Print Layout */}
         {weeklyData && (
           <div className="hidden print:block">
             {weeklyData.days.map((day, dayIndex) => (
               <div key={day.date} className="print-day-page">
-                {/* Day Header */}
                 <div className="print-day-header">
-                  <h1 className="print-day-title">
-                    {day.dayName}
-                  </h1>
+                  <div className="print-day-title">{day.dayName}</div>
                   <div className="print-day-date">
                     {new Date(day.date).toLocaleDateString('en-US', { 
-                      year: 'numeric',
-                      month: 'long', 
-                      day: 'numeric' 
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
                     })}
                   </div>
                 </div>
 
-                {/* Sections */}
                 {day.sections.map((section) => (
                   <div key={section.id} className="print-section">
                     <div className="print-section-header">
-                      <h2 className="print-section-title">
+                      <div className="print-section-title">
                         {getSectionIcon(section.section)} {section.name}
-                      </h2>
+                      </div>
                     </div>
 
-                    {/* Tasks */}
                     {section.items.map((item) => (
                       <div key={item.id} className="print-task">
-                        <div className="print-checkbox"></div>
-                        <div className="print-task-content">
-                          <div className="print-task-title">
-                            {item.title}
-                          </div>
-                          {item.description && (
-                            <div className="print-task-description">
-                              {item.description}
-                            </div>
-                          )}
-                          {item.frequency === 'weekly' && item.specificDays?.length > 0 && (
-                            <div className="print-task-schedule">
-                              📅 {item.specificDays.join(', ')}
-                            </div>
-                          )}
-                        </div>
+                        <span className="print-checkbox">☐</span>
+                        <span className="print-task-title">{item.title}</span>
+                        {item.frequency === 'weekly' && item.specificDays?.length > 0 && (
+                          <span className="print-task-schedule"> ({item.specificDays.join(', ')})</span>
+                        )}
                       </div>
                     ))}
                   </div>
                 ))}
                 
                 {day.sections.length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#999', fontSize: '18px', padding: '60px 0' }}>
-                    No tasks scheduled for this day
+                  <div style={{ textAlign: 'center', fontSize: '8px', padding: '20px' }}>
+                    No tasks scheduled
                   </div>
                 )}
 
-                {/* Footer */}
                 <div className="print-footer">
-                  Wild Octave Organics - {day.dayName} - Page {dayIndex + 1} of 7
+                  Wild Octave - {day.dayName} - Page {dayIndex + 1}/7
                 </div>
               </div>
             ))}
