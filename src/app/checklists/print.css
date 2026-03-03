@@ -18,7 +18,8 @@
   /* Hide ALL navigation and screen elements */
   nav, header, .navigation, .sidebar, .menu, .navbar, aside,
   .print\:hidden, button, .btn, .card:not(.print\:block),
-  [role="navigation"], .dashboard-nav, .top-nav, .main-nav {
+  [role="navigation"], .dashboard-nav, .top-nav, .main-nav,
+  .page-header, .app-header, .document-header, title {
     display: none !important;
   }
 
@@ -52,7 +53,7 @@
     page-break-before: auto !important;
   }
 
-  /* Day headers - Bigger and cleaner */
+  /* Day headers - Clean for laminating */
   .print-day-header {
     text-align: center !important;
     margin-bottom: 15px !important;
@@ -63,12 +64,11 @@
   .print-day-title {
     font-size: 24px !important;
     font-weight: bold !important;
-    margin-bottom: 4px !important;
+    margin-bottom: 0px !important;
   }
 
   .print-day-date {
-    font-size: 12px !important;
-    color: #333 !important;
+    display: none !important;
   }
 
   /* Sections - Better spacing and emphasis */
@@ -122,16 +122,8 @@
     font-style: italic !important;
   }
 
-  /* Footer - Clean and professional */
+  /* Footer - Hidden for laminating */
   .print-footer {
-    position: fixed !important;
-    bottom: 10mm !important;
-    left: 15mm !important;
-    right: 15mm !important;
-    text-align: center !important;
-    font-size: 9px !important;
-    border-top: 1px solid #999 !important;
-    padding-top: 4px !important;
-    color: #666 !important;
+    display: none !important;
   }
 }

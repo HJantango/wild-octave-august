@@ -485,13 +485,6 @@ export default function ChecklistsPage() {
               <div key={day.date} className="print-day-page">
                 <div className="print-day-header">
                   <div className="print-day-title">{day.dayName}</div>
-                  <div className="print-day-date">
-                    {new Date(day.date).toLocaleDateString('en-US', { 
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </div>
                 </div>
 
                 {day.sections.map((section) => (
@@ -519,10 +512,6 @@ export default function ChecklistsPage() {
                     No tasks scheduled
                   </div>
                 )}
-
-                <div className="print-footer">
-                  Wild Octave - {day.dayName} - Page {dayIndex + 1}/7
-                </div>
               </div>
             ))}
           </div>

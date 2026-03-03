@@ -1,22 +1,25 @@
 /* Nuclear option - Hide everything except print content */
 @media print {
-  /* Hide all possible navigation elements */
+  /* Hide all possible navigation and metadata elements */
   nav, header, aside, .sidebar, .navigation, .navbar, .menu, 
   .dashboard-nav, .top-bar, .main-header, .app-header,
   [role="navigation"], [role="banner"], [data-testid*="nav"],
   .flex.items-center.gap-4, .space-x-6, 
-  .bg-gradient-to-r, button:not(.print-button) {
+  .bg-gradient-to-r, button:not(.print-button),
+  title, .page-title, .document-title, .build-info,
+  script, style, meta, link, .next-data, .page-info {
     display: none !important;
     visibility: hidden !important;
     position: absolute !important;
     left: -9999px !important;
   }
 
-  /* Ensure clean body */
-  body {
+  /* Ultra clean body for laminating */
+  html, body {
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
+    font-family: Arial, sans-serif !important;
   }
 
   /* Only show our print content */
@@ -30,6 +33,11 @@
   .dashboard-layout > div:first-child,
   .dashboard-layout nav,
   .dashboard-layout header {
+    display: none !important;
+  }
+
+  /* Hide any stray page elements */
+  .page-metadata, .document-info, .build-manifest {
     display: none !important;
   }
 }
