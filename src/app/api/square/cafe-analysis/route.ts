@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma, createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
-// Cafe categories to include
+// Cafe categories to include (matches the 'category' field in squareDailySales)
 const CAFE_CATEGORIES = [
   'Cafe Food',
   'Cafe Drinks',
@@ -38,9 +38,9 @@ export async function GET(request: NextRequest) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeks * 7);
 
-    // Build category conditions
+    // Build category conditions (field is 'category' not 'categoryName')
     const categoryConditions = CAFE_CATEGORIES.map(cat => ({
-      categoryName: { contains: cat, mode: 'insensitive' as const },
+      category: { contains: cat, mode: 'insensitive' as const },
     }));
 
     // Fetch all daily sales records for cafe categories
@@ -102,19 +102,19 @@ export async function GET(request: NextRequest) {
     }>();
 
     for (const record of filteredSales) {
-      // Use variation ID as key, or generate one from item+variation name
-      const key = record.catalogObjectId || 
+      // Use squareCatalogId as key, or generate one from item+variation name
+      const key = record.squareCatalogId || 
         `${record.itemName}::${record.variationName || 'default'}`;
 
       if (!itemMap.has(key)) {
         itemMap.set(key, {
-          id: record.catalogObjectId || key,
+          id: record.squareCatalogId || key,
           name: record.itemName,
-          variationId: record.catalogObjectId || key,
+          variationId: record.squareCatalogId || key,
           variationName: record.variationName || record.itemName,
           vendorId: record.vendorName?.toLowerCase().replace(/\s+/g, '-') || 'unknown',
           vendorName: record.vendorName || 'Unknown Vendor',
-          categoryName: record.categoryName || 'Cafe',
+          categoryName: record.category || 'Cafe',
           totalSold: 0,
           byDayOfWeek: new Array(7).fill(0),
         });
