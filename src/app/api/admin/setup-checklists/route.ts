@@ -1,24 +1,42 @@
 import { NextRequest } from 'next/server';
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚀 Setting up checklist system...');
+    console.log('🚀 Setting up checklist system with direct PostgreSQL...');
 
-    // Run database migration using raw SQL (more reliable than CLI)
+    // Import Pool dynamically to avoid initialization issues
+    const { Pool } = await import('pg');
+    
+    // Get DATABASE_URL from process.env (should be available in Next.js API routes)
+    const databaseUrl = process.env.DATABASE_URL;
+    console.log('Database URL available:', !!databaseUrl);
+    
+    if (!databaseUrl) {
+      console.error('DATABASE_URL not found in process.env');
+      return createErrorResponse('ENV_ERROR', 'DATABASE_URL environment variable not found', 500);
+    }
+
+    // Create direct PostgreSQL connection
+    const pool = new Pool({
+      connectionString: databaseUrl,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+
+    console.log('📊 Connecting to database...');
+    
+    const client = await pool.connect();
+    
     try {
-      console.log('📊 Creating database tables...');
-      
-      // First, check if wrong tables exist and drop them
-      await prisma.$executeRaw`DROP TABLE IF EXISTS "ChecklistCompletion" CASCADE;`;
-      await prisma.$executeRaw`DROP TABLE IF EXISTS "ChecklistItem" CASCADE;`;
-      await prisma.$executeRaw`DROP TABLE IF EXISTS "ChecklistTemplate" CASCADE;`;
+      console.log('🗑️ Dropping old tables...');
+      await client.query('DROP TABLE IF EXISTS "ChecklistCompletion" CASCADE;');
+      await client.query('DROP TABLE IF EXISTS "ChecklistItem" CASCADE;');
+      await client.query('DROP TABLE IF EXISTS "ChecklistTemplate" CASCADE;');
 
-      // Create tables with correct snake_case names
-      await prisma.$executeRaw`
+      console.log('📊 Creating tables...');
+      
+      // Create checklist_templates table
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "checklist_templates" (
             "id" TEXT NOT NULL,
             "name" TEXT NOT NULL,
@@ -29,9 +47,10 @@ export async function POST(request: NextRequest) {
             "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT "checklist_templates_pkey" PRIMARY KEY ("id")
         );
-      `;
+      `);
 
-      await prisma.$executeRaw`
+      // Create checklist_items table  
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "checklist_items" (
             "id" TEXT NOT NULL,
             "template_id" TEXT NOT NULL,
@@ -45,9 +64,10 @@ export async function POST(request: NextRequest) {
             "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT "checklist_items_pkey" PRIMARY KEY ("id")
         );
-      `;
+      `);
 
-      await prisma.$executeRaw`
+      // Create checklist_completions table
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "checklist_completions" (
             "id" TEXT NOT NULL,
             "item_id" TEXT NOT NULL,
@@ -57,192 +77,141 @@ export async function POST(request: NextRequest) {
             "notes" TEXT,
             CONSTRAINT "checklist_completions_pkey" PRIMARY KEY ("id")
         );
-      `;
+      `);
 
-      // Create indexes
-      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "checklist_templates_section_idx" ON "checklist_templates"("section");`;
-      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "checklist_templates_is_active_idx" ON "checklist_templates"("is_active");`;
-      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "checklist_items_template_id_idx" ON "checklist_items"("template_id");`;
-      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "checklist_items_frequency_idx" ON "checklist_items"("frequency");`;
-      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "checklist_items_sort_order_idx" ON "checklist_items"("sort_order");`;
-      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "checklist_completions_item_id_idx" ON "checklist_completions"("item_id");`;
-      await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "checklist_completions_date_idx" ON "checklist_completions"("date");`;
-      await prisma.$executeRaw`CREATE UNIQUE INDEX IF NOT EXISTS "checklist_completions_item_id_date_key" ON "checklist_completions"("item_id", "date");`;
+      console.log('📇 Creating indexes...');
+      await client.query('CREATE INDEX IF NOT EXISTS "checklist_templates_section_idx" ON "checklist_templates"("section");');
+      await client.query('CREATE INDEX IF NOT EXISTS "checklist_templates_is_active_idx" ON "checklist_templates"("is_active");');
+      await client.query('CREATE INDEX IF NOT EXISTS "checklist_items_template_id_idx" ON "checklist_items"("template_id");');
+      await client.query('CREATE INDEX IF NOT EXISTS "checklist_items_frequency_idx" ON "checklist_items"("frequency");');
+      await client.query('CREATE INDEX IF NOT EXISTS "checklist_items_sort_order_idx" ON "checklist_items"("sort_order");');
+      await client.query('CREATE INDEX IF NOT EXISTS "checklist_completions_item_id_idx" ON "checklist_completions"("item_id");');
+      await client.query('CREATE INDEX IF NOT EXISTS "checklist_completions_date_idx" ON "checklist_completions"("date");');
+      await client.query('CREATE UNIQUE INDEX IF NOT EXISTS "checklist_completions_item_id_date_key" ON "checklist_completions"("item_id", "date");');
 
-      // Add foreign keys
-      await prisma.$executeRaw`
+      console.log('🔗 Adding foreign keys...');
+      await client.query(`
         ALTER TABLE "checklist_items" 
         DROP CONSTRAINT IF EXISTS "checklist_items_template_id_fkey";
-      `;
-      await prisma.$executeRaw`
+      `);
+      await client.query(`
         ALTER TABLE "checklist_items" 
         ADD CONSTRAINT "checklist_items_template_id_fkey" 
         FOREIGN KEY ("template_id") REFERENCES "checklist_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-      `;
+      `);
 
-      await prisma.$executeRaw`
+      await client.query(`
         ALTER TABLE "checklist_completions" 
         DROP CONSTRAINT IF EXISTS "checklist_completions_item_id_fkey";
-      `;
-      await prisma.$executeRaw`
+      `);
+      await client.query(`
         ALTER TABLE "checklist_completions" 
         ADD CONSTRAINT "checklist_completions_item_id_fkey" 
         FOREIGN KEY ("item_id") REFERENCES "checklist_items"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-      `;
+      `);
 
-      console.log('✅ Database tables created');
-    } catch (error: any) {
-      console.error('❌ Migration error:', error);
-      return createErrorResponse('MIGRATION_ERROR', `Migration failed: ${error.message}`, 500);
+      console.log('🌱 Seeding data...');
+      
+      // Kitchen template
+      await client.query(`
+        INSERT INTO "checklist_templates" ("id", "name", "description", "section")
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT ("id") DO NOTHING
+      `, ['kitchen_template_001', 'Kitchen & Back Tasks', 'Daily kitchen cleaning and maintenance tasks', 'kitchen']);
+
+      // Kitchen items
+      const kitchenItems = [
+        'Wipe down all prep surfaces', 'Clean coffee machine', 'Empty dishwasher', 'Sweep and mop kitchen floor',
+        'Clean sinks', 'Wipe down fridges (exterior)', 'Clean microwave (inside/outside)', 'Take out rubbish',
+        'Stack dishwasher', 'Wash pots and pans', 'Clean bench scales', 'Organize dry storage area',
+        'Check and refill soap dispensers', 'Wipe down light switches and door handles'
+      ];
+
+      for (let i = 0; i < kitchenItems.length; i++) {
+        await client.query(`
+          INSERT INTO "checklist_items" ("id", "template_id", "title", "sort_order")
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT ("id") DO NOTHING
+        `, [`kitchen_${String(i + 1).padStart(3, '0')}`, 'kitchen_template_001', kitchenItems[i], i + 1]);
+      }
+
+      // Front template
+      await client.query(`
+        INSERT INTO "checklist_templates" ("id", "name", "description", "section")
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT ("id") DO NOTHING
+      `, ['front_template_001', 'Front of House Tasks', 'Customer-facing area maintenance and presentation', 'front']);
+
+      // Front items
+      const frontItems = [
+        'Wipe down all tables and chairs', 'Vacuum or sweep floors', 'Clean windows (inside)', 'Dust shelves and displays',
+        'Organize product displays', 'Clean entrance door and handles', 'Empty customer bins', 'Clean and organize counter area',
+        'Wipe down payment terminal', 'Check and straighten signage', 'Clean light switches and power points', 'Organize takeaway supplies',
+        'Clean mirrors (if any)', 'Straighten magazines/reading material', 'Water plants (if any)', 'Clean menu boards',
+        'Organize brochures/flyers', 'Check customer seating for damage', 'Clean phone/communication devices', 'Spot clean walls and surfaces',
+        'Check and replace paper towels', 'Clean customer-facing fridge doors', 'Organize and clean weighing scales', 'Check lighting and replace bulbs',
+        'Clean and organize entrance area'
+      ];
+
+      for (let i = 0; i < frontItems.length; i++) {
+        await client.query(`
+          INSERT INTO "checklist_items" ("id", "template_id", "title", "sort_order")
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT ("id") DO NOTHING
+        `, [`front_${String(i + 1).padStart(3, '0')}`, 'front_template_001', frontItems[i], i + 1]);
+      }
+
+      // Barista template
+      await client.query(`
+        INSERT INTO "checklist_templates" ("id", "name", "description", "section")
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT ("id") DO NOTHING
+      `, ['barista_template_001', 'Barista Tasks', 'Coffee service and barista station maintenance', 'barista']);
+
+      // Barista items
+      const baristaItems = [
+        'Clean espresso machine', 'Clean and calibrate grinder', 'Organize coffee station', 'Clean milk steaming equipment',
+        'Check coffee bean supply', 'Clean cup and saucer storage', 'Wipe down barista station surfaces'
+      ];
+
+      for (let i = 0; i < baristaItems.length; i++) {
+        await client.query(`
+          INSERT INTO "checklist_items" ("id", "template_id", "title", "sort_order")
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT ("id") DO NOTHING
+        `, [`barista_${String(i + 1).padStart(3, '0')}`, 'barista_template_001', baristaItems[i], i + 1]);
+      }
+
+      console.log('✅ Verifying setup...');
+      const templates = await client.query('SELECT count(*) FROM checklist_templates');
+      const items = await client.query('SELECT count(*) FROM checklist_items');
+
+      console.log(`📋 Created ${templates.rows[0].count} templates`);
+      console.log(`📝 Created ${items.rows[0].count} checklist items`);
+
+    } finally {
+      client.release();
     }
 
-    // Seed checklist data
-    try {
-      console.log('🌱 Seeding checklist data...');
-      await seedChecklistData();
-      console.log('✅ Checklist data seeded');
-    } catch (error: any) {
-      console.error('❌ Seed error:', error);
-      return createErrorResponse('SEED_ERROR', `Seeding failed: ${error.message}`, 500);
-    }
+    await pool.end();
 
     return createSuccessResponse({
       message: 'Checklist system setup completed successfully',
       steps: [
-        '✅ Database migration completed',
-        '✅ Checklist templates created',
-        '✅ Kitchen/Back tasks added (14 items)',
+        '✅ Database connection established',
+        '✅ Old tables dropped',
+        '✅ Tables created with correct snake_case names',
+        '✅ Indexes and foreign keys added',
+        '✅ Kitchen tasks added (14 items)',
         '✅ Front of House tasks added (25 items)',
         '✅ Barista tasks added (7 items)',
         '📋 Ready to use at /checklists',
-      ],
-      nextSteps: [
-        'Navigate to /checklists to view weekly tasks',
-        'Use /checklists/manage to edit templates',
-        'Staff can mark tasks as complete',
-        'Print weekly layouts for lamination',
       ],
     });
 
   } catch (error: any) {
     console.error('❌ Setup error:', error);
     return createErrorResponse('SETUP_ERROR', error.message, 500);
-  } finally {
-    await prisma.$disconnect();
-  }
-}
-
-async function seedChecklistData() {
-  // Kitchen/Back Tasks
-  const kitchenTemplate = await prisma.checklistTemplate.create({
-    data: {
-      name: 'Kitchen & Back Tasks',
-      description: 'Daily kitchen cleaning and maintenance tasks',
-      section: 'kitchen',
-    }
-  });
-
-  const kitchenItems = [
-    { title: 'Wipe down all prep surfaces', description: 'Clean and sanitize all food prep areas' },
-    { title: 'Clean coffee machine', description: 'Full clean of espresso machine and grinder' },
-    { title: 'Empty dishwasher', description: 'Unload clean dishes and reload' },
-    { title: 'Sweep and mop kitchen floor', description: 'Full floor cleaning' },
-    { title: 'Clean sinks', description: 'Scrub and sanitize all kitchen sinks' },
-    { title: 'Wipe down fridges (exterior)', description: 'Clean all fridge doors and handles' },
-    { title: 'Clean microwave (inside/outside)', description: 'Deep clean microwave interior and exterior' },
-    { title: 'Take out rubbish', description: 'Empty all bins and replace liners' },
-    { title: 'Stack dishwasher', description: 'Load dirty dishes properly' },
-    { title: 'Wash pots and pans', description: 'Hand wash large items that don\'t fit in dishwasher' },
-    { title: 'Clean bench scales', description: 'Wipe down and calibrate if needed' },
-    { title: 'Organize dry storage area', description: 'Tidy and organize storage areas' },
-    { title: 'Check and refill soap dispensers', description: 'Ensure all dispensers are full' },
-    { title: 'Wipe down light switches and door handles', description: 'Sanitize high-touch surfaces' }
-  ];
-
-  for (let i = 0; i < kitchenItems.length; i++) {
-    await prisma.checklistItem.create({
-      data: {
-        ...kitchenItems[i],
-        templateId: kitchenTemplate.id,
-        sortOrder: i + 1,
-      }
-    });
-  }
-
-  // Front of House Tasks  
-  const frontTemplate = await prisma.checklistTemplate.create({
-    data: {
-      name: 'Front of House Tasks',
-      description: 'Customer-facing area maintenance and presentation',
-      section: 'front',
-    }
-  });
-
-  const frontItems = [
-    { title: 'Wipe down all tables and chairs', description: 'Clean and sanitize customer seating areas' },
-    { title: 'Vacuum or sweep floors', description: 'Clean all customer floor areas' },
-    { title: 'Clean windows (inside)', description: 'Wipe down all interior window surfaces' },
-    { title: 'Dust shelves and displays', description: 'Clean product display areas' },
-    { title: 'Organize product displays', description: 'Straighten and organize retail products' },
-    { title: 'Clean entrance door and handles', description: 'Wipe down entry door inside and out' },
-    { title: 'Empty customer bins', description: 'Empty and replace liners in customer areas' },
-    { title: 'Clean and organize counter area', description: 'Tidy checkout and service counter' },
-    { title: 'Wipe down payment terminal', description: 'Clean and sanitize EFTPOS machine' },
-    { title: 'Check and straighten signage', description: 'Ensure all signs are clean and properly positioned' },
-    { title: 'Clean light switches and power points', description: 'Sanitize electrical fixtures' },
-    { title: 'Organize takeaway supplies', description: 'Stock and organize bags, containers, etc.' },
-    { title: 'Clean mirrors (if any)', description: 'Wipe down any mirrors or glass surfaces' },
-    { title: 'Straighten magazines/reading material', description: 'Organize any customer reading materials' },
-    { title: 'Water plants (if any)', description: 'Care for any plants in customer areas' },
-    { title: 'Clean menu boards', description: 'Wipe down and check menu displays' },
-    { title: 'Organize brochures/flyers', description: 'Stock and straighten promotional materials' },
-    { title: 'Check customer seating for damage', description: 'Inspect chairs and tables for issues' },
-    { title: 'Clean phone/communication devices', description: 'Sanitize phones and tablets' },
-    { title: 'Spot clean walls and surfaces', description: 'Address any marks or stains on walls' },
-    { title: 'Check and replace paper towels', description: 'Ensure dispensers are stocked' },
-    { title: 'Clean customer-facing fridge doors', description: 'Wipe down all customer-accessible fridges' },
-    { title: 'Organize and clean weighing scales', description: 'Clean and check customer scales' },
-    { title: 'Check lighting and replace bulbs', description: 'Ensure all lights are working properly' },
-    { title: 'Clean and organize entrance area', description: 'Keep entrance welcoming and tidy' }
-  ];
-
-  for (let i = 0; i < frontItems.length; i++) {
-    await prisma.checklistItem.create({
-      data: {
-        ...frontItems[i],
-        templateId: frontTemplate.id,
-        sortOrder: i + 1,
-      }
-    });
-  }
-
-  // Barista Tasks
-  const baristaTemplate = await prisma.checklistTemplate.create({
-    data: {
-      name: 'Barista Tasks',
-      description: 'Coffee service and barista station maintenance',
-      section: 'barista',
-    }
-  });
-
-  const baristaItems = [
-    { title: 'Clean espresso machine', description: 'Full clean and maintenance of espresso machine' },
-    { title: 'Clean and calibrate grinder', description: 'Clean grinder and check grind settings' },
-    { title: 'Organize coffee station', description: 'Tidy and stock barista work area' },
-    { title: 'Clean milk steaming equipment', description: 'Deep clean steam wands and milk jugs' },
-    { title: 'Check coffee bean supply', description: 'Ensure adequate coffee bean stock' },
-    { title: 'Clean cup and saucer storage', description: 'Organize and clean coffee service items' },
-    { title: 'Wipe down barista station surfaces', description: 'Clean all work surfaces and equipment' }
-  ];
-
-  for (let i = 0; i < baristaItems.length; i++) {
-    await prisma.checklistItem.create({
-      data: {
-        ...baristaItems[i],
-        templateId: baristaTemplate.id,
-        sortOrder: i + 1,
-      }
-    });
   }
 }
 
