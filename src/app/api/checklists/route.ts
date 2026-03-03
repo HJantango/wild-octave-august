@@ -180,38 +180,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { name, description, section, items } = body;
 
-    const template = await prisma.checklistTemplate.create({
-      data: {
-        name,
-        description,
-        section,
-        items: {
-          create: items?.map((item: any, index: number) => ({
-            title: item.title,
-            description: item.description,
-            frequency: item.frequency || 'daily',
-            specificDays: item.specificDays || [],
-            sortOrder: index,
-          })) || [],
-        },
-      },
-      include: {
-        items: {
-          orderBy: { sortOrder: 'asc' },
-        },
-      },
-    });
-
-    return createSuccessResponse(template);
-  } catch (error: any) {
-    console.error('Error creating checklist:', error);
-    return createErrorResponse('CREATE_ERROR', error.message, 500);
-  }
-}
 
 export const dynamic = 'force-dynamic';
