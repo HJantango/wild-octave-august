@@ -211,61 +211,152 @@ export default function ChecklistsPage() {
           </div>
         </div>
 
-        {/* Weekly Grid */}
+        {/* Weekly Grid - Screen View */}
         {weeklyData && (
-          <div className="grid grid-cols-1 print:grid-cols-7 gap-4 print:gap-2">
-            {weeklyData.days.map((day, dayIndex) => (
-              <Card 
-                key={day.date} 
-                className={`print:break-inside-avoid print:shadow-none ${
-                  dayIndex === 6 ? 'print:border-r-0' : ''
-                }`}
-              >
-                <CardHeader className="pb-2 print:pb-1">
-                  <CardTitle className="text-lg print:text-sm font-bold text-center">
-                    {day.dayName}
-                    <div className="text-sm print:text-xs font-normal text-gray-600">
-                      {new Date(day.date).toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 print:space-y-2">
-                  {day.sections.map((section) => (
-                    <div 
-                      key={section.id}
-                      className={`p-3 print:p-2 rounded-lg border ${getSectionColor(section.section)}`}
-                    >
-                      <div className="font-semibold text-sm print:text-xs mb-2 flex items-center gap-1">
-                        <span>{getSectionIcon(section.section)}</span>
-                        {section.name}
+          <div className="block print:hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+              {weeklyData.days.map((day, dayIndex) => (
+                <Card key={day.date} className="break-inside-avoid">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-bold text-center">
+                      {day.dayName}
+                      <div className="text-sm font-normal text-gray-600">
+                        {new Date(day.date).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
                       </div>
-                      <div className="space-y-1">
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {day.sections.map((section) => (
+                      <div 
+                        key={section.id}
+                        className={`p-3 rounded-lg border ${getSectionColor(section.section)}`}
+                      >
+                        <div className="font-semibold text-sm mb-2 flex items-center gap-1">
+                          <span>{getSectionIcon(section.section)}</span>
+                          {section.name}
+                        </div>
+                        <div className="space-y-1">
+                          {section.items.map((item) => (
+                            <div 
+                              key={item.id}
+                              className="flex items-start gap-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={item.completed || false}
+                                onChange={(e) => toggleCompletion(
+                                  item.id, 
+                                  day.date, 
+                                  item.completed || false,
+                                  item.completedBy
+                                )}
+                                className="mt-1"
+                              />
+                              <div className="flex-1">
+                                <div className={item.completed ? 'line-through text-gray-500' : ''}>
+                                  {item.title}
+                                </div>
+                                {item.completed && item.completedBy && (
+                                  <div className="text-xs text-gray-500">
+                                    ✓ {item.completedBy}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {day.sections.length === 0 && (
+                      <div className="text-center text-gray-500 text-sm py-8">
+                        No tasks for this day
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Print Layout - One Page Per Day */}
+        {weeklyData && (
+          <div className="hidden print:block">
+            {weeklyData.days.map((day, dayIndex) => (
+              <div 
+                key={day.date} 
+                className="page-break-before print-page"
+                style={{ pageBreakBefore: dayIndex > 0 ? 'always' : 'auto' }}
+              >
+                {/* Day Header */}
+                <div className="text-center mb-8">
+                  <h2 className="text-4xl font-bold mb-2">
+                    {day.dayName}
+                  </h2>
+                  <div className="text-xl text-gray-700">
+                    {new Date(day.date).toLocaleDateString('en-US', { 
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </div>
+                  <div className="text-lg mt-2 text-gray-600">
+                    Week of {weeklyData.weekStart} to {weeklyData.weekEnd}
+                  </div>
+                </div>
+
+                {/* Sections for this day */}
+                <div className="space-y-8">
+                  {day.sections.map((section) => (
+                    <div key={section.id} className="border-2 border-gray-300 rounded-lg p-6">
+                      {/* Section Header */}
+                      <div className="bg-gray-100 -mx-6 -mt-6 mb-6 px-6 py-4 rounded-t-lg">
+                        <h3 className="text-2xl font-bold flex items-center gap-3">
+                          <span className="text-3xl">{getSectionIcon(section.section)}</span>
+                          {section.name}
+                        </h3>
+                      </div>
+
+                      {/* Task List */}
+                      <div className="grid grid-cols-1 gap-4">
                         {section.items.map((item) => (
                           <div 
                             key={item.id}
-                            className="flex items-start gap-2 text-sm print:text-xs"
+                            className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg"
                           >
-                            <input
-                              type="checkbox"
-                              checked={item.completed || false}
-                              onChange={(e) => toggleCompletion(
-                                item.id, 
-                                day.date, 
-                                item.completed || false,
-                                item.completedBy
-                              )}
-                              className="mt-1 print:accent-black"
-                            />
+                            {/* Large checkbox */}
+                            <div className="flex-shrink-0 mt-1">
+                              <div className="w-6 h-6 border-2 border-black rounded"></div>
+                            </div>
+                            
+                            {/* Task content */}
                             <div className="flex-1">
-                              <div className={item.completed ? 'line-through text-gray-500' : ''}>
+                              <div className="text-lg font-medium">
                                 {item.title}
                               </div>
+                              {item.description && (
+                                <div className="text-sm text-gray-600 mt-1">
+                                  {item.description}
+                                </div>
+                              )}
+                              {item.frequency === 'weekly' && item.specificDays?.length > 0 && (
+                                <div className="text-sm text-blue-600 mt-1 font-medium">
+                                  📅 Weekly: {item.specificDays.join(', ')}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Completion info */}
+                            <div className="flex-shrink-0 w-32 text-right">
                               {item.completed && item.completedBy && (
-                                <div className="text-xs text-gray-500">
-                                  ✓ {item.completedBy}
+                                <div>
+                                  <div className="text-sm font-medium text-green-600">✓ Complete</div>
+                                  <div className="text-xs text-gray-500">{item.completedBy}</div>
                                 </div>
                               )}
                             </div>
@@ -276,12 +367,17 @@ export default function ChecklistsPage() {
                   ))}
                   
                   {day.sections.length === 0 && (
-                    <div className="text-center text-gray-500 text-sm print:text-xs py-8">
-                      No tasks for this day
+                    <div className="text-center text-gray-500 text-xl py-16">
+                      No tasks scheduled for this day
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+
+                {/* Day Footer */}
+                <div className="mt-12 pt-6 border-t-2 border-gray-300 text-center text-sm text-gray-600">
+                  <p>Wild Octave Organics - Daily Checklist - Page {dayIndex + 1} of 7</p>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -295,20 +391,148 @@ export default function ChecklistsPage() {
       {/* Print styles */}
       <style jsx global>{`
         @media print {
-          body { print-color-adjust: exact; }
-          .print\\:grid-cols-7 { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
-          .print\\:text-xs { font-size: 0.75rem !important; }
-          .print\\:text-sm { font-size: 0.875rem !important; }
-          .print\\:space-y-1 > * + * { margin-top: 0.25rem !important; }
-          .print\\:space-y-2 > * + * { margin-top: 0.5rem !important; }
-          .print\\:p-1 { padding: 0.25rem !important; }
-          .print\\:p-2 { padding: 0.5rem !important; }
-          .print\\:pb-1 { padding-bottom: 0.25rem !important; }
-          .print\\:gap-2 { gap: 0.5rem !important; }
-          .print\\:shadow-none { box-shadow: none !important; }
-          .print\\:break-inside-avoid { break-inside: avoid !important; }
-          .print\\:border-r-0 { border-right: 0 !important; }
-          .print\\:accent-black { accent-color: black !important; }
+          /* Page setup */
+          @page {
+            size: A4 portrait;
+            margin: 1cm;
+          }
+          
+          /* Global print settings */
+          body { 
+            print-color-adjust: exact; 
+            -webkit-print-color-adjust: exact;
+          }
+          
+          /* Page break handling */
+          .print-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .page-break-before {
+            break-before: page;
+            page-break-before: always;
+          }
+          
+          /* Hide elements that shouldn't print */
+          .print\\:hidden { display: none !important; }
+          .print\\:block { display: block !important; }
+          
+          /* Prevent breaking inside elements */
+          .print-page > * {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          
+          /* Ensure content doesn't overflow */
+          * {
+            max-width: 100% !important;
+          }
+          
+          /* Typography for print */
+          h1, h2, h3, h4, h5, h6 {
+            font-weight: bold !important;
+            color: black !important;
+          }
+          
+          /* Border and box styling */
+          .border, .border-2, .border-gray-300 {
+            border: 2px solid #000 !important;
+          }
+          
+          .border-gray-200 {
+            border: 1px solid #666 !important;
+          }
+          
+          .rounded, .rounded-lg {
+            border-radius: 8px !important;
+          }
+          
+          .rounded-t-lg {
+            border-radius: 8px 8px 0 0 !important;
+          }
+          
+          /* Background colors */
+          .bg-gray-100 {
+            background-color: #f5f5f5 !important;
+          }
+          
+          /* Text colors */
+          .text-gray-600, .text-gray-700 {
+            color: #666 !important;
+          }
+          
+          .text-gray-500 {
+            color: #777 !important;
+          }
+          
+          .text-blue-600 {
+            color: #1e40af !important;
+          }
+          
+          .text-green-600 {
+            color: #16a34a !important;
+          }
+          
+          /* Spacing */
+          .space-y-8 > * + * { margin-top: 2rem !important; }
+          .space-y-4 > * + * { margin-top: 1rem !important; }
+          .gap-4 { gap: 1rem !important; }
+          .gap-3 { gap: 0.75rem !important; }
+          
+          /* Padding and margin */
+          .p-6 { padding: 1.5rem !important; }
+          .p-4 { padding: 1rem !important; }
+          .px-6 { padding-left: 1.5rem !important; padding-right: 1.5rem !important; }
+          .py-4 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+          .pt-6 { padding-top: 1.5rem !important; }
+          .pb-6 { padding-bottom: 1.5rem !important; }
+          .mb-8 { margin-bottom: 2rem !important; }
+          .mb-6 { margin-bottom: 1.5rem !important; }
+          .mt-12 { margin-top: 3rem !important; }
+          .mt-2 { margin-top: 0.5rem !important; }
+          .mt-1 { margin-top: 0.25rem !important; }
+          .-mx-6 { margin-left: -1.5rem !important; margin-right: -1.5rem !important; }
+          .-mt-6 { margin-top: -1.5rem !important; }
+          
+          /* Flexbox */
+          .flex { display: flex !important; }
+          .flex-1 { flex: 1 1 0% !important; }
+          .flex-shrink-0 { flex-shrink: 0 !important; }
+          .items-start { align-items: flex-start !important; }
+          .items-center { align-items: center !important; }
+          .justify-center { justify-content: center !important; }
+          .flex-col { flex-direction: column !important; }
+          
+          /* Grid */
+          .grid { display: grid !important; }
+          .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+          
+          /* Text alignment */
+          .text-center { text-align: center !important; }
+          .text-right { text-align: right !important; }
+          
+          /* Font sizes */
+          .text-4xl { font-size: 2.25rem !important; line-height: 2.5rem !important; }
+          .text-3xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+          .text-2xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+          .text-xl { font-size: 1.25rem !important; line-height: 1.75rem !important; }
+          .text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
+          .text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+          .text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+          
+          /* Font weights */
+          .font-bold { font-weight: 700 !important; }
+          .font-medium { font-weight: 500 !important; }
+          
+          /* Width and height */
+          .w-6 { width: 1.5rem !important; }
+          .h-6 { height: 1.5rem !important; }
+          .w-32 { width: 8rem !important; }
+          
+          /* Border styles */
+          .border-t-2 { border-top: 2px solid #666 !important; }
         }
       `}</style>
     </DashboardLayout>
