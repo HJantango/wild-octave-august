@@ -76,21 +76,36 @@ export default function ChecklistsPage() {
     try {
       setLoading(true);
       
-      // Try main API first, fallback to simple API
-      let response = await fetch('/api/checklists');
+      // Try multiple endpoints in order
+      const endpoints = [
+        '/api/checklists',
+        '/api/checklists/simple', 
+        '/api/checklists/minimal'
+      ];
       
-      if (!response.ok) {
-        console.log('Main API failed, trying simple API...');
-        response = await fetch('/api/checklists/simple');
+      let data = null;
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Trying ${endpoint}...`);
+          const response = await fetch(endpoint);
+          
+          if (response.ok) {
+            data = await response.json();
+            if (data.success) {
+              console.log(`✅ ${endpoint} worked!`);
+              break;
+            }
+          }
+        } catch (err) {
+          console.log(`❌ ${endpoint} failed:`, err);
+        }
       }
       
-      const data = await response.json();
-      
-      if (data.success) {
+      if (data && data.success) {
         setTemplates(data.data);
         buildWeeklyData(data.data);
       } else {
-        toast.error('Error', 'Failed to load checklists');
+        toast.error('Error', 'All checklist endpoints failed');
       }
     } catch (error) {
       console.error('Load error:', error);
