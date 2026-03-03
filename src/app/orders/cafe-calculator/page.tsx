@@ -35,6 +35,27 @@ interface StockEntry {
   [itemId: string]: number;
 }
 
+// Pack size for items sold by piece but ordered as whole units
+interface PackSizeEntry {
+  packSize: number;
+  unitName: string; // e.g., "cake", "lasagne", "tray"
+}
+
+interface PackSizeConfig {
+  [itemId: string]: PackSizeEntry;
+}
+
+// Default pack size patterns - match by item name substring
+const DEFAULT_PACK_SIZE_PATTERNS: Record<string, PackSizeEntry> = {
+  'cake': { packSize: 12, unitName: 'cake' },
+  'cheesecake': { packSize: 12, unitName: 'cake' },
+  'pie': { packSize: 12, unitName: 'pie' },
+  'tart': { packSize: 8, unitName: 'tart' },
+  'quiche': { packSize: 8, unitName: 'quiche' },
+  'lasagne': { packSize: 12, unitName: 'lasagne' },
+  'lasagna': { packSize: 12, unitName: 'lasagna' },
+};
+
 interface AnalysisResult {
   items: CafeItem[];
   totalItemsSold: number;
@@ -130,6 +151,7 @@ export default function CafeCalculatorPage() {
   const [error, setError] = useState<string | null>(null);
   const [squareWeeks, setSquareWeeks] = useState(6);
   const [currentStock, setCurrentStock] = useState<StockEntry>({});
+  const [packSizes, setPackSizes] = useState<PackSizeConfig>({});
   const [vendorSchedules, setVendorSchedules] = useState<VendorSchedule[]>(DEFAULT_VENDOR_SCHEDULES);
   const [editingSchedule, setEditingSchedule] = useState<string | null>(null);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
@@ -146,6 +168,61 @@ export default function CafeCalculatorPage() {
         console.error('Failed to load saved schedules:', e);
       }
     }
+  }, []);
+
+  // Load saved pack sizes from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('cafe_pack_sizes');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setPackSizes(parsed);
+      } catch (e) {
+        console.error('Failed to load saved pack sizes:', e);
+      }
+    }
+  }, []);
+
+  // Get pack size for an item (check saved first, then default patterns)
+  const getPackSizeForItem = useCallback((itemId: string, itemName: string): PackSizeEntry | null => {
+    // Check if user has explicitly set a pack size
+    if (packSizes[itemId]) {
+      // Return null if explicitly set to 0 (disabled)
+      if (packSizes[itemId].packSize === 0) return null;
+      return packSizes[itemId];
+    }
+    
+    // Check default patterns
+    const nameLower = itemName.toLowerCase();
+    for (const [pattern, config] of Object.entries(DEFAULT_PACK_SIZE_PATTERNS)) {
+      if (nameLower.includes(pattern)) {
+        return config;
+      }
+    }
+    
+    return null;
+  }, [packSizes]);
+
+  // Update pack size for an item
+  const updatePackSize = useCallback((itemId: string, packSize: number, unitName: string) => {
+    setPackSizes(prev => {
+      const updated = {
+        ...prev,
+        [itemId]: { packSize, unitName }
+      };
+      localStorage.setItem('cafe_pack_sizes', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Clear pack size override for an item (use default pattern)
+  const clearPackSizeOverride = useCallback((itemId: string) => {
+    setPackSizes(prev => {
+      const updated = { ...prev };
+      delete updated[itemId];
+      localStorage.setItem('cafe_pack_sizes', JSON.stringify(updated));
+      return updated;
+    });
   }, []);
 
   // Save schedules to localStorage
@@ -224,6 +301,15 @@ export default function CafeCalculatorPage() {
         const stock = currentStock[item.variationId] || 0;
         const weeklyNeed = Math.ceil(item.avgPerWeek);
         const netNeeded = Math.max(0, weeklyNeed - stock);
+        
+        // Get pack size info
+        const packInfo = getPackSizeForItem(item.variationId, item.name);
+        const hasPackSize = packInfo !== null;
+        const packSize = packInfo?.packSize || 1;
+        const unitName = packInfo?.unitName || 'unit';
+        
+        // Calculate units to order (round up)
+        const unitsToOrder = hasPackSize ? Math.ceil(netNeeded / packSize) : netNeeded;
 
         return {
           ...item,
@@ -231,6 +317,11 @@ export default function CafeCalculatorPage() {
           currentStock: stock,
           netNeeded,
           orderQuantity: netNeeded,
+          // Pack size fields
+          hasPackSize,
+          packSize,
+          unitName,
+          unitsToOrder,
         };
       });
     }
@@ -250,6 +341,16 @@ export default function CafeCalculatorPage() {
         shouldOrder = stock <= schedule.whenNeededThreshold;
       }
 
+      // Get pack size info
+      const packInfo = getPackSizeForItem(item.variationId, item.name);
+      const hasPackSize = packInfo !== null;
+      const packSize = packInfo?.packSize || 1;
+      const unitName = packInfo?.unitName || 'unit';
+      
+      // Calculate units to order (round up)
+      const rawUnitsNeeded = hasPackSize ? Math.ceil(netNeeded / packSize) : netNeeded;
+      const unitsToOrder = shouldOrder ? rawUnitsNeeded : 0;
+
       return {
         ...item,
         totalNeeded,
@@ -257,9 +358,14 @@ export default function CafeCalculatorPage() {
         netNeeded,
         orderQuantity: shouldOrder ? netNeeded : 0,
         belowThreshold: schedule.frequency === 'when-needed' && stock <= (schedule.whenNeededThreshold || 0),
+        // Pack size fields
+        hasPackSize,
+        packSize,
+        unitName,
+        unitsToOrder,
       };
     });
-  }, [analysis, currentStock, getVendorSchedule]);
+  }, [analysis, currentStock, getVendorSchedule, getPackSizeForItem]);
 
   // Group items by vendor
   const itemsByVendor = useMemo(() => {
@@ -636,7 +742,8 @@ export default function CafeCalculatorPage() {
                             <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Need</th>
                             <th className="text-center py-2 px-3 font-semibold text-gray-700 w-24">Stock</th>
                             <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Net</th>
-                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-24">Order</th>
+                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Slices</th>
+                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-28">Order</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -674,9 +781,59 @@ export default function CafeCalculatorPage() {
                                 </span>
                               </td>
                               <td className="py-3 px-3 text-center">
-                                <span className={`text-lg font-bold ${item.orderQuantity > 0 ? colorClass?.text : 'text-gray-400'}`}>
-                                  {item.orderQuantity > 0 ? item.orderQuantity : '—'}
-                                </span>
+                                {(item as any).hasPackSize ? (
+                                  <button
+                                    onClick={() => {
+                                      const newSize = prompt(
+                                        `Pack size for "${item.name}"?\n(Enter 0 to disable, or leave blank to use default)`,
+                                        String((item as any).packSize)
+                                      );
+                                      if (newSize !== null) {
+                                        const size = parseInt(newSize) || 0;
+                                        if (size === 0) {
+                                          updatePackSize(item.variationId, 0, '');
+                                        } else {
+                                          const unit = prompt('Unit name (e.g., cake, pie, tray)?', (item as any).unitName) || 'unit';
+                                          updatePackSize(item.variationId, size, unit);
+                                        }
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
+                                    title="Click to edit pack size"
+                                  >
+                                    ÷{(item as any).packSize}
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      const size = prompt(`Set pack size for "${item.name}"?\n(e.g., 12 for a cake with 12 slices)`);
+                                      if (size && parseInt(size) > 0) {
+                                        const unit = prompt('Unit name (e.g., cake, pie, tray)?', 'unit') || 'unit';
+                                        updatePackSize(item.variationId, parseInt(size), unit);
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs hover:bg-gray-200"
+                                    title="Click to set pack size"
+                                  >
+                                    —
+                                  </button>
+                                )}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                {(item as any).hasPackSize && (item as any).unitsToOrder > 0 ? (
+                                  <div>
+                                    <span className={`text-lg font-bold ${colorClass?.text}`}>
+                                      {(item as any).unitsToOrder}
+                                    </span>
+                                    <span className="text-xs text-gray-500 ml-1">
+                                      {(item as any).unitName}{(item as any).unitsToOrder !== 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className={`text-lg font-bold ${item.orderQuantity > 0 ? colorClass?.text : 'text-gray-400'}`}>
+                                    {item.orderQuantity > 0 ? item.orderQuantity : '—'}
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -689,10 +846,18 @@ export default function CafeCalculatorPage() {
                             <td className="py-3 px-3 text-center font-bold text-orange-600">
                               {orderItems.reduce((sum, i) => sum + i.netNeeded, 0)}
                             </td>
+                            <td className="py-3 px-3 text-center text-xs text-gray-500">
+                              pieces
+                            </td>
                             <td className="py-3 px-3 text-center">
-                              <span className={`text-xl font-bold ${colorClass?.text}`}>
-                                {orderItems.reduce((sum, i) => sum + i.orderQuantity, 0)}
-                              </span>
+                              <div className="text-xs text-gray-600">
+                                {orderItems.filter(i => (i as any).hasPackSize && (i as any).unitsToOrder > 0).length > 0 && (
+                                  <span>
+                                    {orderItems.reduce((sum, i) => sum + ((i as any).hasPackSize ? (i as any).unitsToOrder : 0), 0)} whole +{' '}
+                                  </span>
+                                )}
+                                {orderItems.reduce((sum, i) => sum + ((i as any).hasPackSize ? 0 : i.orderQuantity), 0)} pieces
+                              </div>
                             </td>
                           </tr>
                         </tfoot>
