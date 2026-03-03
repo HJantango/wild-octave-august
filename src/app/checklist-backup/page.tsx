@@ -153,18 +153,35 @@ export default function ChecklistBackupPage() {
     <div style={{ fontFamily: 'Arial, sans-serif', margin: '20px' }}>
       <style jsx global>{`
         @media print {
+          * {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: none !important;
+            color: black !important;
+            box-shadow: none !important;
+          }
+          
+          body {
+            font-family: Arial, sans-serif !important;
+            font-size: 10px !important;
+            line-height: 1.2 !important;
+          }
+          
           .no-print { display: none !important; }
           .print-only { display: block !important; }
           
           @page {
             size: A4 portrait;
-            margin: 1.2cm;
+            margin: 0.8cm;
           }
           
           .print-day-page {
             page-break-before: always;
-            min-height: 25cm;
-            display: block;
+            page-break-after: always;
+            height: 26cm;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
           }
           
           .print-day-page:first-child {
@@ -173,75 +190,74 @@ export default function ChecklistBackupPage() {
           
           .print-day-header {
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 3px solid black;
-            padding-bottom: 15px;
+            margin-bottom: 8px !important;
+            border-bottom: 1px solid black;
+            padding-bottom: 3px !important;
           }
           
           .print-day-title {
-            font-size: 32px;
+            font-size: 16px !important;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 1px !important;
+          }
+          
+          .print-day-date {
+            font-size: 9px !important;
+            color: #333 !important;
           }
           
           .print-section {
-            margin-bottom: 20px;
-            border: 2px solid black;
-            border-radius: 8px;
-            padding: 15px;
+            margin-bottom: 6px !important;
+            border: none !important;
             break-inside: avoid;
           }
           
           .print-section-header {
-            background: #f5f5f5;
-            margin: -15px -15px 15px -15px;
-            padding: 12px 15px;
-            border-radius: 6px 6px 0 0;
-            border-bottom: 2px solid black;
+            background: none !important;
+            padding: 2px 0px !important;
+            border-bottom: 1px solid black;
+            margin-bottom: 3px !important;
           }
           
           .print-section-title {
-            font-size: 20px;
+            font-size: 11px !important;
             font-weight: bold;
-            margin: 0;
           }
           
           .print-task {
             display: flex;
             align-items: flex-start;
-            margin-bottom: 10px;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: #fafafa;
+            margin-bottom: 1px !important;
+            padding: 1px 0px !important;
+            border: none !important;
           }
           
           .print-checkbox {
-            width: 18px;
-            height: 18px;
-            border: 2px solid black;
-            border-radius: 3px;
-            margin-right: 12px;
-            margin-top: 1px;
-            background: white;
+            width: 10px !important;
+            height: 10px !important;
+            border: 1px solid black;
+            margin-right: 4px !important;
+            margin-top: 0px !important;
+            background: white !important;
+            flex-shrink: 0;
           }
           
           .print-task-title {
-            font-size: 14px;
-            font-weight: 600;
-            line-height: 1.3;
+            font-size: 8px !important;
+            line-height: 1.0 !important;
+            font-weight: normal !important;
           }
           
           .print-footer {
             position: absolute;
-            bottom: 0.5cm;
+            bottom: 0.2cm;
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 10px;
-            color: #666;
+            font-size: 7px !important;
+            color: #666 !important;
             border-top: 1px solid #ccc;
-            padding-top: 8px;
+            padding-top: 2px !important;
           }
         }
       `}</style>
@@ -335,12 +351,12 @@ export default function ChecklistBackupPage() {
           {weeklyData.days.map((day: any, dayIndex: number) => (
             <div key={day.date} className="print-day-page">
               <div className="print-day-header">
-                <h1 className="print-day-title">{day.dayName}</h1>
-                <div style={{ fontSize: '16px', color: '#333' }}>
+                <div className="print-day-title">{day.dayName}</div>
+                <div className="print-day-date">
                   {new Date(day.date).toLocaleDateString('en-US', { 
-                    year: 'numeric',
-                    month: 'long', 
-                    day: 'numeric' 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
                   })}
                 </div>
               </div>
@@ -348,9 +364,9 @@ export default function ChecklistBackupPage() {
               {day.sections.map((section: any) => (
                 <div key={section.id} className="print-section">
                   <div className="print-section-header">
-                    <h2 className="print-section-title">
+                    <div className="print-section-title">
                       {getSectionIcon(section.section)} {section.name}
-                    </h2>
+                    </div>
                   </div>
 
                   {section.items.map((item: any) => (
@@ -363,9 +379,15 @@ export default function ChecklistBackupPage() {
                   ))}
                 </div>
               ))}
+              
+              {day.sections.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '20px', fontSize: '10px', color: '#999' }}>
+                  No tasks scheduled
+                </div>
+              )}
 
               <div className="print-footer">
-                Wild Octave Organics - {day.dayName} - Page {dayIndex + 1} of 7
+                Wild Octave - {day.dayName} - {dayIndex + 1}/7
               </div>
             </div>
           ))}
