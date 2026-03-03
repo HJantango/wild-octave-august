@@ -56,6 +56,29 @@ const DEFAULT_PACK_SIZE_PATTERNS: Record<string, PackSizeEntry> = {
   'lasagna': { packSize: 12, unitName: 'lasagna' },
 };
 
+// Vendor quota - target number of whole units (cakes) to order
+interface VendorQuota {
+  targetUnits: number; // e.g., 6 cakes
+  packSize: number; // e.g., 12 slices per cake
+  unitName: string; // e.g., "cake"
+}
+
+interface VendorQuotaConfig {
+  [vendorId: string]: VendorQuota;
+}
+
+// Item role - core (always order) vs rotation (swap in/out)
+type ItemRole = 'core' | 'rotation' | 'skip';
+
+interface ItemRoleConfig {
+  [itemId: string]: ItemRole;
+}
+
+// Selected items for ordering
+interface ItemSelectionConfig {
+  [itemId: string]: boolean;
+}
+
 interface AnalysisResult {
   items: CafeItem[];
   totalItemsSold: number;
@@ -152,6 +175,9 @@ export default function CafeCalculatorPage() {
   const [squareWeeks, setSquareWeeks] = useState(6);
   const [currentStock, setCurrentStock] = useState<StockEntry>({});
   const [packSizes, setPackSizes] = useState<PackSizeConfig>({});
+  const [vendorQuotas, setVendorQuotas] = useState<VendorQuotaConfig>({});
+  const [itemRoles, setItemRoles] = useState<ItemRoleConfig>({});
+  const [itemSelections, setItemSelections] = useState<ItemSelectionConfig>({});
   const [vendorSchedules, setVendorSchedules] = useState<VendorSchedule[]>(DEFAULT_VENDOR_SCHEDULES);
   const [editingSchedule, setEditingSchedule] = useState<string | null>(null);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
@@ -224,6 +250,74 @@ export default function CafeCalculatorPage() {
       return updated;
     });
   }, []);
+
+  // Load saved vendor quotas from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('cafe_vendor_quotas');
+    if (saved) {
+      try {
+        setVendorQuotas(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load vendor quotas:', e);
+      }
+    }
+  }, []);
+
+  // Load saved item roles from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('cafe_item_roles');
+    if (saved) {
+      try {
+        setItemRoles(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load item roles:', e);
+      }
+    }
+  }, []);
+
+  // Load saved item selections from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('cafe_item_selections');
+    if (saved) {
+      try {
+        setItemSelections(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load item selections:', e);
+      }
+    }
+  }, []);
+
+  // Update vendor quota
+  const updateVendorQuota = useCallback((vendorId: string, targetUnits: number, packSize: number = 12, unitName: string = 'cake') => {
+    setVendorQuotas(prev => {
+      const updated = { ...prev, [vendorId]: { targetUnits, packSize, unitName } };
+      localStorage.setItem('cafe_vendor_quotas', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Update item role
+  const updateItemRole = useCallback((itemId: string, role: ItemRole) => {
+    setItemRoles(prev => {
+      const updated = { ...prev, [itemId]: role };
+      localStorage.setItem('cafe_item_roles', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Toggle item selection
+  const toggleItemSelection = useCallback((itemId: string) => {
+    setItemSelections(prev => {
+      const updated = { ...prev, [itemId]: !prev[itemId] };
+      localStorage.setItem('cafe_item_selections', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Get item role (default based on sales rank)
+  const getItemRole = useCallback((itemId: string): ItemRole => {
+    return itemRoles[itemId] || 'rotation'; // Default to rotation
+  }, [itemRoles]);
 
   // Save schedules to localStorage
   const saveSchedules = useCallback((schedules: VendorSchedule[]) => {
@@ -392,6 +486,65 @@ export default function CafeCalculatorPage() {
   const allVendors = useMemo(() => {
     return Object.keys(itemsByVendor).sort();
   }, [itemsByVendor]);
+
+  // Calculate vendor summaries (total slices/cakes per week)
+  const vendorSummaries = useMemo(() => {
+    const summaries: Record<string, {
+      totalSlicesPerWeek: number;
+      cakesPerWeek: number;
+      packSize: number;
+      unitName: string;
+      itemCount: number;
+      coreItems: number;
+      rotationItems: number;
+      selectedCount: number;
+      selectedCakes: number;
+    }> = {};
+
+    Object.entries(itemsByVendor).forEach(([vendor, items]) => {
+      const vendorId = vendor.toLowerCase().replace(/\s+/g, '-');
+      const quota = vendorQuotas[vendorId];
+      const packSize = quota?.packSize || 12;
+      const unitName = quota?.unitName || 'cake';
+
+      let totalSlices = 0;
+      let coreCount = 0;
+      let rotationCount = 0;
+      let selectedCount = 0;
+      let selectedSlices = 0;
+
+      items.forEach((item, idx) => {
+        const slicesPerWeek = item.avgPerWeek;
+        totalSlices += slicesPerWeek;
+
+        const role = getItemRole(item.variationId);
+        if (role === 'core') coreCount++;
+        else if (role === 'rotation') rotationCount++;
+
+        // Check if selected (default: top items up to quota are selected)
+        const isSelected = itemSelections[item.variationId] ?? (idx < (quota?.targetUnits || 6));
+        if (isSelected && role !== 'skip') {
+          selectedCount++;
+          // Each selected item = 1 whole unit (cake)
+          selectedSlices += packSize;
+        }
+      });
+
+      summaries[vendor] = {
+        totalSlicesPerWeek: Math.round(totalSlices * 10) / 10,
+        cakesPerWeek: Math.round((totalSlices / packSize) * 10) / 10,
+        packSize,
+        unitName,
+        itemCount: items.length,
+        coreItems: coreCount,
+        rotationItems: rotationCount,
+        selectedCount,
+        selectedCakes: selectedCount, // 1 item = 1 cake for ordering
+      };
+    });
+
+    return summaries;
+  }, [itemsByVendor, vendorQuotas, itemRoles, itemSelections, getItemRole]);
 
   // Update a vendor schedule
   const updateVendorSchedule = (scheduleId: string, updates: Partial<VendorSchedule>) => {
@@ -681,6 +834,10 @@ export default function CafeCalculatorPage() {
               const colorClass = schedule ? COLOR_CLASSES[schedule.color] : COLOR_CLASSES.blue;
               const orderItems = calculateVendorOrder(vendor);
               const isVisible = activeVendorTab === vendor || !activeVendorTab;
+              const vendorId = vendor.toLowerCase().replace(/\s+/g, '-');
+              const summary = vendorSummaries[vendor];
+              const quota = vendorQuotas[vendorId];
+              const targetUnits = quota?.targetUnits ?? Math.round(summary?.cakesPerWeek || 6);
               
               if (!isVisible) return null;
 
@@ -691,7 +848,7 @@ export default function CafeCalculatorPage() {
                 >
                   {/* Vendor Header */}
                   <div className={`${colorClass?.bg || 'bg-gray-500'} text-white p-4`}>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{schedule?.icon || '📦'}</span>
                         <div>
@@ -703,12 +860,6 @@ export default function CafeCalculatorPage() {
                                 {schedule.orderTime && ` by ${schedule.orderTime}`}
                                 {' → '}
                                 Delivery: {schedule.deliveryDay}
-                                {schedule.deliveryTime && ` after ${schedule.deliveryTime}`}
-                                {schedule.frequency !== 'weekly' && (
-                                  <span className="ml-2 px-2 py-0.5 bg-white/20 rounded text-xs">
-                                    {schedule.frequency}
-                                  </span>
-                                )}
                               </>
                             ) : (
                               'No schedule configured'
@@ -716,11 +867,45 @@ export default function CafeCalculatorPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold">
-                          {orderItems.filter(i => i.netNeeded > 0).length}
+                      
+                      {/* Weekly Stats */}
+                      {summary && (
+                        <div className="flex items-center gap-4 bg-white/10 rounded-lg px-4 py-2">
+                          <div className="text-center">
+                            <div className="text-lg font-bold">{summary.totalSlicesPerWeek}</div>
+                            <div className="text-xs opacity-75">slices/wk</div>
+                          </div>
+                          <div className="text-2xl opacity-50">→</div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold">{summary.cakesPerWeek}</div>
+                            <div className="text-xs opacity-75">{summary.unitName}s/wk</div>
+                          </div>
                         </div>
-                        <div className="text-sm opacity-90">items to order</div>
+                      )}
+                      
+                      {/* Order Target */}
+                      <div className="flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2">
+                        <span className="text-sm font-medium">Target:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          value={targetUnits}
+                          onChange={(e) => updateVendorQuota(vendorId, parseInt(e.target.value) || 0)}
+                          className="w-14 px-2 py-1 text-center rounded bg-white text-gray-900 font-bold text-lg"
+                        />
+                        <span className="text-sm">{summary?.unitName || 'cake'}s</span>
+                      </div>
+                      
+                      {/* Selected Count */}
+                      <div className="text-right">
+                        <div className={`text-2xl font-bold ${
+                          (summary?.selectedCount || 0) === targetUnits ? 'text-green-200' : 
+                          (summary?.selectedCount || 0) > targetUnits ? 'text-yellow-200' : ''
+                        }`}>
+                          {summary?.selectedCount || 0}/{targetUnits}
+                        </div>
+                        <div className="text-sm opacity-90">{summary?.unitName || 'cake'}s selected</div>
                       </div>
                     </div>
                   </div>
@@ -737,127 +922,117 @@ export default function CafeCalculatorPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b-2 border-gray-200">
+                            <th className="text-center py-2 px-2 font-semibold text-gray-700 w-10">✓</th>
+                            <th className="text-center py-2 px-2 font-semibold text-gray-700 w-12">Role</th>
                             <th className="text-left py-2 px-3 font-semibold text-gray-700">Item</th>
                             <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Avg/Day</th>
-                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Need</th>
+                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Avg/Wk</th>
                             <th className="text-center py-2 px-3 font-semibold text-gray-700 w-24">Stock</th>
-                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Net</th>
-                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Slices</th>
-                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-28">Order</th>
+                            <th className="text-center py-2 px-3 font-semibold text-gray-700 w-20">Order</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {orderItems.map((item, idx) => (
+                          {orderItems.map((item, idx) => {
+                            const role = getItemRole(item.variationId);
+                            const isSelected = itemSelections[item.variationId] ?? (idx < targetUnits);
+                            const isSkipped = role === 'skip';
+                            
+                            return (
                             <tr
                               key={item.variationId}
-                              className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-gray-50/50' : ''} ${
-                                (item as any).belowThreshold ? 'bg-red-50' : ''
+                              className={`border-b border-gray-100 ${
+                                isSkipped ? 'opacity-40' :
+                                isSelected ? (colorClass?.light || 'bg-blue-50') : 
+                                idx % 2 === 0 ? 'bg-gray-50/50' : ''
                               }`}
                             >
+                              {/* Selection Checkbox */}
+                              <td className="py-3 px-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected && !isSkipped}
+                                  disabled={isSkipped}
+                                  onChange={() => toggleItemSelection(item.variationId)}
+                                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                />
+                              </td>
+                              
+                              {/* Role Toggle */}
+                              <td className="py-3 px-2 text-center">
+                                <button
+                                  onClick={() => {
+                                    const nextRole: ItemRole = role === 'core' ? 'rotation' : role === 'rotation' ? 'skip' : 'core';
+                                    updateItemRole(item.variationId, nextRole);
+                                  }}
+                                  className={`text-lg ${
+                                    role === 'core' ? 'text-yellow-500' : 
+                                    role === 'skip' ? 'text-gray-300' : 'text-blue-400'
+                                  }`}
+                                  title={role === 'core' ? 'Core (always order)' : role === 'skip' ? 'Skip (never order)' : 'Rotation (swap in/out)'}
+                                >
+                                  {role === 'core' ? '⭐' : role === 'skip' ? '⊘' : '🔄'}
+                                </button>
+                              </td>
+                              
+                              {/* Item Name */}
                               <td className="py-3 px-3">
-                                <div className="font-medium text-gray-900">{item.name}</div>
+                                <div className={`font-medium ${isSkipped ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                                  {item.name}
+                                </div>
                                 {item.variationName !== item.name && (
                                   <div className="text-xs text-gray-500">{item.variationName}</div>
                                 )}
                               </td>
+                              
+                              {/* Avg/Day */}
                               <td className="py-3 px-3 text-center text-sm text-gray-600">
                                 {item.avgPerDay.toFixed(1)}
                               </td>
-                              <td className="py-3 px-3 text-center font-medium">
-                                {item.totalNeeded}
+                              
+                              {/* Avg/Week (slices) */}
+                              <td className="py-3 px-3 text-center text-sm text-gray-600">
+                                {item.avgPerWeek.toFixed(0)}
                               </td>
+                              
+                              {/* Stock */}
                               <td className="py-3 px-3 text-center">
                                 <input
                                   type="number"
                                   min="0"
                                   value={currentStock[item.variationId] || 0}
                                   onChange={(e) => updateStock(item.variationId, parseInt(e.target.value) || 0)}
-                                  className="w-16 px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                  className="w-14 px-2 py-1 text-center border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500"
                                 />
                               </td>
+                              
+                              {/* Order (1 unit per selected item) */}
                               <td className="py-3 px-3 text-center">
-                                <span className={`font-medium ${item.netNeeded > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                                  {item.netNeeded}
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 text-center">
-                                {(item as any).hasPackSize ? (
-                                  <button
-                                    onClick={() => {
-                                      const newSize = prompt(
-                                        `Pack size for "${item.name}"?\n(Enter 0 to disable, or leave blank to use default)`,
-                                        String((item as any).packSize)
-                                      );
-                                      if (newSize !== null) {
-                                        const size = parseInt(newSize) || 0;
-                                        if (size === 0) {
-                                          updatePackSize(item.variationId, 0, '');
-                                        } else {
-                                          const unit = prompt('Unit name (e.g., cake, pie, tray)?', (item as any).unitName) || 'unit';
-                                          updatePackSize(item.variationId, size, unit);
-                                        }
-                                      }
-                                    }}
-                                    className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs hover:bg-purple-200"
-                                    title="Click to edit pack size"
-                                  >
-                                    ÷{(item as any).packSize}
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => {
-                                      const size = prompt(`Set pack size for "${item.name}"?\n(e.g., 12 for a cake with 12 slices)`);
-                                      if (size && parseInt(size) > 0) {
-                                        const unit = prompt('Unit name (e.g., cake, pie, tray)?', 'unit') || 'unit';
-                                        updatePackSize(item.variationId, parseInt(size), unit);
-                                      }
-                                    }}
-                                    className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs hover:bg-gray-200"
-                                    title="Click to set pack size"
-                                  >
-                                    —
-                                  </button>
-                                )}
-                              </td>
-                              <td className="py-3 px-3 text-center">
-                                {(item as any).hasPackSize && (item as any).unitsToOrder > 0 ? (
-                                  <div>
-                                    <span className={`text-lg font-bold ${colorClass?.text}`}>
-                                      {(item as any).unitsToOrder}
-                                    </span>
-                                    <span className="text-xs text-gray-500 ml-1">
-                                      {(item as any).unitName}{(item as any).unitsToOrder !== 1 ? 's' : ''}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span className={`text-lg font-bold ${item.orderQuantity > 0 ? colorClass?.text : 'text-gray-400'}`}>
-                                    {item.orderQuantity > 0 ? item.orderQuantity : '—'}
+                                {isSelected && !isSkipped ? (
+                                  <span className={`text-lg font-bold ${colorClass?.text}`}>
+                                    1
                                   </span>
+                                ) : (
+                                  <span className="text-gray-300">—</span>
                                 )}
                               </td>
                             </tr>
-                          ))}
+                          );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr className={`${colorClass?.light} border-t-2 ${colorClass?.border}`}>
-                            <td colSpan={4} className="py-3 px-3 font-bold text-gray-900">
-                              Total to Order
+                            <td colSpan={2} className="py-3 px-3"></td>
+                            <td className="py-3 px-3 font-bold text-gray-900">
+                              Order Total
                             </td>
-                            <td className="py-3 px-3 text-center font-bold text-orange-600">
-                              {orderItems.reduce((sum, i) => sum + i.netNeeded, 0)}
+                            <td colSpan={2} className="py-3 px-3 text-center text-sm text-gray-600">
+                              {orderItems.reduce((sum, i) => sum + i.avgPerWeek, 0).toFixed(0)} slices/wk demand
                             </td>
-                            <td className="py-3 px-3 text-center text-xs text-gray-500">
-                              pieces
-                            </td>
+                            <td className="py-3 px-3"></td>
                             <td className="py-3 px-3 text-center">
-                              <div className="text-xs text-gray-600">
-                                {orderItems.filter(i => (i as any).hasPackSize && (i as any).unitsToOrder > 0).length > 0 && (
-                                  <span>
-                                    {orderItems.reduce((sum, i) => sum + ((i as any).hasPackSize ? (i as any).unitsToOrder : 0), 0)} whole +{' '}
-                                  </span>
-                                )}
-                                {orderItems.reduce((sum, i) => sum + ((i as any).hasPackSize ? 0 : i.orderQuantity), 0)} pieces
-                              </div>
+                              <span className={`text-xl font-bold ${colorClass?.text}`}>
+                                {summary?.selectedCount || 0} {summary?.unitName || 'cake'}s
+                              </span>
                             </td>
                           </tr>
                         </tfoot>
