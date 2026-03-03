@@ -156,7 +156,7 @@ export default function ChecklistBackupPage() {
           * {
             margin: 0 !important;
             padding: 0 !important;
-            background: transparent !important;
+            background: none !important;
             color: black !important;
             box-shadow: none !important;
             border: none !important;
@@ -173,15 +173,12 @@ export default function ChecklistBackupPage() {
           
           @page {
             size: A4 portrait;
-            margin: 0.5cm;
+            margin: 1cm;
           }
           
           .print-day-page {
             page-break-before: always;
             page-break-after: always;
-            height: 28cm;
-            width: 100%;
-            position: relative;
           }
           
           .print-day-page:first-child {
@@ -190,9 +187,7 @@ export default function ChecklistBackupPage() {
           
           .print-day-header {
             text-align: center;
-            margin-bottom: 4px !important;
-            border-bottom: 1px solid black;
-            padding-bottom: 2px !important;
+            margin-bottom: 5px !important;
           }
           
           .print-day-title {
@@ -206,53 +201,39 @@ export default function ChecklistBackupPage() {
           }
           
           .print-section {
-            margin-bottom: 3px !important;
-            break-inside: avoid;
-          }
-          
-          .print-section-header {
-            padding: 1px 0px !important;
-            border-bottom: 0.5px solid black;
-            margin-bottom: 2px !important;
+            margin-bottom: 5px !important;
           }
           
           .print-section-title {
             font-size: 8px !important;
             font-weight: bold;
+            margin-bottom: 1px !important;
           }
           
           .print-task {
-            display: flex;
-            align-items: flex-start;
             margin-bottom: 0px !important;
-            padding: 0px !important;
+            display: block;
+            line-height: 1.1 !important;
           }
           
           .print-checkbox {
-            width: 7px !important;
-            height: 7px !important;
-            border: 0.5px solid black;
             margin-right: 3px !important;
-            margin-top: 1px !important;
-            background: white !important;
-            flex-shrink: 0;
+            font-size: 6px !important;
+            font-weight: normal !important;
           }
           
           .print-task-title {
             font-size: 6px !important;
             line-height: 1.0 !important;
-            font-weight: normal !important;
           }
           
           .print-footer {
-            position: absolute;
-            bottom: 0.1cm;
+            position: fixed;
+            bottom: 0.5cm;
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 5px !important;
-            border-top: 0.5px solid black;
-            padding-top: 1px !important;
+            font-size: 6px !important;
           }
         }
       `}</style>
@@ -340,7 +321,7 @@ export default function ChecklistBackupPage() {
         ))}
       </div>
 
-      {/* Print Layout */}
+      {/* Print Layout - Simple List Format */}
       {weeklyData && (
         <div style={{ display: 'none' }} className="print-only">
           {weeklyData.days.map((day: any, dayIndex: number) => (
@@ -358,25 +339,23 @@ export default function ChecklistBackupPage() {
 
               {day.sections.map((section: any) => (
                 <div key={section.id} className="print-section">
-                  <div className="print-section-header">
-                    <div className="print-section-title">
-                      {getSectionIcon(section.section)} {section.name}
-                    </div>
+                  <div className="print-section-title">
+                    {getSectionIcon(section.section)} {section.name}
                   </div>
 
                   {section.items.map((item: any) => (
                     <div key={item.id} className="print-task">
-                      <div className="print-checkbox"></div>
-                      <div className="print-task-title">
+                      <span className="print-checkbox">☐</span>
+                      <span className="print-task-title">
                         {item.title}
-                      </div>
+                      </span>
                     </div>
                   ))}
                 </div>
               ))}
               
               {day.sections.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '20px', fontSize: '10px', color: '#999' }}>
+                <div style={{ textAlign: 'center', fontSize: '8px', color: '#999' }}>
                   No tasks scheduled
                 </div>
               )}
