@@ -75,7 +75,15 @@ export default function ChecklistsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/checklists');
+      
+      // Try main API first, fallback to simple API
+      let response = await fetch('/api/checklists');
+      
+      if (!response.ok) {
+        console.log('Main API failed, trying simple API...');
+        response = await fetch('/api/checklists/simple');
+      }
+      
       const data = await response.json();
       
       if (data.success) {
@@ -85,6 +93,7 @@ export default function ChecklistsPage() {
         toast.error('Error', 'Failed to load checklists');
       }
     } catch (error) {
+      console.error('Load error:', error);
       toast.error('Error', 'Failed to load checklists');
     } finally {
       setLoading(false);
