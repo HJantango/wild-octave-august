@@ -21,15 +21,15 @@ const CAFE_VENDORS = [
   'Citris Bliss Icy Poles',
 ];
 
-// Items/vendors to exclude (pies are handled separately)
+// Vendors to exclude entirely (pies are handled in pie-calculator)
 const EXCLUDE_VENDORS = [
   'Byron Bay Gourmet Pies',
   'Byron Gourmet Pies',
 ];
 
+// Items to exclude by name (be specific to avoid false positives)
+// NOTE: Don't exclude 'pie' generically - it blocks Liz Jackson's Pecan Pie, Pumpkin Pie, etc.
 const EXCLUDE_ITEMS = [
-  'pie',
-  'pies',
   'gado gado',
   'samosa',
   'energy roll',
