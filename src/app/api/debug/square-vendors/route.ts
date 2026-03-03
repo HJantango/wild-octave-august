@@ -1,38 +1,94 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { SquareClient, SquareEnvironment } from 'square';
+import { createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
+
+function getSquareClient(): SquareClient {
+  const accessToken = process.env.SQUARE_ACCESS_TOKEN;
+  const environment = process.env.SQUARE_ENVIRONMENT === 'production'
+    ? SquareEnvironment.Production
+    : SquareEnvironment.Sandbox;
+
+  if (!accessToken) {
+    throw new Error('SQUARE_ACCESS_TOKEN environment variable is required');
+  }
+
+  return new SquareClient({
+    token: accessToken,
+    environment,
+  });
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = process.env.SQUARE_ACCESS_TOKEN;
-    if (!accessToken) {
-      return NextResponse.json({ error: 'No Square token' }, { status: 500 });
+    const { searchParams } = request.nextUrl;
+    const search = searchParams.get('search') || 'cake';
+
+    const client = getSquareClient();
+    
+    // Get all vendors
+    const vendorsResponse: any = await client.catalog.list({ types: 'VENDOR' });
+    const vendors = vendorsResponse.result?.objects || vendorsResponse.objects || [];
+    const vendorMap = new Map<string, string>();
+    for (const vendor of vendors) {
+      if (vendor.id && vendor.vendorData?.name) {
+        vendorMap.set(vendor.id, vendor.vendorData.name);
+      }
     }
 
-    const client = new SquareClient({
-      token: accessToken,
-      environment: SquareEnvironment.Production,
+    // Get items matching search
+    const itemsResponse: any = await client.catalog.search({
+      objectTypes: ['ITEM'],
+      query: {
+        textQuery: {
+          keywords: [search],
+        },
+      },
+      limit: 100,
     });
-
-    // Use the Vendors API - search with status filter to get active vendors
-    const response = await client.vendors.search({
-      filter: {
-        status: ['ACTIVE']  // Get all active vendors
+    
+    const items = itemsResponse.result?.objects || itemsResponse.objects || [];
+    
+    const results: any[] = [];
+    
+    for (const item of items) {
+      const itemData = item.itemData;
+      if (!itemData) continue;
+      
+      for (const variation of itemData.variations || []) {
+        const variationData = variation.itemVariationData;
+        const vendorInfos = variationData?.itemVariationVendorInfos || [];
+        const vendorId = vendorInfos[0]?.vendorId;
+        const vendorName = vendorId ? vendorMap.get(vendorId) : null;
+        
+        results.push({
+          itemName: itemData.name,
+          variationName: variationData?.name || 'Regular',
+          variationId: variation.id,
+          hasVendor: !!vendorId,
+          vendorId: vendorId || null,
+          vendorName: vendorName || null,
+        });
       }
-    });
-    const vendors = response.result?.vendors || [];
+    }
+    
+    // Group by vendor
+    const byVendor: Record<string, any[]> = {};
+    for (const r of results) {
+      const v = r.vendorName || 'NO_VENDOR';
+      if (!byVendor[v]) byVendor[v] = [];
+      byVendor[v].push(r);
+    }
 
-    // Search for Heaps Good specifically
-    const heapsMatch = vendors.filter(v => 
-      v.name?.toLowerCase().includes('heap')
-    );
-
-    return NextResponse.json({
-      totalVendors: vendors.length,
-      heapsMatches: heapsMatch.map(v => ({ id: v.id, name: v.name, status: v.status })),
-      allVendors: vendors.map(v => v.name).sort(),
+    return createSuccessResponse({
+      search,
+      totalItems: results.length,
+      vendors: Array.from(vendorMap.entries()).map(([id, name]) => ({ id, name })),
+      byVendor,
+      results,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Debug error:', error);
+    return createErrorResponse('DEBUG_ERROR', error.message, 500);
   }
 }
 
