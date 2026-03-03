@@ -122,15 +122,15 @@ export async function GET(request: NextRequest) {
     }>();
 
     for (const record of filteredSales) {
-      // Use squareCatalogId as key, or generate one from item+variation name
-      const key = record.squareCatalogId || 
-        `${record.itemName}::${record.variationName || 'default'}`;
+      // FIXED: Aggregate by vendor + item name + variation, NOT squareCatalogId
+      // squareCatalogId is unreliable (changes, nulls, duplicates cause wrong aggregation)
+      const key = `${record.vendorName || 'unknown'}::${record.itemName}::${record.variationName || 'default'}`;
 
       if (!itemMap.has(key)) {
         itemMap.set(key, {
-          id: record.squareCatalogId || key,
+          id: key,
           name: record.itemName,
-          variationId: record.squareCatalogId || key,
+          variationId: key,
           variationName: record.variationName || record.itemName,
           vendorId: record.vendorName?.toLowerCase().replace(/\s+/g, '-') || 'unknown',
           vendorName: record.vendorName || 'Unknown Vendor',
