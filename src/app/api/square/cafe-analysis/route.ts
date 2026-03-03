@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
         end: maxDate.toISOString().split('T')[0],
       },
       vendors,
-      categories: CAFE_CATEGORIES,
+      configuredVendors: CAFE_VENDORS,
     });
   } catch (error: any) {
     console.error('❌ Cafe analysis error:', error);
