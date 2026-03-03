@@ -11,7 +11,9 @@ interface ChecklistItem {
   title: string;
   description?: string;
   frequency: string;
+  specific_days?: string[];
   specificDays: string[];
+  sort_order?: number;
 }
 
 interface ChecklistTemplate {
@@ -23,7 +25,7 @@ interface ChecklistTemplate {
 }
 
 const DAYS_OF_WEEK = [
-  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
 ];
 
 const FREQUENCY_OPTIONS = [
@@ -52,7 +54,17 @@ export default function ManageChecklistsPage() {
       const data = await response.json();
       
       if (data.success) {
-        setTemplates(data.data);
+        // Convert weekly items with specific days to 'specific_days' frequency for editing
+        const convertedTemplates = data.data.map((template: ChecklistTemplate) => ({
+          ...template,
+          items: template.items.map(item => ({
+            ...item,
+            frequency: item.frequency === 'weekly' && item.specificDays?.length > 0 
+              ? 'specific_days' 
+              : item.frequency
+          }))
+        }));
+        setTemplates(convertedTemplates);
       } else {
         toast.error('Error', 'Failed to load checklists');
       }
@@ -415,7 +427,7 @@ export default function ManageChecklistsPage() {
                                     updateItem(index, 'specificDays', days);
                                   }}
                                 />
-                                <span className="text-sm capitalize">{day}</span>
+                                <span className="text-sm">{day}</span>
                               </label>
                             ))}
                           </div>

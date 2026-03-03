@@ -200,6 +200,13 @@ export default function ChecklistsPage() {
               <Button onClick={printWeek} variant="outline">
                 🖨️ Print Week
               </Button>
+
+              <Button 
+                onClick={() => window.location.href = '/checklists/manage'}
+                variant="outline"
+              >
+                ⚙️ Manage Lists
+              </Button>
             </div>
           </div>
         </div>

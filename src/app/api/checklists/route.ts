@@ -1,6 +1,88 @@
 import { NextRequest } from 'next/server';
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-utils';
 
+// CREATE new checklist template
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { name, description, section, items } = body;
+
+    if (!name || !section) {
+      return createErrorResponse('VALIDATION_ERROR', 'Name and section are required', 400);
+    }
+
+    const { Pool } = await import('pg');
+    
+    let databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      databaseUrl = 'postgresql://postgres:zzMDCkxGEZsoQWhtsLkhlXrAVgRyytTQ@postgres.railway.internal:5432/railway';
+    }
+
+    const pool = new Pool({
+      connectionString: databaseUrl,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Generate template ID
+      const templateId = `${section}_template_${Date.now()}`;
+
+      // Create template
+      await client.query(`
+        INSERT INTO checklist_templates (id, name, description, section)
+        VALUES ($1, $2, $3, $4)
+      `, [templateId, name, description || null, section]);
+
+      // Insert items
+      for (let i = 0; i < (items || []).length; i++) {
+        const item = items[i];
+        const itemId = `${section}_${String(i + 1).padStart(3, '0')}_${Date.now()}`;
+        
+        // Handle frequency and specific days
+        let frequency = item.frequency || 'daily';
+        let specificDays = item.specificDays || [];
+        
+        // Convert 'specific_days' frequency to 'weekly' for storage
+        if (frequency === 'specific_days' && specificDays.length > 0) {
+          frequency = 'weekly';
+        }
+        
+        await client.query(`
+          INSERT INTO checklist_items 
+          (id, template_id, title, description, frequency, specific_days, sort_order)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [
+          itemId,
+          templateId,
+          item.title,
+          item.description || null,
+          frequency,
+          JSON.stringify(specificDays),
+          i + 1
+        ]);
+      }
+
+      await client.query('COMMIT');
+      return createSuccessResponse({ id: templateId, message: 'Checklist created successfully' });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+      await pool.end();
+    }
+
+  } catch (error: any) {
+    console.error('❌ Error creating checklist:', error);
+    return createErrorResponse('CREATE_ERROR', error.message, 500);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Fetching checklists with direct database connection...');
@@ -71,9 +153,15 @@ export async function GET(request: NextRequest) {
         
         const items = await client.query(itemsQuery, [template.id]);
         
+        // Convert database fields to frontend format
+        const convertedItems = items.rows.map(item => ({
+          ...item,
+          specificDays: item.specific_days ? JSON.parse(item.specific_days) : []
+        }));
+        
         result.push({
           ...template,
-          items: items.rows
+          items: convertedItems
         });
       }
       
