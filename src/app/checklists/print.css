@@ -45,8 +45,8 @@
     page-break-before: always !important;
     page-break-after: always !important;
     font-family: Arial, sans-serif !important;
-    font-size: 7px !important;
-    line-height: 1.1 !important;
+    font-size: 12px !important;
+    line-height: 1.3 !important;
   }
 
   .print-day-page:first-child {
@@ -62,7 +62,7 @@
   }
 
   .print-day-title {
-    font-size: 24px !important;
+    font-size: 32px !important;
     font-weight: bold !important;
     margin-bottom: 0px !important;
   }
@@ -84,22 +84,22 @@
   }
 
   .print-section-title {
-    font-size: 14px !important;
+    font-size: 18px !important;
     font-weight: bold !important;
     text-transform: uppercase !important;
   }
 
   /* Tasks - Better formatting */
   .print-task {
-    margin-bottom: 3px !important;
-    font-size: 11px !important;
-    line-height: 1.3 !important;
-    padding-left: 2mm !important;
+    margin-bottom: 5px !important;
+    font-size: 14px !important;
+    line-height: 1.4 !important;
+    padding-left: 3mm !important;
   }
 
   .print-checkbox {
-    margin-right: 5px !important;
-    font-size: 11px !important;
+    margin-right: 8px !important;
+    font-size: 16px !important;
     font-weight: bold !important;
   }
 
@@ -108,7 +108,7 @@
   }
 
   .print-task-title {
-    font-size: 11px !important;
+    font-size: 14px !important;
     display: inline !important;
   }
 
@@ -117,7 +117,7 @@
   }
 
   .print-task-schedule {
-    font-size: 9px !important;
+    font-size: 12px !important;
     color: #666 !important;
     font-style: italic !important;
   }
