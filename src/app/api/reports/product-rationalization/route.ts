@@ -119,35 +119,6 @@ export async function GET(request: NextRequest) {
 
     console.log(`📊 Found ${salesData.length} Square catalog IDs with sales data`);
 
-    // Debug: Check for Celtic salt sales with different catalog IDs
-    const celticSaltSales = await prisma.squareDailySales.findMany({
-      where: {
-        AND: [
-          { itemName: { contains: 'Celtic', mode: 'insensitive' } },
-          { itemName: { contains: 'Salt', mode: 'insensitive' } },
-        ]
-      },
-      distinct: ['squareCatalogId'],
-      select: { 
-        squareCatalogId: true, 
-        itemName: true,
-      },
-    });
-    
-    console.log(`🧂 Found ${celticSaltSales.length} distinct Celtic salt catalog IDs in sales:`, 
-      celticSaltSales.map(s => ({ id: s.squareCatalogId, name: s.itemName })));
-
-    // Check which ones are linked to Items
-    for (const sale of celticSaltSales) {
-      const linkedItem = await prisma.item.findFirst({
-        where: { squareCatalogId: sale.squareCatalogId },
-        select: { name: true },
-      });
-      if (!linkedItem) {
-        console.log(`🔗 UNLINKED catalog ID: ${sale.squareCatalogId} (${sale.itemName})`);
-      }
-    }
-
     // Build sales lookup by Square catalog ID ONLY
     const salesLookup = new Map<string, { units: number; revenue: number; weeks: number }>();
     
@@ -161,24 +132,29 @@ export async function GET(request: NextRequest) {
       salesLookup.set(sale.squareCatalogId, { units, revenue, weeks });
     }
     
-    // For Celtic salt products specifically, aggregate ALL sales by similar product name
-    // to capture sales from old catalog IDs that might not be linked to current Items
+    // For Celtic salt products, aggregate ALL sales by normalized name using a single grouped query
     const celticSaltByName = new Map<string, { units: number; revenue: number; weeks: number }>();
     
-    for (const sale of celticSaltSales) {
+    // Get aggregated sales for all Celtic salt catalog IDs in one query
+    const celticSaltAggregated = await prisma.squareDailySales.groupBy({
+      by: ['squareCatalogId', 'itemName'],
+      where: {
+        AND: [
+          { itemName: { contains: 'Celtic', mode: 'insensitive' } },
+          { itemName: { contains: 'Salt', mode: 'insensitive' } },
+          { date: { gte: startDate, lte: endDate } },
+        ]
+      },
+      _sum: { quantitySold: true, netSalesCents: true },
+      _count: { date: true },
+    });
+    
+    // Normalize and aggregate by product name
+    for (const sale of celticSaltAggregated) {
       const productName = sale.itemName || '';
-      const salesForThisCatalogId = await prisma.squareDailySales.aggregate({
-        where: { 
-          squareCatalogId: sale.squareCatalogId,
-          date: { gte: startDate, lte: endDate },
-        },
-        _sum: { quantitySold: true, netSalesCents: true },
-        _count: { date: true },
-      });
-      
-      const units = Number(salesForThisCatalogId._sum.quantitySold) || 0;
-      const revenue = (salesForThisCatalogId._sum.netSalesCents || 0) / 100;
-      const weeks = salesForThisCatalogId._count.date || 0;
+      const units = Number(sale._sum.quantitySold) || 0;
+      const revenue = (sale._sum.netSalesCents || 0) / 100;
+      const weeks = sale._count.date || 0;
       
       // Normalize product name for matching
       const normalizedName = productName
@@ -200,8 +176,10 @@ export async function GET(request: NextRequest) {
         celticSaltByName.set(normalizedName, { units, revenue, weeks });
       }
       
-      console.log(`🧂 ${productName} (${sale.squareCatalogId}): ${units} units, $${revenue.toFixed(2)} → normalized: "${normalizedName}"`);
+      console.log(`🧂 ${productName}: ${units} units, $${revenue.toFixed(2)} → normalized: "${normalizedName}"`);
     }
+    
+    console.log(`🧂 Celtic salt aggregation complete: ${celticSaltByName.size} unique normalized names`);
 
     // Get existing decisions
     const decisions = await prisma.productDecision.findMany({
