@@ -80,9 +80,9 @@ export async function GET(request: NextRequest) {
     const shelfLabel = searchParams.get('shelfLabel') || null;
     const category = searchParams.get('category') || null;
 
-    // Calculate date range - ALWAYS start from when Square was installed (May 21, 2025)
+    // Calculate date range - ALWAYS start from when sales began (March 22, 2025)
     const endDate = new Date();
-    const startDate = new Date('2025-05-21'); // Square POS installation date
+    const startDate = new Date('2025-03-22'); // First day of sales data
 
     // Get all items with optional filtering
     const where: any = {};
@@ -131,8 +131,6 @@ export async function GET(request: NextRequest) {
       
       salesLookup.set(sale.squareCatalogId, { units, revenue, weeks });
     }
-    
-    // Celtic salt aggregation disabled temporarily - using standard catalog ID matching only
 
     // Get existing decisions
     const decisions = await prisma.productDecision.findMany({
@@ -147,7 +145,7 @@ export async function GET(request: NextRequest) {
     // Find similar product groups
     const similarGroups = findSimilarGroups(items.map(i => ({ id: i.id, name: i.name })));
 
-    // Calculate weeks since Square installation (May 21, 2025)
+    // Calculate weeks since opening (March 22, 2025)
     const weeksInPeriod = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
 
     let itemsWithSales = 0;
