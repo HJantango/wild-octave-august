@@ -20,17 +20,12 @@ const navigation: NavItem[] = [
     icon: '🛒',
     submenu: [
       { name: '📆 6 Week Sales Order', href: '/orders' },
-      { name: '📈 Extended Sales Analysis', href: '/orders/extended' },
       { name: '🥧 Pie Calculator', href: '/orders/pie-calculator' },
       { name: '☕ Cafe Calculator', href: '/orders/cafe-calculator' },
       { name: '📝 Purchase Orders', href: '/ordering/purchase-orders' },
       { name: '🗓️ Order Calendar', href: '/ordering/calendar' },
       { name: '🚚 Vendor Schedules', href: '/ordering/vendor-schedules' },
       { name: '☕ Cafe Schedule', href: '/ordering/cafe-schedule' },
-      { name: '🤖 AI Smart Order', href: '/ordering/suggestions' },
-      { name: '📜 Invoice Based Suggestions', href: '/ordering/historical' },
-      { name: '📦 Manage Inventory', href: '/ordering/inventory' },
-      { name: '🏢 Vendor Settings', href: '/ordering/vendors' },
     ],
   },
   {
@@ -70,6 +65,7 @@ const navigation: NavItem[] = [
       { name: '🏷️ Shelf Price Checker', href: '/shelf-price-checker' },
       { name: '📦 Product Rationalization', href: '/rationalization' },
       { name: '🎯 Markup Checker', href: '/markup-checker' },
+      { name: '🧮 Markup Calculator', href: '/calculator' },
       { name: '💹 Profit Margins', href: '/reports/margins' },
       { name: '🏆 Vendor Performance', href: '/reports/vendor-performance' },
       { name: '🗑️ Wastage & Discounts', href: '/reports/wastage-discounts' },
@@ -78,14 +74,6 @@ const navigation: NavItem[] = [
     ],
   },
   { name: 'Items', href: '/items', icon: '📋' },
-  {
-    name: 'Calculators',
-    icon: '🧮',
-    submenu: [
-      { name: '💰 Markup Calculator', href: '/calculator' },
-      { name: '🥧 Pie Calculator', href: '/orders/pie-calculator' },
-    ],
-  },
   { name: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 
