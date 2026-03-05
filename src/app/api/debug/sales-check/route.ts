@@ -100,65 +100,6 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
-    // 11. Celtic salt analysis - find all Celtic salt products
-    const celticItems = await prisma.item.findMany({
-      where: {
-        AND: [
-          { name: { contains: 'Celtic', mode: 'insensitive' } },
-          { name: { contains: 'Salt', mode: 'insensitive' } },
-        ]
-      },
-      select: { id: true, name: true, squareCatalogId: true, squareVariationId: true },
-    });
-
-    const celticItemsWithSales = await Promise.all(celticItems.map(async (item) => {
-      let sales = { units: 0, revenue: 0, records: 0 };
-      if (item.squareCatalogId) {
-        const agg = await prisma.squareDailySales.aggregate({
-          where: { squareCatalogId: item.squareCatalogId },
-          _sum: { quantitySold: true, netSalesCents: true },
-          _count: true,
-        });
-        sales = {
-          units: Number(agg._sum.quantitySold) || 0,
-          revenue: (agg._sum.netSalesCents || 0) / 100,
-          records: agg._count,
-        };
-      }
-      return { name: item.name, squareCatalogId: item.squareCatalogId, ...sales };
-    }));
-
-    // Find all Celtic sales in SquareDailySales (might have unlinked catalog IDs)
-    const celticSalesDistinct = await prisma.squareDailySales.findMany({
-      where: {
-        OR: [
-          { productName: { contains: 'Celtic', mode: 'insensitive' } },
-          { itemName: { contains: 'Celtic', mode: 'insensitive' } },
-        ]
-      },
-      distinct: ['squareCatalogId'],
-      select: { squareCatalogId: true, productName: true, itemName: true },
-    });
-
-    const celticSalesByCatalogId = await Promise.all(celticSalesDistinct.map(async (s) => {
-      const agg = await prisma.squareDailySales.aggregate({
-        where: { squareCatalogId: s.squareCatalogId },
-        _sum: { quantitySold: true, netSalesCents: true, grossSalesCents: true },
-      });
-      const linkedItem = await prisma.item.findFirst({
-        where: { squareCatalogId: s.squareCatalogId },
-        select: { name: true },
-      });
-      return {
-        name: s.productName || s.itemName,
-        squareCatalogId: s.squareCatalogId,
-        units: Number(agg._sum.quantitySold) || 0,
-        netRevenue: (agg._sum.netSalesCents || 0) / 100,
-        grossRevenue: (agg._sum.grossSalesCents || 0) / 100,
-        linkedToItem: linkedItem?.name || 'NOT LINKED',
-      };
-    }));
-
     return NextResponse.json({
       salesData: {
         totalRecords: salesCount,
@@ -210,13 +151,6 @@ export async function GET(request: NextRequest) {
         vendor: s.vendorName,
         category: s.category,
       })),
-      celticSaltAnalysis: {
-        itemsTable: celticItemsWithSales,
-        salesTable: celticSalesByCatalogId,
-        diagnosis: celticItems.length !== celticSalesDistinct.length 
-          ? `Mismatch: ${celticItems.length} Items vs ${celticSalesDistinct.length} unique sales catalog IDs`
-          : 'Counts match',
-      },
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
