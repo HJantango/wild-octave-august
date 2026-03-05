@@ -132,54 +132,7 @@ export async function GET(request: NextRequest) {
       salesLookup.set(sale.squareCatalogId, { units, revenue, weeks });
     }
     
-    // For Celtic salt products, aggregate ALL sales by normalized name using a single grouped query
-    const celticSaltByName = new Map<string, { units: number; revenue: number; weeks: number }>();
-    
-    // Get aggregated sales for all Celtic salt catalog IDs in one query
-    const celticSaltAggregated = await prisma.squareDailySales.groupBy({
-      by: ['squareCatalogId', 'itemName'],
-      where: {
-        AND: [
-          { itemName: { contains: 'Celtic', mode: 'insensitive' } },
-          { itemName: { contains: 'Salt', mode: 'insensitive' } },
-          { date: { gte: startDate, lte: endDate } },
-        ]
-      },
-      _sum: { quantitySold: true, netSalesCents: true },
-      _count: { date: true },
-    });
-    
-    // Normalize and aggregate by product name
-    for (const sale of celticSaltAggregated) {
-      const productName = sale.itemName || '';
-      const units = Number(sale._sum.quantitySold) || 0;
-      const revenue = (sale._sum.netSalesCents || 0) / 100;
-      const weeks = sale._count.date || 0;
-      
-      // Normalize product name for matching
-      const normalizedName = productName
-        .toLowerCase()
-        .replace(/salt of the earth/gi, '')
-        .replace(/celtic/gi, '')
-        .replace(/salt/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      if (celticSaltByName.has(normalizedName)) {
-        const existing = celticSaltByName.get(normalizedName)!;
-        celticSaltByName.set(normalizedName, {
-          units: existing.units + units,
-          revenue: existing.revenue + revenue,
-          weeks: Math.max(existing.weeks, weeks),
-        });
-      } else {
-        celticSaltByName.set(normalizedName, { units, revenue, weeks });
-      }
-      
-      console.log(`🧂 ${productName}: ${units} units, $${revenue.toFixed(2)} → normalized: "${normalizedName}"`);
-    }
-    
-    console.log(`🧂 Celtic salt aggregation complete: ${celticSaltByName.size} unique normalized names`);
+    // Celtic salt aggregation disabled temporarily - using standard catalog ID matching only
 
     // Get existing decisions
     const decisions = await prisma.productDecision.findMany({
@@ -201,59 +154,22 @@ export async function GET(request: NextRequest) {
     let itemsWithoutSales = 0;
     let itemsWithoutSquareId = 0;
 
-    // Build result using Square catalog ID matching + Celtic salt aggregation
+    // Build result using ONLY Square catalog ID matching
     const result: ProductRationalizationItem[] = items.map(item => {
       let sales = { units: 0, revenue: 0, weeks: 0 };
       
-      // Check if this is a Celtic salt product
-      const isCelticSalt = item.name.toLowerCase().includes('celtic') && item.name.toLowerCase().includes('salt');
-      
-      if (isCelticSalt) {
-        // For Celtic salt, try to match by normalized name to capture all sales
-        const normalizedItemName = item.name
-          .toLowerCase()
-          .replace(/salt of the earth/gi, '')
-          .replace(/celtic/gi, '')
-          .replace(/salt/gi, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        const aggregatedSales = celticSaltByName.get(normalizedItemName);
-        if (aggregatedSales) {
-          sales = aggregatedSales;
+      if (item.squareCatalogId) {
+        const saleData = salesLookup.get(item.squareCatalogId);
+        if (saleData) {
+          sales = saleData;
           itemsWithSales++;
-          console.log(`🧂 Celtic salt aggregated match: "${item.name}" → ${sales.units} units, $${sales.revenue.toFixed(2)} (normalized: "${normalizedItemName}")`);
+          console.log(`✅ Square ID match: "${item.name}" → ${sales.units} units, $${sales.revenue.toFixed(2)}`);
         } else {
-          // Fallback to regular catalog ID lookup
-          if (item.squareCatalogId) {
-            const saleData = salesLookup.get(item.squareCatalogId);
-            if (saleData) {
-              sales = saleData;
-              itemsWithSales++;
-              console.log(`✅ Celtic salt catalog ID fallback: "${item.name}" → ${sales.units} units, $${sales.revenue.toFixed(2)}`);
-            } else {
-              itemsWithoutSales++;
-              console.log(`🧂 No aggregated or catalog sales for Celtic salt: "${item.name}"`);
-            }
-          } else {
-            itemsWithoutSales++;
-          }
+          itemsWithoutSales++;
         }
       } else {
-        // Regular product - use catalog ID lookup
-        if (item.squareCatalogId) {
-          const saleData = salesLookup.get(item.squareCatalogId);
-          if (saleData) {
-            sales = saleData;
-            itemsWithSales++;
-            console.log(`✅ Square ID match: "${item.name}" → ${sales.units} units, $${sales.revenue.toFixed(2)}`);
-          } else {
-            itemsWithoutSales++;
-          }
-        } else {
-          itemsWithoutSquareId++;
-          console.log(`❌ No Square catalog ID for: "${item.name}"`);
-        }
+        itemsWithoutSquareId++;
+        console.log(`❌ No Square catalog ID for: "${item.name}"`);
       }
       
       const itemCost = Number(item.currentCostExGst) || 0;
