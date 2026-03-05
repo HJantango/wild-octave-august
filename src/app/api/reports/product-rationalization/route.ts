@@ -123,30 +123,19 @@ export async function GET(request: NextRequest) {
     const celticSaltSales = await prisma.squareDailySales.findMany({
       where: {
         AND: [
-          { 
-            OR: [
-              { productName: { contains: 'Celtic', mode: 'insensitive' } },
-              { itemName: { contains: 'Celtic', mode: 'insensitive' } },
-            ]
-          },
-          {
-            OR: [
-              { productName: { contains: 'Salt', mode: 'insensitive' } },
-              { itemName: { contains: 'Salt', mode: 'insensitive' } },
-            ]
-          }
+          { itemName: { contains: 'Celtic', mode: 'insensitive' } },
+          { itemName: { contains: 'Salt', mode: 'insensitive' } },
         ]
       },
       distinct: ['squareCatalogId'],
       select: { 
         squareCatalogId: true, 
-        productName: true, 
         itemName: true,
       },
     });
     
     console.log(`🧂 Found ${celticSaltSales.length} distinct Celtic salt catalog IDs in sales:`, 
-      celticSaltSales.map(s => ({ id: s.squareCatalogId, name: s.productName || s.itemName })));
+      celticSaltSales.map(s => ({ id: s.squareCatalogId, name: s.itemName })));
 
     // Check which ones are linked to Items
     for (const sale of celticSaltSales) {
@@ -155,7 +144,7 @@ export async function GET(request: NextRequest) {
         select: { name: true },
       });
       if (!linkedItem) {
-        console.log(`🔗 UNLINKED catalog ID: ${sale.squareCatalogId} (${sale.productName || sale.itemName})`);
+        console.log(`🔗 UNLINKED catalog ID: ${sale.squareCatalogId} (${sale.itemName})`);
       }
     }
 
@@ -177,7 +166,7 @@ export async function GET(request: NextRequest) {
     const celticSaltByName = new Map<string, { units: number; revenue: number; weeks: number }>();
     
     for (const sale of celticSaltSales) {
-      const productName = sale.productName || sale.itemName || '';
+      const productName = sale.itemName || '';
       const salesForThisCatalogId = await prisma.squareDailySales.aggregate({
         where: { 
           squareCatalogId: sale.squareCatalogId,
