@@ -88,6 +88,11 @@ export default function ItemDetailPage({ params }: ItemDetailPageProps) {
             </div>
           </div>
           <div className="flex space-x-3">
+            <Link href={`/items/${id}/sales`}>
+              <Button variant="default">
+                📊 Sales Deep Dive
+              </Button>
+            </Link>
             <Button variant="secondary">
               📝 Edit Item
             </Button>
